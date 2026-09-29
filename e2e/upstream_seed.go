@@ -158,6 +158,28 @@ func ensureDatabasePath(lines []string, dbPath string) []string {
 	return append(lines, "databasePath: "+dbPath)
 }
 
+// splitYAMLLines flattens a fixture's config lines so that one element is one
+// line, whatever the caller passed.
+//
+// extractUpstreamYAML is prefix-matched and line-oriented, so an element holding
+// a whole multi-line document is not merely unparsed — it is *destroyed*. Such an
+// element starts with "upstreams:" (dedent trims the leading newline), which
+// matches, which drops the element and every other section inside it. That is
+// how the cap-drop spec ended up with a config of nothing but `databasePath:`,
+// silently, running on default ports against default upstreams.
+//
+// Most callers already split, via createBlockyContainerFromString. Normalising
+// here means the ones that do not are merely inconsistent rather than broken.
+func splitYAMLLines(lines []string) []string {
+	out := make([]string, 0, len(lines))
+
+	for _, l := range lines {
+		out = append(out, strings.Split(l, "\n")...)
+	}
+
+	return out
+}
+
 // prepareBlockyConfig turns a test fixture's YAML lines into the two files a
 // blocky container needs: the config.yml to mount, with any `upstreams:` block
 // stripped out, and the seeded SQLite config store that block was moved into.
@@ -169,7 +191,7 @@ func ensureDatabasePath(lines []string, dbPath string) []string {
 // first ran in CI and they failed at startup; centralising it here is what keeps
 // the next one from being written the same way.
 func prepareBlockyConfig(lines []string) (confFile string, store testcontainers.ContainerFile, err error) {
-	seed, strippedLines := extractUpstreamYAML(lines)
+	seed, strippedLines := extractUpstreamYAML(splitYAMLLines(lines))
 	strippedLines = ensureDatabasePath(strippedLines, containerConfigDBPath)
 
 	dbFile, err := seedUpstreamDB(seed)

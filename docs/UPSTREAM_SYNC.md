@@ -250,7 +250,7 @@ What the run found instead was larger and in a different place.
 
 ### 3.4b The e2e fixtures and the config store — 43 failures, one cause
 
-First CI run: **119 passed, 43 failed** of 162. Attribution: **pre-existing, not merge damage.**
+First CI run: **119 passed, 43 failed** of 162; **123 passed, 39 failed** after the fixes below. Attribution: **pre-existing, not merge damage.**
 Nothing in the four merged PRs caused these, and nothing in the job that found them did either. The
 cause is that §3.4's design divergence was never reconciled with the e2e fixtures, which was
 possible only because the suite never ran.
@@ -276,7 +276,8 @@ That single cause covers all four observed classes:
 | customDNS never applies | 5 | `custom_dns_test.go:52` expects `printer.lan A 192.168.178.3`, gets NXDOMAIN. |
 | `/api/*` answers 401 | 4 | `api_test.go:77` — `Expected 401 to equal 200`. |
 
-Phase 9 fixed the four failures that were *not* this cause, since they were cheap and unambiguous:
+Phase 9 fixed the four failures that were *not* this cause. Each was cheap, unambiguous, and had
+been invisible for exactly as long as the suite had gone unrun:
 
 - **Two container builders skipped the bridge entirely** and so exited 1 at startup on
   `additional properties 'upstreams' not allowed`: `createBlockyContainerWithCapDrop` in
@@ -285,6 +286,15 @@ Phase 9 fixed the four failures that were *not* this cause, since they were chea
 - **`createBlockyContainerWithCapDrop` pointed its healthcheck at `/app/blocky`**, which is
   upstream's binary name. The rebranded image installs `/app/blockasaurus`, so that container could
   never have gone healthy even with a valid config.
+- **A whole fixture could be silently deleted by the bridge.** `extractUpstreamYAML` is
+  line-oriented and prefix-matched, but the cap-drop spec passed its entire document as a *single*
+  variadic element. `dedent` trims the leading newline, so that element begins with `upstreams:`,
+  which matches — and the matching branch drops the element, taking `ports:` and everything else
+  with it. The result was not an error: the container came up healthy-looking on the default `:53`
+  against the store's built-in `1.1.1.1`, and only the healthcheck's explicit port revealed it.
+  `splitYAMLLines` now normalises at the choke point, and `e2e/upstream_seed_test.go` pins the
+  behavior with plain Go tests that need no container. This is the one to remember: the failure mode
+  of this bridge is a *wrong* configuration, not a rejected one.
 - **`e2e/rate_limit_test.go` asserted `blocky_rate_limit_drops_total`** — a metric rename the sync
   missed. The fork registers `blockasaurus_rate_limit_drops_total`, and the run's own metrics dump
   shows it at `{protocol="TCP"} 1`, so the rate limiter was working and only the assertion was
@@ -293,7 +303,11 @@ Phase 9 fixed the four failures that were *not* this cause, since they were chea
 
 The remaining 39 are held in the §3a baseline. Fixing them means teaching the bridge to seed
 `blocking:` and `customDNS:` into the store, and giving the API specs a session — real work, its own
-issue, not something to improvise inside a documentation phase.
+issue, not something to improvise inside a documentation phase. **GRA-649** tracks it, and its first
+question is not a test question: whether the overlay should *merge* rather than replace when a store
+section is empty. If it should, most of these 39 fix themselves and §3.4 needs to say so; if it
+should not, §3.4 needs to say that instead, because an operator running both a YAML file and a store
+loses the YAML's blocking config today with nothing documenting it.
 
 What Phase 6 *could* establish without Docker: the suite compiles (`go vet ./e2e/`, `go test -c`),
 `ginkgo --dry-run --label-filter=e2e` enumerates all 162 specs with no tree errors, and every
@@ -487,11 +501,11 @@ piece of work, so the job would otherwise have had to be either permanently red
 deferral already got us).
 
 Instead `e2e/failing-baseline.txt` records the known-failing specs by name and
-`tools/e2ebaseline` adjudicates the run against it. The job fails when a spec
-outside the list fails — a regression — **and** when a spec inside the list
-passes, which forces the list to shrink as things are fixed rather than rot into
-a record of specs nobody runs. Same shape as §9's lint baseline: record what is
-broken, say why, and notice the moment it moves.
+`tools/e2ebaseline` adjudicates the run against it; **GRA-649** is the burn-down.
+The job fails when a spec outside the list fails — a regression — **and** when a
+spec inside the list passes, which forces the list to shrink as things are fixed
+rather than rot into a record of specs nobody runs. Same shape as §9's lint
+baseline: record what is broken, say why, and notice the moment it moves.
 
 `make e2e-test` ignores the baseline and reports the raw result; that is the one
 to run when you want the truth rather than the gate. What the baseline does *not*
@@ -691,7 +705,7 @@ Each phase ends at a gate. Do not start a phase before its gate passes.
 | 3. Config + CLI | `config/config.go`, `config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`. Regenerate enums and `docs/config.schema.json`. | `go build ./config/... ./cmd/...`, config tests green. | 1d |
 | 4. Resolver chain | `resolver/blocking_resolver.go`, `metrics_resolver.go`, `query_logging_resolver.go`, plus semantic review of the cleanly-merged `caching_resolver.go`, `dnssec/validator.go`, `querylog/*`, `util/edns0.go`, `model/models.go`. Re-establish our redis and broadcaster injection against upstream's new signatures (§3.2) and our client-group attribution against upstream's new matcher (§3.3). | `go test ./resolver/... ./querylog/... ./util/...` green. | 2–3d |
 | 5. Server + API | `server/server.go`, `http.go`, `server_endpoints.go`. Reconcile admin ports and the UI router with upstream's HTTP/3 and PROXY-protocol listeners. Apply D1. Regenerate `api/*.gen.go` and mocks. | `go build ./...`, `go test ./server/... ./api/...` green. Server starts without a route-registration panic. | 1–1.5d |
-| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Partial — and the e2e half is executed, not verified.** Non-e2e suite, lint (§9) and the SPA build are green. The e2e suite went unrun through Phases 5–8 for want of a container runtime; Phase 9 made it *run* (in CI) and it came up **119 passed, 43 failed**. The failures are attributed in §3.4a and held in the §3a baseline. So this gate is honestly open: 43 specs' worth of behavior in the merged tree has still never been confirmed. | 0.5–1d |
+| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Partial — and the e2e half is executed, not verified.** Non-e2e suite, lint (§9) and the SPA build are green. The e2e suite went unrun through Phases 5–8 for want of a container runtime; Phase 9 made it *run* (in CI): **119/162** on the first run, **123/162** after Phase 9 fixed the failures that were not the §3.4b cause. The remaining 39 are attributed in §3.4b and held at the §3a baseline (GRA-649). So this gate is honestly open: 39 specs' worth of behavior in the merged tree has still never been confirmed. | 0.5–1d |
 | 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. **Done — `docs/upstream-sync/behavioral-replay-2026-09.md`.** Phase 0 left no capture to replay, so both trees were built and run side by side instead; six deltas, all attributable. | 0.5d |
 | 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. **Done — `docs/upstream-sync/port-checklist-2026-09.md`.** All 50 items settled — 6 by the Phase 7 replay, 41 newly by live probe or benchmark, 3 by code path. Two block types (`769d908`'s `refused`, and the documented comma-separated custom-IP form) were present but unreachable through the fork's config surface and needed a fix. | 0.5d |
 | 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. Stand up the e2e gate in CI. Wire the §8 cadence. | **Done.** The merge is `9e12f21` (PRs #7–#10); the e2e gate and these doc corrections are PR #11. The gate is the `e2e` job in `.github/workflows/ci.yml`, held at a recorded baseline (§3a); the cadence is a scheduled Multica autopilot (§8). Deliberately *not* done: no `VERSION` bump, no tag — §10. Handed on rather than done: the 43 e2e failures (§3.4a). | 0.5d |
@@ -783,18 +797,19 @@ data instead (§4b). The rest of `createQueryResolver` is position-for-position 
 
 Keep this current — it is what makes the *next* sync cheap.
 
-`.fork-additions` is the machine-checked half of this register: 159 paths, every one of them a file
+`.fork-additions` is the machine-checked half of this register: 160 paths, every one of them a file
 that exists here and not in upstream `2bb9b70`, verified present and non-empty by
 `make check-fork-additions` on every CI run. This section is the human-readable half — the same set
 grouped by *why* it exists, plus the part a file list cannot express: the upstream files we hold
 patches in. When they disagree, `.fork-additions` is right; `make check-fork-additions-sync`
 regenerates it against a fetched `upstream/main`.
 
-**Manifest drift over the sync: 152 → 159.** Phase 0 locked 152 paths (`f3ed700`). Phases 1–8 added
+**Manifest drift over the sync: 152 → 160.** Phase 0 locked 152 paths (`f3ed700`). Phases 1–8 added
 four, all evidence and tooling: `tools/dnsreplay/main.go`,
 `docs/upstream-sync/behavioral-replay-2026-09.md`,
-`docs/upstream-sync/port-checklist-2026-09.md`, and `server/chain_wiring_test.go`. Phase 9 added three
-more, all guardrail machinery: `e2e/failing-baseline.txt` and `tools/e2ebaseline/` (+ its test). Not one
+`docs/upstream-sync/port-checklist-2026-09.md`, and `server/chain_wiring_test.go`. Phase 9 added four
+more, all guardrail machinery: `e2e/failing-baseline.txt`, `tools/e2ebaseline/` (+ its test), and
+`e2e/upstream_seed_test.go`. Not one
 upstream file was dropped at any point.
 
 **Additive, no upstream contact (safe).** Nothing upstream touches these, so they never conflict.
@@ -814,7 +829,7 @@ upstream file was dropped at any point.
 | Branding assets | `assets/` | 2 |
 | Misc | `VERSION`, `util/slug.go` (+test), `docs/api/openapi-config.yaml`, `docs/client_group_endpoints.md` | 5 |
 
-140 files. The remaining 19 are the guardrails and evidence below.
+140 files. The remaining 20 are the guardrails and evidence below.
 
 **Guardrails and evidence (also fork-only, and the set most easily lost by accident).** These are
 listed separately because deleting one does not break a build — it silently removes a check or the
@@ -825,6 +840,8 @@ record a future sync reads:
 - `e2e/failing-baseline.txt` and `tools/e2ebaseline/` (+ its test) — the recorded e2e failure set
   and the tool that adjudicates a run against it (§3a). Deleting either turns the e2e job back into
   a raw red/green, which is how it stops being run.
+- `e2e/upstream_seed_test.go` — plain Go tests (no container) over the seed bridge's parsing, which
+  is the part whose failure mode is a silently wrong config rather than an error (§3.4b).
 - `server/api_contract_test.go`, `server/api_spec_contract_test.go`, `server/chain_wiring_test.go`,
   and their goldens `server/testdata/api_contract.golden` / `api_spec_contract.golden`.
 - `server/server_auth_test.go`, `server/server_endpoints_test.go`, `server/server_lifecycle_test.go`.
