@@ -1,0 +1,15 @@
+# e2e specs that are known to fail, and are deliberately not failing the build.
+#
+# Checked by 'make e2e-test-baseline' via tools/e2ebaseline, which CI runs. The
+# build breaks if a spec outside this list fails (a regression) OR if a spec in
+# this list passes (progress that has to be recorded here). Plain
+# 'make e2e-test' ignores this file and reports the raw truth.
+#
+# One line per spec, exactly as tools/e2ebaseline prints it: the container
+# hierarchy and the spec text joined by single spaces, no [It] marker, no
+# labels. The tool's error output is copy-pasteable into this file.
+#
+# Why there is a baseline at all: the suite had never been run before the CI job
+# landed, and the first run came up 43/162 red from causes that predate it. See
+# docs/UPSTREAM_SYNC.md §3a ("the e2e baseline") for the attribution, and the
+# burn-down issue linked there. This file should only ever get shorter.

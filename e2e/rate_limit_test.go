@@ -162,7 +162,7 @@ var _ = Describe("Per-client rate limiting", func() {
 			Expect(err).Should(Succeed())
 		})
 
-		It("exposes blocky_rate_limit_drops_total > 0", func(ctx context.Context) {
+		It("exposes blockasaurus_rate_limit_drops_total > 0", func(ctx context.Context) {
 			msg := util.NewMsgWithQuestion("example.com.", A)
 			_, _ = doDNSRequest(ctx, blocky, msg)
 			_, _ = doDNSRequest(ctx, blocky, msg)
@@ -183,7 +183,7 @@ var _ = Describe("Per-client rate limiting", func() {
 				lines := strings.Split(string(body), "\n")
 				var foundNonZero bool
 				for _, line := range lines {
-					if strings.HasPrefix(line, "blocky_rate_limit_drops_total{") && !strings.HasSuffix(line, " 0") {
+					if strings.HasPrefix(line, "blockasaurus_rate_limit_drops_total{") && !strings.HasSuffix(line, " 0") {
 						foundNonZero = true
 
 						break

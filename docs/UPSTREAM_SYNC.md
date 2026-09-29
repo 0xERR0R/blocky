@@ -5,7 +5,9 @@ records the measured state of the divergence, the plan for the next sync, and th
 we have intentionally forked so future syncs are cheaper.
 
 **Status: the sync is landed.** PRs #7–#10 merged; the merge itself is `9e12f21` on `main`.
-Phases 0–9 of §5 are complete. `VERSION` is deliberately still `0.34.38` — see §10.
+Every phase in §5 has been worked; **Phase 6 is the one that is not closed** — the e2e suite now
+runs in CI but 39 of its specs fail from a cause that predates the sync (§3.4b), held at a recorded
+baseline (§3a). `VERSION` is deliberately still `0.34.38` — see §10.
 
 Last measured: 2026-09-23, against upstream `main` @ `2bb9b70` (2026-09-21). §1's table is that
 pre-merge measurement and is kept as the record of what the work was; **the merge base for the
@@ -216,7 +218,7 @@ absent, and `config` asserts the loader still rejects the block with a pointer t
 `docs/migration-upstreams.md`. Upstream tests that used `upstreams:` merely as a valid-config
 vehicle were re-pointed at `customDNS.mapping` / `blocking.denylists`.
 
-### 3.4a The e2e config-store mount may never have been runnable
+### 3.4a The e2e config-store mount — the WAL/ownership worry, settled
 
 Recorded in Phase 5, which resolved `e2e/containers.go` but could not run the suite (no Docker in
 the runtime). Not merge damage — it predates the sync — but it is the first thing to check when
@@ -236,15 +238,62 @@ directory is the other half. If the suite fails at startup with a SQLite open or
 the seed to a writable directory — `/app/cache/config.db` is already `--chown=100:100` for exactly
 this kind of use — and pass that path to `ensureDatabasePath`.
 
-**Phase 6 amendment — confirm the premise before applying that recipe.** Phase 6 also had no
-container runtime, so the suite still has not been run. But the "root-owned `0755`" claim above is
-an assumption, not an observation, and it is the part most likely to be wrong: `USER 100` precedes
-`WORKDIR /app` in the Dockerfile, and both the classic builder and BuildKit chown a directory that
-`WORKDIR` has to create to the *current* `USER`. If that holds, `/app` is already `100:100`, WAL
-creates its siblings fine, and moving the seed to `/app/cache` would be churn that fixes nothing.
-So when the gate finally runs: if the suite comes up green, delete this section; if it fails, get
-the actual ownership first (`docker run --rm --entrypoint "" -u 0 blockasaurus-e2e ls -ld /app`, or
-read the layer metadata) before touching `e2e/upstream_seed.go`.
+**Phase 9 — measured. The predicted failure did not happen.** The suite ran for the first time in
+CI (§3a). The Phase 6 amendment was right to flag the "root-owned `0755`" claim as an assumption
+and wrong only in that it hedged: `USER 100` precedes `WORKDIR /app`, BuildKit chowns the directory
+`WORKDIR` creates to the current `USER`, `/app` is therefore already `100:100`, and WAL creates its
+siblings without complaint. Containers came up healthy in ~1s throughout. **Do not apply the
+`/app/cache` recipe above — it would have been churn that fixed nothing.** Kept, rather than
+deleted, as the record of a prediction that was tested.
+
+What the run found instead was larger and in a different place.
+
+### 3.4b The e2e fixtures and the config store — 43 failures, one cause
+
+First CI run: **119 passed, 43 failed** of 162. Attribution: **pre-existing, not merge damage.**
+Nothing in the four merged PRs caused these, and nothing in the job that found them did either. The
+cause is that §3.4's design divergence was never reconciled with the e2e fixtures, which was
+possible only because the suite never ran.
+
+`e2e/upstream_seed.go` bridges exactly one YAML section. It lifts `upstreams:` out of a fixture and
+seeds it into a SQLite config store, because `config/upstreams.go` rejects that block in YAML. But
+the *existence* of a store activates the fork's whole overlay, and the overlay replaces rather than
+merges:
+
+- `configstore/convert.go:35` and `:48-49` rebuild `ClientGroupsBlock`, `Denylists` and
+  `Allowlists` from scratch, and `:108`/`:111` overwrite `BlockType` and `BlockTTL`. Every
+  `blocking:` setting a fixture declared is discarded, and the seeded store has none.
+- `configstore/convert.go:117` — `BuildCustomDNSConfig` "replaces the Mapping in base with DB
+  state". Same for `customDNS:`.
+- `server/server_endpoints.go:290` installs `RequireAuth` `if store != nil`. With a store and no
+  users, every `/api/*` request answers 401 `setup_required`.
+
+That single cause covers all four observed classes:
+
+| Class | Specs | Representative evidence |
+| --- | --- | --- |
+| Blocking never applies | 30 | `blocking_test.go:138` expects `blockeddomain.com A 0.0.0.0`, gets `NOERROR, ANSWER: 0`. `blocking_test.go:68` expects a list-download error in the logs and finds the logs empty — the list was never attempted. |
+| customDNS never applies | 5 | `custom_dns_test.go:52` expects `printer.lan A 192.168.178.3`, gets NXDOMAIN. |
+| `/api/*` answers 401 | 4 | `api_test.go:77` — `Expected 401 to equal 200`. |
+
+Phase 9 fixed the four failures that were *not* this cause, since they were cheap and unambiguous:
+
+- **Two container builders skipped the bridge entirely** and so exited 1 at startup on
+  `additional properties 'upstreams' not allowed`: `createBlockyContainerWithCapDrop` in
+  `e2e/containers.go`, and `hosts_file_test.go`'s hand-built request. Both now go through
+  `prepareBlockyConfig`, which exists so the next hand-built request cannot forget.
+- **`createBlockyContainerWithCapDrop` pointed its healthcheck at `/app/blocky`**, which is
+  upstream's binary name. The rebranded image installs `/app/blockasaurus`, so that container could
+  never have gone healthy even with a valid config.
+- **`e2e/rate_limit_test.go` asserted `blocky_rate_limit_drops_total`** — a metric rename the sync
+  missed. The fork registers `blockasaurus_rate_limit_drops_total`, and the run's own metrics dump
+  shows it at `{protocol="TCP"} 1`, so the rate limiter was working and only the assertion was
+  stale. `metrics/metrics_test.go` cannot catch this: it gates the *registry*, not what a test
+  asserts. `e2e/rate_limit_test.go` belongs in §7's metric-prefix list, and now is.
+
+The remaining 39 are held in the §3a baseline. Fixing them means teaching the bridge to seed
+`blocking:` and `customDNS:` into the store, and giving the API specs a session — real work, its own
+issue, not something to improvise inside a documentation phase.
 
 What Phase 6 *could* establish without Docker: the suite compiles (`go vet ./e2e/`, `go test -c`),
 `ginkgo --dry-run --label-filter=e2e` enumerates all 162 specs with no tree errors, and every
@@ -416,10 +465,38 @@ locally". If you delete or disable that workflow, these guardrails go back to
 being a convention.
 
 The same workflow has a second job, `e2e`, added in Phase 9. It runs
-`make e2e-test`, which builds the container image from the release `Dockerfile`
-and then runs the 162 e2e specs against it. That job is the only thing in this
-repo that exercises the image at all, so deleting it silently restores two gaps
-at once: the e2e suite and "the container has never been built".
+`make e2e-test-baseline`, which `docker buildx build`s the image and then runs
+the 162 e2e specs against it. Deleting it restores two gaps at once: the e2e
+suite, and "`make docker-build`'s image has never been built".
+
+**It is not the release image, and that gap is still open.** `release.yml` runs
+goreleaser, and `.goreleaser.yml` points at `Dockerfile.goreleaser` — a 17-line
+`FROM scratch` wrapper around a prebuilt binary. It has none of `Dockerfile`'s
+substance: no `ui` build stage, no `make build` (so no `BIN_AUTOCAB` and no
+`setcap cap_net_bind_service`), and no seeded `--chown=100:100 /app/cache` and
+`/logs`. Nothing in this repo builds or runs it. So "the e2e job proves the
+container works" is true of the image `make docker-build` produces and false of
+the image the household's DNS actually runs.
+
+### The e2e baseline
+
+The suite's first run in CI was **119 passed, 43 failed** — see §3.4a. None of
+those 43 were caused by the job that found them, and repairing them is its own
+piece of work, so the job would otherwise have had to be either permanently red
+(which trains everyone to ignore CI) or absent (which is where four phases of
+deferral already got us).
+
+Instead `e2e/failing-baseline.txt` records the known-failing specs by name and
+`tools/e2ebaseline` adjudicates the run against it. The job fails when a spec
+outside the list fails — a regression — **and** when a spec inside the list
+passes, which forces the list to shrink as things are fixed rather than rot into
+a record of specs nobody runs. Same shape as §9's lint baseline: record what is
+broken, say why, and notice the moment it moves.
+
+`make e2e-test` ignores the baseline and reports the raw result; that is the one
+to run when you want the truth rather than the gate. What the baseline does *not*
+give you is coverage: 43 specs' worth of behavior is unverified, and staying that
+way is a choice that has to be re-made every time someone reads this section.
 
 ## 4. Decisions — settled
 
@@ -478,9 +555,14 @@ one rejects anything here, and for this route neither does:
   `X-Requested-With`.
 
 So the effective disposition is: an unauthenticated `GET /docs/config.schema.json` returns 200 with
-the schema. The spec at `server/server_test.go:406` demonstrates exactly that — a bare `http.Get`
-with no cookie jar, asserting 200 and the full body. This is the concrete case of §3a's "records
-the identity and order of a middleware chain, never what it does".
+the schema. `TestRequireAuth_NoCookie_NonAPIPassthrough` (`auth/middleware_test.go:192`) is the
+spec that pins the passthrough itself. Note which spec is *not* evidence here: `server_test.go`'s
+"Docs endpoints" case does a bare `http.Get` and asserts 200, but it builds the server with
+`NewServer(ctx, cfg, nil)` (`server/server_test.go:174`) and `server/server_endpoints.go:290` only
+installs the middleware `if store != nil` — so in that suite neither guard is in the chain at all,
+and its green tick says nothing about them. This is the concrete case of §3a's "records the
+identity and order of a middleware chain, never what it does", and citing that spec would have been
+the same error one level up.
 
 It does not change the risk assessment — a checked-in generated artifact with no secrets — but it
 does change the question the owner is being asked, which is now "should an unauthenticated client
@@ -609,10 +691,10 @@ Each phase ends at a gate. Do not start a phase before its gate passes.
 | 3. Config + CLI | `config/config.go`, `config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`. Regenerate enums and `docs/config.schema.json`. | `go build ./config/... ./cmd/...`, config tests green. | 1d |
 | 4. Resolver chain | `resolver/blocking_resolver.go`, `metrics_resolver.go`, `query_logging_resolver.go`, plus semantic review of the cleanly-merged `caching_resolver.go`, `dnssec/validator.go`, `querylog/*`, `util/edns0.go`, `model/models.go`. Re-establish our redis and broadcaster injection against upstream's new signatures (§3.2) and our client-group attribution against upstream's new matcher (§3.3). | `go test ./resolver/... ./querylog/... ./util/...` green. | 2–3d |
 | 5. Server + API | `server/server.go`, `http.go`, `server_endpoints.go`. Reconcile admin ports and the UI router with upstream's HTTP/3 and PROXY-protocol listeners. Apply D1. Regenerate `api/*.gen.go` and mocks. | `go build ./...`, `go test ./server/... ./api/...` green. Server starts without a route-registration panic. | 1–1.5d |
-| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Done, with one deferral.** Non-e2e suite, lint (§9) and the SPA build all green. The e2e suite was *not* run — no container runtime — and stayed deferred through Phases 7 and 8. Closed in Phase 9 by running it in CI instead of by hand. | 0.5–1d |
+| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Partial — and the e2e half is executed, not verified.** Non-e2e suite, lint (§9) and the SPA build are green. The e2e suite went unrun through Phases 5–8 for want of a container runtime; Phase 9 made it *run* (in CI) and it came up **119 passed, 43 failed**. The failures are attributed in §3.4a and held in the §3a baseline. So this gate is honestly open: 43 specs' worth of behavior in the merged tree has still never been confirmed. | 0.5–1d |
 | 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. **Done — `docs/upstream-sync/behavioral-replay-2026-09.md`.** Phase 0 left no capture to replay, so both trees were built and run side by side instead; six deltas, all attributable. | 0.5d |
 | 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. **Done — `docs/upstream-sync/port-checklist-2026-09.md`.** All 50 items settled — 6 by the Phase 7 replay, 41 newly by live probe or benchmark, 3 by code path. Two block types (`769d908`'s `refused`, and the documented comma-separated custom-IP form) were present but unreachable through the fork's config surface and needed a fix. | 0.5d |
-| 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. Stand up the e2e gate in CI. Wire the §8 cadence. | **Done.** PRs #7–#10 merged as `9e12f21`. The e2e gate is a job in `.github/workflows/ci.yml` (§3a); the cadence is a scheduled Multica autopilot (§8). Deliberately *not* done: no `VERSION` bump, no tag — §10. | 0.5d |
+| 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. Stand up the e2e gate in CI. Wire the §8 cadence. | **Done.** The merge is `9e12f21` (PRs #7–#10); the e2e gate and these doc corrections are PR #11. The gate is the `e2e` job in `.github/workflows/ci.yml`, held at a recorded baseline (§3a); the cadence is a scheduled Multica autopilot (§8). Deliberately *not* done: no `VERSION` bump, no tag — §10. Handed on rather than done: the 43 e2e failures (§3.4a). | 0.5d |
 
 **Estimate: 7–9 focused days.** The earlier 3–4 day estimate assumed the fork was additive; the
 trial merge shows three of our integration points sit inside code upstream refactored (§3.2–3.4),
@@ -701,18 +783,19 @@ data instead (§4b). The rest of `createQueryResolver` is position-for-position 
 
 Keep this current — it is what makes the *next* sync cheap.
 
-`.fork-additions` is the machine-checked half of this register: 156 paths, every one of them a file
+`.fork-additions` is the machine-checked half of this register: 159 paths, every one of them a file
 that exists here and not in upstream `2bb9b70`, verified present and non-empty by
 `make check-fork-additions` on every CI run. This section is the human-readable half — the same set
 grouped by *why* it exists, plus the part a file list cannot express: the upstream files we hold
 patches in. When they disagree, `.fork-additions` is right; `make check-fork-additions-sync`
 regenerates it against a fetched `upstream/main`.
 
-**Manifest drift over the sync: 152 → 156.** Phase 0 locked 152 paths (`f3ed700`). The sync added
-four, all of them in the "evidence and tooling" group below: `tools/dnsreplay/main.go`,
+**Manifest drift over the sync: 152 → 159.** Phase 0 locked 152 paths (`f3ed700`). Phases 1–8 added
+four, all evidence and tooling: `tools/dnsreplay/main.go`,
 `docs/upstream-sync/behavioral-replay-2026-09.md`,
-`docs/upstream-sync/port-checklist-2026-09.md`, and `server/chain_wiring_test.go`. Not one upstream
-file was dropped.
+`docs/upstream-sync/port-checklist-2026-09.md`, and `server/chain_wiring_test.go`. Phase 9 added three
+more, all guardrail machinery: `e2e/failing-baseline.txt` and `tools/e2ebaseline/` (+ its test). Not one
+upstream file was dropped at any point.
 
 **Additive, no upstream contact (safe).** Nothing upstream touches these, so they never conflict.
 
@@ -731,7 +814,7 @@ file was dropped.
 | Branding assets | `assets/` | 2 |
 | Misc | `VERSION`, `util/slug.go` (+test), `docs/api/openapi-config.yaml`, `docs/client_group_endpoints.md` | 5 |
 
-140 files. The remaining 16 are the guardrails and evidence below.
+140 files. The remaining 19 are the guardrails and evidence below.
 
 **Guardrails and evidence (also fork-only, and the set most easily lost by accident).** These are
 listed separately because deleting one does not break a build — it silently removes a check or the
@@ -739,11 +822,17 @@ record a future sync reads:
 
 - `.fork-additions` itself, and `.github/workflows/ci.yml` (the unit job *and*, since Phase 9, the
   e2e job — §3a).
+- `e2e/failing-baseline.txt` and `tools/e2ebaseline/` (+ its test) — the recorded e2e failure set
+  and the tool that adjudicates a run against it (§3a). Deleting either turns the e2e job back into
+  a raw red/green, which is how it stops being run.
 - `server/api_contract_test.go`, `server/api_spec_contract_test.go`, `server/chain_wiring_test.go`,
   and their goldens `server/testdata/api_contract.golden` / `api_spec_contract.golden`.
 - `server/server_auth_test.go`, `server/server_endpoints_test.go`, `server/server_lifecycle_test.go`.
-- `e2e/upstream_seed.go` — the YAML-to-config-store bridge that keeps upstream's e2e fixtures
-  working against our §3.4 design divergence. Without it the e2e suite does not run at all.
+- `e2e/upstream_seed.go` — the YAML-to-config-store bridge that lets upstream's e2e fixtures start
+  at all against our §3.4 design divergence. It is also, as of the first CI run, the direct cause
+  of most of the 43 failures in §3.4a: it bridges `upstreams:` and nothing else, so the store it
+  creates blanks every other section the fixtures declare. Load-bearing *and* unfinished — do not
+  read it as solved infrastructure.
 - `tools/dnsreplay/main.go` — the DNS capture/replay tool §8 tells you to run *before* the merge.
 - `docs/UPSTREAM_SYNC.md` (this file) and `docs/upstream-sync/baseline-v0.34.38.md`,
   `behavioral-replay-2026-09.md`, `port-checklist-2026-09.md` — the Phase 0/7/8 evidence.
@@ -766,7 +855,10 @@ this list being read.
 Plus the files patched **only** to carry the metric prefix: `resolver/caching_resolver.go`,
 `resolver/dnssec/validator.go`, `resolver/rate_limiting_resolver.go`,
 `metrics/metrics_event_publisher.go`, `querylog/dnstap_writer.go`, `cache/redis.go`,
-`metrics/metrics_test.go`, `e2e/metrics_test.go`.
+`metrics/metrics_test.go`, `e2e/metrics_test.go`, `e2e/rate_limit_test.go`. The last one was missed
+by this sync and only surfaced when the e2e suite first ran (§3.4b) — `metrics/metrics_test.go`
+gates the registry, so it cannot see a stale metric name inside a *test assertion*. When you add to
+this list, grep the e2e suite too.
 
 **Deliberately deleted:** `cmd/blocking.go`, `cmd/cache.go`, `cmd/lists.go`, `cmd/query.go`
 (+ tests) — replaced by the web UI. Upstream CI workflows other than `release.yml`.
@@ -906,6 +998,15 @@ nothing had ever started.
 `make bump-point` / `make bump-minor` commit, tag *and* push in one target, so there is no
 intermediate state to inspect — which is the other reason not to reach for it casually.
 
-The e2e job added in Phase 9 (§3a) is what clears this. Once it is green on `main`, the image builds
-and the suite passes on every push, and cutting `v0.34.39` becomes an ordinary decision — the
-owner's, not a resolver's. Nothing else in this document blocks it.
+Phase 9 moved this, but did not clear it. What is now true: the image `make docker-build` produces
+builds on every push, it starts, it serves DNS, and 119 e2e specs pass against it. What is still not
+true: 39 specs' worth of blocking, customDNS and API behavior have never been confirmed in a
+container (§3.4b), and the image goreleaser actually ships — `Dockerfile.goreleaser` — is still
+built by nothing (§3a).
+
+So the honest statement of the hold is narrower than it was and no longer absolute. Tagging now
+would ship a tree whose DNS path is container-verified and whose blocking path is not, which for an
+ad-blocker is the wrong half. Clearing it properly wants the §3.4b burn-down; clearing it
+pragmatically wants at minimum a manual confirmation that blocking works in the container. Either
+way the decision is the owner's, and `VERSION` should not move as a side effect of someone else's
+phase.

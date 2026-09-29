@@ -54,9 +54,17 @@ jobs:
   # The e2e suite had never run at all across four phases of the upstream sync,
   # for one reason: no dev/agent runtime in the loop had a container runtime, so
   # it kept being deferred to "the next phase". GitHub-hosted runners do have
-  # Docker, and `make e2e-test` builds the image from the same Dockerfile that
-  # release.yml ships, so this one job closes both gaps — the e2e specs and the
-  # "the container image has never been built" gap.
+  # Docker, so it runs here.
+  #
+  # `make e2e-test-baseline` builds the image with `docker buildx` and runs the
+  # suite against it, so this also covers `make docker-build`'s Dockerfile —
+  # which had never been built either. It is NOT the release image: release.yml
+  # runs goreleaser against Dockerfile.goreleaser, which nothing exercises.
+  #
+  # The pass/fail decision comes from tools/e2ebaseline, not from ginkgo's exit
+  # status: the suite's first run was 43/162 red from causes that predate the
+  # job, so the recorded baseline is what keeps this a gate that can catch a
+  # regression instead of a permanently red X that trains people to ignore CI.
   #
   # Deliberately a separate job rather than more steps on `test`: the fast job
   # stays a ~2 minute PR signal, and a red e2e does not hide a red unit suite.
@@ -92,4 +100,15 @@ jobs:
         env:
           GINKGO_E2E_PROCS: -procs=4
           GINKGO_E2E_TIMEOUT: 35m
-        run: make e2e-test
+        run: make e2e-test-baseline
+
+      # The job log is ~7,800 lines when the suite is unhappy. The machine
+      # readable report is what makes a failure diagnosable, and what the
+      # baseline lines are copied out of.
+      - name: Upload ginkgo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e-report.json
+          if-no-files-found: warn

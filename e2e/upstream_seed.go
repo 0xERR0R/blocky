@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/testcontainers/testcontainers-go"
 
 	"github.com/0xERR0R/blocky/configstore"
 )
@@ -155,6 +156,35 @@ func ensureDatabasePath(lines []string, dbPath string) []string {
 	}
 
 	return append(lines, "databasePath: "+dbPath)
+}
+
+// prepareBlockyConfig turns a test fixture's YAML lines into the two files a
+// blocky container needs: the config.yml to mount, with any `upstreams:` block
+// stripped out, and the seeded SQLite config store that block was moved into.
+//
+// Every path that builds a blocky container request has to go through this.
+// `config/upstreams.go` rejects an `upstreams:` block in YAML, so a fixture that
+// reaches the loader unstripped makes the container exit 1 before it serves
+// anything. Two builders were missing the strip/seed step until the e2e suite
+// first ran in CI and they failed at startup; centralising it here is what keeps
+// the next one from being written the same way.
+func prepareBlockyConfig(lines []string) (confFile string, store testcontainers.ContainerFile, err error) {
+	seed, strippedLines := extractUpstreamYAML(lines)
+	strippedLines = ensureDatabasePath(strippedLines, containerConfigDBPath)
+
+	dbFile, err := seedUpstreamDB(seed)
+	if err != nil {
+		return "", testcontainers.ContainerFile{}, fmt.Errorf("seed e2e upstream db: %w", err)
+	}
+
+	// Unlike config.yml the store is mounted writable: the server opens it
+	// read-write (WAL journal, migrations) as a container user that does not own
+	// the copied file.
+	return createTempFile(strippedLines...), testcontainers.ContainerFile{
+		HostFilePath:      dbFile,
+		ContainerFilePath: containerConfigDBPath,
+		FileMode:          modeWorldWritable,
+	}, nil
 }
 
 // seedUpstreamDB creates a temporary SQLite DB file and pre-populates it with
