@@ -54,11 +54,25 @@ type Config struct {
 // SyslogConfig defines where and as what blocky logs when the target is syslog
 type SyslogConfig struct {
 	// Network is empty for the local syslog socket, otherwise "udp" or "tcp"
-	Network  string `default:""       yaml:"network"`
-	Address  string `default:""       yaml:"address"`
-	Tag      string `default:"blocky" yaml:"tag"`
-	Facility string `default:"daemon" yaml:"facility"`
+	Network  string         `default:""       yaml:"network"`
+	Address  string         `default:""       yaml:"address"`
+	Tag      string         `default:"blocky" yaml:"tag"`
+	Facility SyslogFacility `default:"daemon" yaml:"facility"`
 }
+
+// SyslogFacility is the facility used for syslog messages. ENUM(
+// daemon // System daemon messages.
+// user // User-level messages.
+// local0 // Local use facility 0.
+// local1 // Local use facility 1.
+// local2 // Local use facility 2.
+// local3 // Local use facility 3.
+// local4 // Local use facility 4.
+// local5 // Local use facility 5.
+// local6 // Local use facility 6.
+// local7 // Local use facility 7.
+// )
+type SyslogFacility string
 
 // DefaultConfig returns a new Config initialized with default values.
 func DefaultConfig() *Config {
@@ -129,39 +143,49 @@ func Configure(cfg *Config) {
 func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 	logger.SetLevel(cfg.Level)
 
-	toSyslog := cfg.Target == TargetTypeSyslog
-
-	formatter := newFormatter(cfg, toSyslog)
-	logger.SetFormatter(formatter)
-
-	if !toSyslog {
-		logger.SetOutput(newOutput(cfg.Target))
+	if cfg.Target != TargetTypeSyslog {
+		setOutput(logger, newFormatter(cfg), newOutput(cfg.Target))
 
 		return
 	}
 
-	hook, err := newSyslogHook(cfg.Syslog, formatter)
+	writer, err := newSyslogWriter(cfg.Syslog)
 	if err != nil {
-		logger.SetOutput(newOutput(TargetTypeStderr))
+		setOutput(logger, newFormatter(cfg), newOutput(TargetTypeStderr))
 		logger.Errorf("can't log to syslog, using stderr instead: %v", err)
 
 		return
 	}
 
-	// the hook does the writing, so the stream itself receives nothing
-	logger.SetOutput(io.Discard)
-	logger.ReplaceHooks(logrus.LevelHooks{})
-	logger.AddHook(hook)
+	setOutput(logger, levelFormatter{newSyslogFormatter(cfg)}, writer)
+}
+
+// syslogOutput is a logger output writing to syslog, which must be closed once
+// the logger no longer writes to it.
+type syslogOutput interface {
+	io.Writer
+	closeSyslog() error
+}
+
+// setOutput points logger at formatter and out, then closes the syslog output it
+// replaces. logrus writes to Out under the lock SetOutput takes, so nothing writes
+// to the old output once SetOutput has returned. An entry formatted for the old
+// output but written to the new one while switching is logged either way.
+func setOutput(logger *logrus.Logger, formatter logrus.Formatter, out io.Writer) {
+	old := logger.Out
+
+	logger.SetFormatter(formatter)
+	logger.SetOutput(out)
+
+	if oldSyslog, ok := old.(syslogOutput); ok && old != out {
+		_ = oldSyslog.closeSyslog()
+	}
 }
 
 // newFormatter returns the formatter for the configured format.
-func newFormatter(cfg *Config, toSyslog bool) logrus.Formatter {
+func newFormatter(cfg *Config) logrus.Formatter {
 	if cfg.Format == FormatTypeJson {
 		return &logrus.JSONFormatter{}
-	}
-
-	if toSyslog {
-		return syslogFormatter{}
 	}
 
 	logFormatter := &prefixed.TextFormatter{
@@ -180,6 +204,47 @@ func newFormatter(cfg *Config, toSyslog bool) logrus.Formatter {
 	})
 
 	return logFormatter
+}
+
+// newSyslogFormatter returns the formatter for the configured format when logging
+// to syslog.
+func newSyslogFormatter(cfg *Config) logrus.Formatter {
+	if cfg.Format == FormatTypeJson {
+		return &logrus.JSONFormatter{}
+	}
+
+	return syslogFormatter{}
+}
+
+// levelMarker starts a formatted entry carrying its level, see levelFormatter.
+const levelMarker = 0
+
+// levelFormatter prefixes each entry with a marker and its level, so the syslog
+// writer can pick the record's priority and strip both again. The writer only
+// sees bytes, and logrus formats an entry after all hooks have run, so this is
+// the last point that still knows the entry's final message and level.
+type levelFormatter struct {
+	logrus.Formatter
+}
+
+// Format implements `logrus.Formatter`.
+func (f levelFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	line, err := f.Formatter.Format(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	return append([]byte{levelMarker, byte(entry.Level)}, line...), nil //nolint:gosec // levels are 0-6
+}
+
+// splitLevel returns the level levelFormatter prefixed to p, and the rest of p.
+// Without the prefix, the entry is logged at info.
+func splitLevel(p []byte) (logrus.Level, []byte) {
+	if len(p) >= 2 && p[0] == levelMarker {
+		return logrus.Level(p[1]), p[2:]
+	}
+
+	return logrus.InfoLevel, p
 }
 
 // syslogFormatter renders an entry as plain text carrying neither timestamp nor
@@ -267,7 +332,12 @@ func WithIndent(log *logrus.Entry, prefix string, callback func(*logrus.Entry)) 
 //
 // The returned function must be called to remove the prefix.
 func indentMessages(prefix string, logger *logrus.Logger) func() {
-	switch logger.Formatter.(type) {
+	formatter := logger.Formatter
+	if level, ok := formatter.(levelFormatter); ok {
+		formatter = level.Formatter
+	}
+
+	switch formatter.(type) {
 	case *prefixed.TextFormatter, syslogFormatter:
 	default:
 		// log is not plaintext, do nothing

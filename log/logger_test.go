@@ -34,7 +34,7 @@ var _ = Describe("Logger", func() {
 
 	Describe("syslog", func() {
 		It("defaults to the daemon facility and the blocky tag", func() {
-			Expect(cfg.Syslog.Facility).Should(Equal("daemon"))
+			Expect(cfg.Syslog.Facility).Should(Equal(SyslogFacility("daemon")))
 			Expect(cfg.Syslog.Tag).Should(Equal("blocky"))
 		})
 

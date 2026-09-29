@@ -5,7 +5,6 @@ package log
 import (
 	"fmt"
 	"log/syslog"
-	"maps"
 	"slices"
 	"strings"
 
@@ -16,28 +15,34 @@ import (
 // eight reserved for local use.
 //
 //nolint:gochecknoglobals
-var syslogFacilities = map[string]syslog.Priority{
-	"daemon": syslog.LOG_DAEMON,
-	"user":   syslog.LOG_USER,
-	"local0": syslog.LOG_LOCAL0,
-	"local1": syslog.LOG_LOCAL1,
-	"local2": syslog.LOG_LOCAL2,
-	"local3": syslog.LOG_LOCAL3,
-	"local4": syslog.LOG_LOCAL4,
-	"local5": syslog.LOG_LOCAL5,
-	"local6": syslog.LOG_LOCAL6,
-	"local7": syslog.LOG_LOCAL7,
+var syslogFacilities = map[SyslogFacility]syslog.Priority{
+	SyslogFacilityDaemon: syslog.LOG_DAEMON,
+	SyslogFacilityUser:   syslog.LOG_USER,
+	SyslogFacilityLocal0: syslog.LOG_LOCAL0,
+	SyslogFacilityLocal1: syslog.LOG_LOCAL1,
+	SyslogFacilityLocal2: syslog.LOG_LOCAL2,
+	SyslogFacilityLocal3: syslog.LOG_LOCAL3,
+	SyslogFacilityLocal4: syslog.LOG_LOCAL4,
+	SyslogFacilityLocal5: syslog.LOG_LOCAL5,
+	SyslogFacilityLocal6: syslog.LOG_LOCAL6,
+	SyslogFacilityLocal7: syslog.LOG_LOCAL7,
 }
 
-// newSyslogHook connects to syslog and returns a hook writing each entry at the
-// priority matching its level.
-func newSyslogHook(cfg SyslogConfig, formatter logrus.Formatter) (logrus.Hook, error) {
-	facility, found := syslogFacilities[strings.ToLower(cfg.Facility)]
+// newSyslogWriter connects to syslog and returns a writer logging each entry at
+// the priority matching the level levelFormatter prefixed it with.
+func newSyslogWriter(cfg SyslogConfig) (syslogOutput, error) {
+	facility, found := syslogFacilities[cfg.Facility]
 	if !found {
-		names := slices.Sorted(maps.Keys(syslogFacilities))
+		names := SyslogFacilityNames()
+		slices.Sort(names)
 
 		return nil, fmt.Errorf("invalid syslog facility '%s', try one of: %s",
 			cfg.Facility, strings.Join(names, ", "))
+	}
+
+	// syslog.Dial ignores the address without a network and logs locally instead
+	if cfg.Network == "" && cfg.Address != "" {
+		return nil, fmt.Errorf("syslog address '%s' needs a network, set it to udp or tcp", cfg.Address)
 	}
 
 	// an empty network dials the local syslog socket
@@ -46,52 +51,46 @@ func newSyslogHook(cfg SyslogConfig, formatter logrus.Formatter) (logrus.Hook, e
 		return nil, fmt.Errorf("can't connect to syslog: %w", err)
 	}
 
-	return &syslogHook{writer: writer, formatter: formatter}, nil
+	return &syslogWriter{writer: writer}, nil
 }
 
-type syslogHook struct {
-	writer    *syslog.Writer
-	formatter logrus.Formatter
+type syslogWriter struct {
+	writer *syslog.Writer
 }
 
-// Levels implements `logrus.Hook`.
-func (h *syslogHook) Levels() []logrus.Level {
-	return logrus.AllLevels
+func (w *syslogWriter) closeSyslog() error {
+	return w.writer.Close()
 }
 
-// Fire implements `logrus.Hook`.
-func (h *syslogHook) Fire(entry *logrus.Entry) error {
-	line, err := h.formatter.Format(entry)
-	if err != nil {
-		return err
-	}
-
-	write := h.writeFunc(entry.Level)
+// Write implements `io.Writer`.
+func (w *syslogWriter) Write(p []byte) (int, error) {
+	level, line := splitLevel(p)
+	write := w.writeFunc(level)
 
 	// a syslog record is a single line, so a multi-line entry becomes one record
 	// per line rather than one record containing newlines
 	for message := range strings.SplitSeq(strings.TrimRight(string(line), "\n"), "\n") {
 		if err := write(message); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	return len(p), nil
 }
 
-func (h *syslogHook) writeFunc(level logrus.Level) func(string) error {
+func (w *syslogWriter) writeFunc(level logrus.Level) func(string) error {
 	switch level {
 	case logrus.PanicLevel, logrus.FatalLevel:
-		return h.writer.Crit
+		return w.writer.Crit
 	case logrus.ErrorLevel:
-		return h.writer.Err
+		return w.writer.Err
 	case logrus.WarnLevel:
-		return h.writer.Warning
+		return w.writer.Warning
 	case logrus.InfoLevel:
-		return h.writer.Info
+		return w.writer.Info
 	case logrus.DebugLevel, logrus.TraceLevel:
-		return h.writer.Debug
+		return w.writer.Debug
 	default:
-		return h.writer.Info
+		return w.writer.Info
 	}
 }

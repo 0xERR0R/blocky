@@ -132,7 +132,7 @@ All logging options are optional.
 | log.format          | enum (text, json)                      | text          | Log format (text or json).                                                                                                                        |
 | log.target          | enum (stdout, stderr, syslog)          | stdout        | Where log entries are written. `syslog` logs each entry at the priority matching its level.                                                       |
 | log.syslog.network  | string                                 |               | Empty for the local syslog socket, otherwise `udp` or `tcp`.                                                                                      |
-| log.syslog.address  | string                                 |               | `host:port` of the syslog server, used when `network` is set.                                                                                     |
+| log.syslog.address  | string                                 |               | `host:port` of the syslog server. Requires `network`.                                                                                             |
 | log.syslog.tag      | string                                 | blocky        | Tag each entry is logged under.                                                                                                                   |
 | log.syslog.facility | enum (daemon, user, local0-local7)     | daemon        | Syslog facility.                                                                                                                                  |
 | log.timestamp       | bool                                   | true          | Log timestamps (true or false).                                                                                                                   |
@@ -163,6 +163,8 @@ All logging options are optional.
     Each record carries the message alone: syslog supplies the timestamp and the
     severity itself, so `log.timestamp` is ignored and the level is not repeated in
     the text. Use `format: json` if you want the level in the message as well.
+    Only the server logs to syslog: CLI commands such as `blocky query` still print
+    to the terminal.
 
 ## Init Strategy
 

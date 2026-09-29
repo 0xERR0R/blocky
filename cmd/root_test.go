@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -81,6 +82,25 @@ var _ = Describe("root command", func() {
 			Expect(initConfig()).Should(Succeed())
 
 			Expect(configPath).Should(Equal(tmpFile.Path))
+		})
+
+		It("should keep command output in the terminal when the server logs to syslog", func() {
+			syslogConfig := tmpDir.CreateStringFile("config_with_syslog",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - 1.1.1.1",
+				"log:",
+				"  target: syslog",
+				"  syslog:",
+				"    network: udp",
+				"    address: 127.0.0.1:1",
+			)
+
+			configPath = syslogConfig.Path
+
+			Expect(initConfig()).Should(Succeed())
+			Expect(fmt.Sprintf("%T", log.Log().Out)).ShouldNot(ContainSubstring("syslog"))
 		})
 
 		It("should handle config with HTTP port", func() {
