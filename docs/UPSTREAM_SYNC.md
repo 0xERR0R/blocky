@@ -1078,11 +1078,17 @@ Three differences remain and are deliberate:
    would embed nothing. The cost is that the SPA's presence depends on a
    workflow step rather than on the Dockerfile, which is why the smoke test
    fetches a hashed asset out of `/ui/` instead of trusting the build.
-2. **Version stamping.** `Dockerfile` takes `VERSION` as a build arg;
-   goreleaser's ldflags come from the tag. Both end up in
-   `util.Version`; there is nothing to reconcile.
+2. **Version stamping.** `Dockerfile` takes `VERSION` as a build arg and
+   stamps `0.34.38`; goreleaser's ldflags come from the tag and stamp
+   `v0.34.38`. Both land in `util.Version`, the `v` is the only difference, and
+   the shipped value is goreleaser's.
 3. **`prep` is Alpine, the e2e build stage is `golang:alpine`.** Both exist only
    to run `setcap`/`chown` and be thrown away.
+
+Two cosmetic differences are left alone: `make build`'s `chown 100` leaves the
+group as `0` where the `prep` stage uses `100:100` (the chart sets
+`runAsGroup: 100`, so the goreleaser image is the closer of the two), and the
+e2e image's `BUILD_TIME` build arg has no goreleaser equivalent.
 
 One more difference is real but inert: `make build` passes `-tags static` and
 goreleaser does not. No file in the tree has a `static` build constraint —
@@ -1106,21 +1112,42 @@ hold.
   - each arch-tagged image declares the architecture it claims. `docker build`
     stamps the *builder's* platform into a `FROM scratch` image unless
     `--platform` says otherwise, so before GRA-651 the `-arm64` tag declared
-    `amd64` while holding an arm64 binary — and the manifest list would have
-    handed that to an amd64 node. Fixed by `use: buildx` plus
-    `--platform=linux/<arch>`; the assertion is what keeps it fixed.
+    `amd64` while holding an arm64 binary. The manifest list then had two
+    `linux/amd64` entries and no `linux/arm64` one at all: an amd64 node would
+    have got whichever of the two came first, and an arm64 node's pull would
+    not have resolved. Fixed by `use: buildx` plus `--platform=linux/<arch>`;
+    the assertion is what keeps it fixed.
+  - the arm64 image *runs* and reports `Architecture: arm64`. The image config
+    and the binary inside it come from two independent inputs — `--platform`
+    writes the one, goreleaser's per-`goarch` artifact filter picks the other —
+    so a correct label around the wrong binary passes every other check here.
   - `/app/blockasaurus` carries `cap_net_bind_service`. Asserted directly rather
     than inferred from a successful bind, because runtimes differ in whether
     they hand a non-root process an effective capability set of its own.
-  - the container serves DNS on `:53` as uid 100 with `--cap-drop ALL
-    --cap-add NET_BIND_SERVICE` and `net.ipv4.ip_unprivileged_port_start=1024` —
-    the chart's securityContext, and the sysctl Kubernetes uses. Docker's
-    default of `0` lets any uid bind a low port and would hide a missing
-    capability.
+  - the container serves DNS on `:53` over both TCP and UDP under the chart's
+    full securityContext — `--user 100:100 --cap-drop ALL --cap-add
+    NET_BIND_SERVICE --read-only --tmpfs /tmp` — plus
+    `net.ipv4.ip_unprivileged_port_start=1024`, the value Kubernetes uses.
+    Docker's default of `0` lets any uid bind a low port and would hide a
+    missing capability, and without `--read-only` a process that writes outside
+    `/app/cache` passes the smoke test and crash-loops in the cluster.
   - `/ui/` returns the SPA shell *and* a hashed asset out of `/ui/assets/`.
   - the seeded `/app/cache` is writable by uid 100 through a fresh named volume.
 
 The job's steps are `release.yml`'s steps minus publishing, on purpose. A step
 that exists in one pipeline and not the other reopens exactly the gap this job
-was added to close, so `Set up QEMU` is kept in both even though neither needs
-it any more.
+was added to close, so `Set up QEMU` is kept in both — and it is no longer dead
+weight, because the smoke test executes the arm64 image.
+
+Two things to know before touching this:
+
+- **`--builder default` in the capability check is load-bearing.**
+  `docker/setup-buildx-action` makes a `docker-container` builder current, and
+  that builder has its own image store. A plain `docker build` whose Dockerfile
+  says `FROM <the image goreleaser just built>` would miss the local image and
+  go to the registry — and since the snapshot tag now matches a real release
+  tag, it could silently check a *previously published* image and go green.
+- **`dockers` and `docker_manifests` are deprecated** in goreleaser v2.18 in
+  favour of `dockers_v2`; every run logs a warning about it. Migrating is its
+  own piece of work and not one to start under a release hold, but the warning
+  in the job log is expected, not a symptom.

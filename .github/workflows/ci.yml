@@ -187,6 +187,11 @@ jobs:
         with:
           version: latest
           args: release --snapshot --clean
+        # `--snapshot` publishes nothing and needs no token, but `version:
+        # latest` resolves through the GitHub API and gets rate-limited
+        # unauthenticated. release.yml sets it too.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Smoke test the release image
         run: make release-image-smoke

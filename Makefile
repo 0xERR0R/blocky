@@ -1,4 +1,4 @@
-.PHONY: all clean generate generate-check build test fuzz check-fork-additions check-fork-additions-sync e2e-image e2e-test e2e-test-baseline e2e-test-coverage release-image-snapshot release-image-smoke lint run fmt docker-build docker-push bump-minor bump-point deploy helm-deploy version help check-tools check-goreleaser sync-handbook
+.PHONY: all clean generate generate-check build test fuzz check-fork-additions check-fork-additions-sync e2e-image e2e-test e2e-test-baseline e2e-test-coverage release-image-snapshot release-image-smoke lint run fmt docker-build docker-push bump-minor bump-point deploy helm-deploy version help check-tools check-goreleaser check-jq sync-handbook
 .DEFAULT_GOAL:=help
 
 VERSION:=$(shell cat VERSION)
@@ -92,6 +92,8 @@ check-docker:
 
 check-goreleaser:
 	$(call check_command,goreleaser,"Please install GoReleaser from https://goreleaser.com/install/")
+
+check-jq:
 	$(call check_command,jq,"Required by scripts/smoke-release-image.sh to read dist/artifacts.json")
 
 all: build test lint ## Build binary (with tests)
@@ -221,8 +223,10 @@ e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 # The image the release actually ships. `make docker-build` and the e2e suite
 # build `Dockerfile`; release.yml runs goreleaser against Dockerfile.goreleaser,
 # which until GRA-651 was built by nothing until a tag fired. These two targets
-# are that build and its smoke test without a tag and without a push, and the
-# release-image job in .github/workflows/ci.yml runs the same pair on every PR.
+# are that build and its smoke test without a tag and without a push. The
+# release-image job in .github/workflows/ci.yml runs the same two steps on every
+# PR, though it drives goreleaser through goreleaser-action rather than through
+# the target below, so that its setup matches release.yml step for step.
 #
 # `goreleaser release --snapshot` rather than a bare `docker buildx build -f
 # Dockerfile.goreleaser`: the per-arch cross-compiled binaries, the ldflags and
@@ -231,7 +235,7 @@ e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 release-image-snapshot: check-go check-docker check-goreleaser ## build the release artifacts, including the shipped image, with no tag and no push
 	goreleaser release --snapshot --clean
 
-release-image-smoke: check-docker ## start the goreleaser-built image and prove it serves DNS and the admin UI
+release-image-smoke: check-docker check-jq ## start the goreleaser-built image and prove it serves DNS and the admin UI
 	./scripts/smoke-release-image.sh
 
 race: check-go ## run tests with race detector
