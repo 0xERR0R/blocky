@@ -356,7 +356,6 @@ exposed to DNS clients.
 | Web UI (`/`, `/ui/`) | ✓ | — |
 | REST API (`/api/*`) | ✓ | — |
 | Prometheus metrics (`/metrics`) | ✓ | — |
-| Debug profiler (`/debug/`) | ✓ | — |
 | WebSocket log stream (`/api/ws/logs`) | ✓ | — |
 | OpenAPI docs (`/docs/`) | ✓ | — |
 

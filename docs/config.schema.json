@@ -1607,6 +1607,23 @@
       "type": "object",
       "description": "Subdomain- and EDNS-based client group identification endpoints."
     },
+    "debug": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Enable the pprof/expvar diagnostics listener on loopback (127.0.0.1 and [::1]).",
+          "default": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port for the diagnostics listener. It only ever binds loopback; reach it from\nanother host with an SSH tunnel or `kubectl port-forward`, not by rebinding it.",
+          "default": 6060
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Optional loopback-only pprof/expvar diagnostics listener."
+    },
     "databasePath": {
       "type": "string",
       "description": "Path to the SQLite database holding upstreams, blocking, custom DNS, users and statistics."

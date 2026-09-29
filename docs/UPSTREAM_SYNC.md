@@ -424,7 +424,8 @@ A diff is never automatically a bug — but it is always a change to the contrac
    the router through `chi.Walk`, so a chi upgrade can alter what gets reported
    for routes nobody touched. Phase 5 hit both halves of this: chi 5.3 began
    reporting a mounted sub-router's parent middleware (the `/debug/*` rows gained
-   `RequireAuth RequireCSRFHeader` they always had at runtime), and it added
+   `RequireAuth RequireCSRFHeader` they always had at runtime — those rows were
+   since removed entirely by GRA-647), and it added
    `QUERY` to its `mALL`, which broke the `ANY` collapse until `allMethods` in
    `api_contract_test.go` followed. This is the reason most easily mistaken for
    the merge eating our work, so **prove it**: a reporting change never removes a
@@ -455,7 +456,12 @@ Say this out loud so nobody trusts them further than they reach:
 - **Handler behavior.** `TestAPISpecContract` reads the spec, not the code.
   Nothing proves a handler honors the schema it advertises, or that the spec
   describes what the handler really returns. Likewise `TestAPIContract` records
-  the identity and order of a middleware chain, never what it does.
+  the identity and order of a middleware chain, never what it does. The one case
+  where that gap actively misled a reader is now annotated: a route whose chain
+  carries `RequireAuth` without it enforcing is written `RequireAuth*` in the
+  golden (GRA-647), derived from `auth.EnforcesAuth` so the marker cannot drift
+  from the middleware. Every other guard in the column is still registration
+  only.
 - **`components.parameters` and `components.responses`.** Recorded where an
   operation references one by name, so a re-pointed reference fails — but the
   contents behind that name are not locked.
@@ -568,8 +574,12 @@ resolver's**, which is why it is written down here instead of being absorbed:
 is "inside the authenticated group", and the contract golden records it as:
 
 ```text
-GET     /docs/config.schema.json                      [RequireAuth RequireCSRFHeader]
+GET     /docs/config.schema.json                      [RequireAuth* RequireCSRFHeader]
 ```
+
+(The `*` is the GRA-647 annotation, added after this section was written: it marks exactly the
+"registered but not enforcing" state the rest of this section explains. The row read
+`[RequireAuth RequireCSRFHeader]` at the time.)
 
 That row is chi reporting which middleware the chain *contains*. It is not a statement that either
 one rejects anything here, and for this route neither does:
@@ -594,8 +604,9 @@ the same error one level up.
 It does not change the risk assessment — a checked-in generated artifact with no secrets — but it
 does change the question the owner is being asked, which is now "should an unauthenticated client
 be able to read our config schema", not "should an authenticated one". Related but separate:
-GRA-647 covers `/debug/pprof/*` and `/debug/vars`, which answer 200 with no session for the same
-middleware reason and are a materially worse exposure.
+GRA-647 covered `/debug/pprof/*` and `/debug/vars`, which answered 200 with no session for the same
+middleware reason and were a materially worse exposure; they no longer exist on this router at all,
+and are served — when explicitly enabled — on a loopback-only listener (`debug.enable`).
 
 **To reverse it** — drop `router.Get("/docs/config.schema.json", …)` from `configureDocsHandler`
 and its link from `configureRootHandler` in `server/server_endpoints.go`, re-point

@@ -69,6 +69,19 @@ func isAPIPath(p string) bool {
 	return strings.HasPrefix(p, "/api/")
 }
 
+// EnforcesAuth reports whether RequireAuth rejects an unauthenticated request to
+// the given path. It is false for every path outside /api/, which passes through
+// so the SPA shell can render and detect auth state via /api/auth/session — so
+// RequireAuth sitting on a non-API route's middleware chain is registration, not
+// enforcement.
+//
+// Exported rather than inlined because server/api_contract_test.go annotates the
+// route golden from it: a hand-maintained copy of this predicate would drift and
+// the golden would go back to over-reading as protection (GRA-647).
+func EnforcesAuth(path string) bool {
+	return isAPIPath(path)
+}
+
 // IsSecureRequest reports whether the incoming request is on a secure origin.
 // Used to pick between SessionCookieName and SessionCookieNameSecure when
 // emitting Set-Cookie.

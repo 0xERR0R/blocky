@@ -30,12 +30,25 @@ const (
 )
 
 func newHTTPServer(name string, handler http.Handler) *httpServer {
+	return newBareHTTPServer(name, withCommonMiddleware(handler))
+}
+
+// newBareHTTPServer is newHTTPServer without the withCommonMiddleware layer, so
+// the handler is served with no CORS policy and no TLS response headers.
+//
+// Only the loopback diagnostics listener uses this. Its CORS needs are not
+// "same-origin" but "none at all": the same-origin policy mirrors the Origin
+// header with Access-Control-Allow-Credentials whenever Origin's host matches
+// the request Host, and under DNS rebinding a page controls *both* — which would
+// make heap dumps readable by browser JavaScript. Everything reachable from the
+// network goes through newHTTPServer.
+func newBareHTTPServer(name string, handler http.Handler) *httpServer {
 	return &httpServer{
 		inner: http.Server{
 			ReadTimeout:       serverReadTimeout,
 			ReadHeaderTimeout: serverReadHeaderTimeout,
 			WriteTimeout:      serverWriteTimeout,
-			Handler:           withCommonMiddleware(handler),
+			Handler:           handler,
 		},
 
 		name: name,

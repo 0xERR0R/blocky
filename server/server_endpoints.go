@@ -32,7 +32,6 @@ import (
 	"github.com/0xERR0R/blocky/web"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/miekg/dns"
 	"nhooyr.io/websocket"
 )
@@ -254,9 +253,12 @@ func handleDiscoveredClients(w http.ResponseWriter, r *http.Request) {
 //     outside the auth group, because they are scraped or fetched without
 //     session cookies (monitoring, MDM provisioning).
 //   - DoH is never mounted here — see the caller.
-//   - Everything else (API, config, UI, static, docs, debug, websocket) goes
-//     behind RequireAuth + RequireCSRFHeader. Mutating API routes are further
-//     gated by RequireAdminForMutations so `viewer` users are read-only.
+//   - Everything else (API, config, UI, static, docs, websocket) goes behind
+//     RequireAuth + RequireCSRFHeader. Mutating API routes are further gated by
+//     RequireAdminForMutations so `viewer` users are read-only.
+//   - pprof/expvar is NOT here. RequireAuth only rejects /api/* paths, so a
+//     /debug group on this router would be readable without a session; it lives
+//     on its own loopback listener instead (server/server_debug.go).
 func registerUIRoutes(router *chi.Mux, cfg *config.Config,
 	openAPIImpl api.StrictServerInterface,
 	store *configstore.ConfigStore, reconfigurer configapi.Reconfigurer,
@@ -331,7 +333,6 @@ func registerUIRoutes(router *chi.Mux, cfg *config.Config,
 			r.Get("/api/ws/logs", wsLogsHandler(broadcaster, revoker))
 		}
 
-		configureDebugHandler(r)
 		configureDocsHandler(r)
 		configureStaticAssetsHandler(r)
 		configureUIHandler(r)
@@ -423,7 +424,6 @@ func configureRootHandler(cfg *config.Config, router chi.Router) {
 				{URL: "/docs/openapi.yaml", Title: "REST API docs (OpenAPI)", Icon: "○"},
 				{URL: "/static/rapidoc.html", Title: "Interactive API explorer", Icon: "⚙"},
 				{URL: "/docs/config.schema.json", Title: "Configuration JSON Schema", Icon: "▤"},
-				{URL: "/debug/", Title: "Go profiler (pprof)", Icon: "⏲"},
 			},
 		}
 
@@ -445,10 +445,6 @@ func logAndResponseWithError(err error, message string, writer http.ResponseWrit
 		log.Log().Error(message, log.EscapeInput(err.Error()))
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-func configureDebugHandler(router chi.Router) {
-	router.Mount("/debug", middleware.Profiler())
 }
 
 // wsLogsHandler returns an http.HandlerFunc that upgrades /api/ws/logs to a

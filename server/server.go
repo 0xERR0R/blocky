@@ -333,6 +333,10 @@ func NewServer(ctx context.Context, cfg *config.Config, store *configstore.Confi
 		}
 	}
 
+	if err := server.addDebugListeners(ctx, cfg); err != nil {
+		return nil, err
+	}
+
 	// Start hourly session cleanup. Prune once at startup so a short-lived
 	// process doesn't leave expired rows for an hour, then tick every hour
 	// until the server context is cancelled. Per-tick errors are warn-logged
@@ -776,6 +780,11 @@ func (s *Server) printConfiguration() {
 	if len(s.http3PacketConns) > 0 {
 		logger().Info("HTTP/3:")
 		log.WithIndent(logger(), "  ", s.cfg.HTTP3.LogConfig)
+	}
+
+	if s.cfg.Debug.IsEnabled() {
+		logger().Info("debug (pprof/expvar):")
+		log.WithIndent(logger(), "  ", s.cfg.Debug.LogConfig)
 	}
 
 	logger().Info("runtime information:")

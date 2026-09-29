@@ -394,10 +394,10 @@ ports:
   # default: none
   # example: [853, :853, 127.0.0.1:853, [::1]:853]
   tls: 853
-  # optional: Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH...
+  # optional: Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, REST API, web UI, DoH...
   # example: [443, :443, 127.0.0.1:443, [::1]:443]
   https: 443
-  # optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH...
+  # optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, REST API, web UI, DoH...
   # example: [4000, :4000, 127.0.0.1:4000, [::1]:4000]
   http: 4000
   # optional: URL path for DoH queries.
@@ -418,6 +418,19 @@ ports:
 http3:
   # optional: serve DNS-over-HTTPS over HTTP/3 (RFC 9114). Default: false
   enable: true
+
+# optional: Go diagnostics endpoints (pprof under /debug/pprof/, expvar at /debug/vars).
+#           Served on their own listener, bound to 127.0.0.1 and [::1] only — the bind
+#           address is not configurable, because these endpoints are unauthenticated and
+#           heap/goroutine dumps carry query names and client addresses. Requests must also
+#           carry a loopback Host header, which blocks DNS-rebinding access from a browser on
+#           the same host. Forward the port (ssh -L / kubectl port-forward) to reach it from
+#           another host.
+debug:
+  # optional: enable the pprof/expvar listener. Default: false
+  enable: false
+  # optional: port for the pprof/expvar listener. Default: 6060
+  port: 6060
 
 # optional: logging configuration
 log:
