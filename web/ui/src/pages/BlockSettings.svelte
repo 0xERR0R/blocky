@@ -47,6 +47,7 @@
           <Select id="block-type" bind:value={blockType} options={[
             { value: 'ZEROIP', label: 'Zero IP (0.0.0.0)' },
             { value: 'NXDOMAIN', label: 'NXDOMAIN' },
+            { value: 'REFUSED', label: 'REFUSED' },
           ]} />
         </div>
         <div class="form-field">

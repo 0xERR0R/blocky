@@ -864,11 +864,11 @@ func validateBlockSettings(input *BlockSettingsInput) error {
 	}
 
 	switch input.BlockType {
-	case "ZEROIP", "NXDOMAIN":
+	case "ZEROIP", "NXDOMAIN", "REFUSED":
 		// valid
 	default:
 		if net.ParseIP(input.BlockType) == nil {
-			return errors.New("block_type must be ZEROIP, NXDOMAIN, or a valid IP address")
+			return errors.New("block_type must be ZEROIP, NXDOMAIN, REFUSED, or a valid IP address")
 		}
 	}
 

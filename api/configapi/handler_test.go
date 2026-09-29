@@ -335,6 +335,15 @@ var _ = Describe("ConfigAPI Handler", func() {
 			Expect(bs.BlockType).Should(Equal("NXDOMAIN"))
 		})
 
+		It("should accept the refused block type", func() {
+			resp, err := h.PutBlockSettings(ctx, configapi.PutBlockSettingsRequestObject{
+				Body: &configapi.BlockSettingsInput{BlockType: "REFUSED", BlockTtl: "1h"},
+			})
+			Expect(err).Should(Succeed())
+			bs := resp.(configapi.PutBlockSettings200JSONResponse)
+			Expect(bs.BlockType).Should(Equal("REFUSED"))
+		})
+
 		It("should reject invalid block type", func() {
 			resp, err := h.PutBlockSettings(ctx, configapi.PutBlockSettingsRequestObject{
 				Body: &configapi.BlockSettingsInput{BlockType: "INVALID", BlockTtl: "1h"},
