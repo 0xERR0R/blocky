@@ -345,14 +345,9 @@ func createBlockyContainerInternal(ctx context.Context, e2eNet *testcontainers.D
 	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
 	defer cancel()
 
-	confFile, storeFile, err := prepareBlockyConfig(lines)
+	confFile, cfg, storeFile, err := prepareBlockyConfig(lines)
 	if err != nil {
 		return nil, err
-	}
-
-	cfg, err := config.LoadConfig(confFile, true)
-	if err != nil {
-		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
 
 	// The seeded config store travels on the same mechanism as a caller's own
@@ -527,7 +522,7 @@ func createBlockyContainerWithCapDrop(ctx context.Context, e2eNet *testcontainer
 	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
 	defer cancel()
 
-	confFile, storeFile, err := prepareBlockyConfig(lines)
+	confFile, _, storeFile, err := prepareBlockyConfig(lines)
 	if err != nil {
 		return nil, err
 	}

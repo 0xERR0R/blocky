@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/configstore"
 )
 
@@ -182,7 +183,9 @@ func splitYAMLLines(lines []string) []string {
 
 // prepareBlockyConfig turns a test fixture's YAML lines into the two files a
 // blocky container needs: the config.yml to mount, with any `upstreams:` block
-// stripped out, and the seeded SQLite config store that block was moved into.
+// stripped out, and the seeded SQLite config store that carries every section
+// the fork's overlay owns. It returns the loaded config too, so callers that
+// need it (readiness checks) do not parse the fixture a second time.
 //
 // Every path that builds a blocky container request has to go through this.
 // `config/upstreams.go` rejects an `upstreams:` block in YAML, so a fixture that
@@ -190,28 +193,43 @@ func splitYAMLLines(lines []string) []string {
 // anything. Two builders were missing the strip/seed step until the e2e suite
 // first ran in CI and they failed at startup; centralising it here is what keeps
 // the next one from being written the same way.
-func prepareBlockyConfig(lines []string) (confFile string, store testcontainers.ContainerFile, err error) {
+//
+// `blocking:` and `customDNS:` stay in the YAML — the loader accepts them — but
+// the overlay replaces both with store state, so they are seeded as well. See
+// store_seed.go.
+func prepareBlockyConfig(lines []string) (
+	confFile string, cfg *config.Config, store testcontainers.ContainerFile, err error,
+) {
 	seed, strippedLines := extractUpstreamYAML(splitYAMLLines(lines))
 	strippedLines = ensureDatabasePath(strippedLines, containerConfigDBPath)
 
-	dbFile, err := seedUpstreamDB(seed)
+	confFile = createTempFile(strippedLines...)
+
+	cfg, err = config.LoadConfig(confFile, true)
 	if err != nil {
-		return "", testcontainers.ContainerFile{}, fmt.Errorf("seed e2e upstream db: %w", err)
+		return "", nil, testcontainers.ContainerFile{}, fmt.Errorf("load e2e config: %w", err)
+	}
+
+	dbFile, err := seedConfigDB(seed, cfg)
+	if err != nil {
+		return "", nil, testcontainers.ContainerFile{}, fmt.Errorf("seed e2e config db: %w", err)
 	}
 
 	// Unlike config.yml the store is mounted writable: the server opens it
 	// read-write (WAL journal, migrations) as a container user that does not own
 	// the copied file.
-	return createTempFile(strippedLines...), testcontainers.ContainerFile{
+	return confFile, cfg, testcontainers.ContainerFile{
 		HostFilePath:      dbFile,
 		ContainerFilePath: containerConfigDBPath,
 		FileMode:          modeWorldWritable,
 	}, nil
 }
 
-// seedUpstreamDB creates a temporary SQLite DB file and pre-populates it with
-// the given upstream seed. Returns the host path of the DB file.
-func seedUpstreamDB(seed upstreamSeedCfg) (string, error) {
+// seedConfigDB creates a temporary SQLite DB file and pre-populates it with
+// everything the fork's config-store overlay owns: the fixture's upstreams,
+// its blocking and customDNS sections, and the admin account the API specs log
+// in as. Returns the host path of the DB file.
+func seedConfigDB(seed upstreamSeedCfg, cfg *config.Config) (string, error) {
 	f, err := os.CreateTemp("", "blocky_e2e_db-*.sqlite")
 	if err != nil {
 		return "", fmt.Errorf("create temp db: %w", err)
@@ -242,35 +260,54 @@ func seedUpstreamDB(seed upstreamSeedCfg) (string, error) {
 		}
 	}
 
-	// Apply upstream settings if any test overrode them
-	if seed.strategy != "" || seed.timeout != "" || seed.userAgent != "" || seed.initStrategy != "" {
-		us, err := store.GetUpstreamSettings()
-		if err != nil {
-			return "", err
-		}
+	if err := applyUpstreamSettings(store, seed); err != nil {
+		return "", err
+	}
 
-		if seed.strategy != "" {
-			us.Strategy = seed.strategy
-		}
+	if err := seedBlockingConfig(store, cfg.Blocking); err != nil {
+		return "", err
+	}
 
-		if seed.timeout != "" {
-			us.Timeout = seed.timeout
-		}
+	if err := seedCustomDNSConfig(store, cfg.CustomDNS); err != nil {
+		return "", err
+	}
 
-		if seed.userAgent != "" {
-			us.UserAgent = seed.userAgent
-		}
-
-		if seed.initStrategy != "" {
-			us.InitStrategy = seed.initStrategy
-		}
-
-		if err := store.PutUpstreamSettings(us); err != nil {
-			return "", err
-		}
+	if err := seedAPIUser(store); err != nil {
+		return "", err
 	}
 
 	return path, nil
+}
+
+// applyUpstreamSettings overwrites the global upstream settings with whatever
+// the fixture overrode, leaving the store's defaults in place for the rest.
+func applyUpstreamSettings(store *configstore.ConfigStore, seed upstreamSeedCfg) error {
+	if seed.strategy == "" && seed.timeout == "" && seed.userAgent == "" && seed.initStrategy == "" {
+		return nil
+	}
+
+	us, err := store.GetUpstreamSettings()
+	if err != nil {
+		return err
+	}
+
+	if seed.strategy != "" {
+		us.Strategy = seed.strategy
+	}
+
+	if seed.timeout != "" {
+		us.Timeout = seed.timeout
+	}
+
+	if seed.userAgent != "" {
+		us.UserAgent = seed.userAgent
+	}
+
+	if seed.initStrategy != "" {
+		us.InitStrategy = seed.initStrategy
+	}
+
+	return store.PutUpstreamSettings(us)
 }
 
 // resetAndSeedGroups deletes all existing upstream servers/groups (except the
@@ -283,7 +320,7 @@ func resetAndSeedGroups(store *configstore.ConfigStore, seed upstreamSeedCfg) er
 
 	// Delete non-default groups so we start fresh
 	for _, g := range existingGroups {
-		if g.Name == "default" {
+		if g.Name == defaultGroupName {
 			continue
 		}
 
@@ -296,13 +333,13 @@ func resetAndSeedGroups(store *configstore.ConfigStore, seed upstreamSeedCfg) er
 	// then delete the real ones, then add the seeded ones, then remove the
 	// placeholder. The configstore refuses to delete the last server in the
 	// default group, so we keep at least one live at all times.
-	defaultServers, err := store.ListUpstreamServers("default")
+	defaultServers, err := store.ListUpstreamServers(defaultGroupName)
 	if err != nil {
 		return err
 	}
 
 	placeholder := &configstore.UpstreamServer{
-		GroupName: "default",
+		GroupName: defaultGroupName,
 		URL:       "127.0.0.1",
 		Position:  9999,
 		Enabled:   new(true),
@@ -319,7 +356,7 @@ func resetAndSeedGroups(store *configstore.ConfigStore, seed upstreamSeedCfg) er
 
 	// Now seed groups from the test fixture
 	for _, name := range seed.groupOrder {
-		if name != "default" {
+		if name != defaultGroupName {
 			if err := store.PutUpstreamGroup(&configstore.UpstreamGroup{Name: name}); err != nil {
 				return err
 			}

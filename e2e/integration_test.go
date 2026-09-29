@@ -290,12 +290,15 @@ var _ = Describe("Integration tests", func() {
 					Expect(err).Should(Succeed())
 					baseURL := "http://" + net.JoinHostPort(host, port)
 
+					api, aerr := newAPIClient(ctx, baseURL)
+					Expect(aerr).Should(Succeed())
+
 					// Check blocking status
-					Eventually(http.Get).WithArguments(baseURL + "/api/blocking/status").
+					Eventually(api.Get).WithArguments(baseURL + "/api/blocking/status").
 						Should(HaveHTTPStatus(http.StatusOK))
 
 					// Disable blocking
-					resp, err := http.Get(baseURL + "/api/blocking/disable")
+					resp, err := api.Get(baseURL + "/api/blocking/disable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -310,7 +313,7 @@ var _ = Describe("Integration tests", func() {
 							))
 
 					// Re-enable blocking
-					resp, err = http.Get(baseURL + "/api/blocking/enable")
+					resp, err = api.Get(baseURL + "/api/blocking/enable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))

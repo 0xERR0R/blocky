@@ -240,7 +240,12 @@ var _ = Describe("Redis configuration tests", func() {
 					host, port, err := getContainerHostPort(ctx, blocky1, "4000/tcp")
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Get("http://" + net.JoinHostPort(host, port) + "/api/blocking/disable")
+					baseURL := "http://" + net.JoinHostPort(host, port)
+
+					api, err := newAPIClient(ctx, baseURL)
+					Expect(err).Should(Succeed())
+
+					resp, err := api.Get(baseURL + "/api/blocking/disable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -255,7 +260,12 @@ var _ = Describe("Redis configuration tests", func() {
 					host, port, err := getContainerHostPort(ctx, blocky1, "4000/tcp")
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Get("http://" + net.JoinHostPort(host, port) + "/api/blocking/enable")
+					baseURL := "http://" + net.JoinHostPort(host, port)
+
+					api, err := newAPIClient(ctx, baseURL)
+					Expect(err).Should(Succeed())
+
+					resp, err := api.Get(baseURL + "/api/blocking/enable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -306,9 +316,12 @@ var _ = Describe("Redis configuration tests", func() {
 					host, port, err := getContainerHostPort(ctx, blocky1, "4000/tcp")
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post(
-						"http://"+net.JoinHostPort(host, port)+"/api/cache/flush",
-						"application/json", nil)
+					baseURL := "http://" + net.JoinHostPort(host, port)
+
+					api, err := newAPIClient(ctx, baseURL)
+					Expect(err).Should(Succeed())
+
+					resp, err := api.Post(baseURL+"/api/cache/flush", "application/json", nil)
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))

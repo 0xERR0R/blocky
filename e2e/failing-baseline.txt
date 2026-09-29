@@ -9,55 +9,11 @@
 # hierarchy and the spec text joined by single spaces, no [It] marker, no
 # labels. The tool's error output is copy-pasteable into this file.
 #
-# Why there is a baseline at all: the suite had never been run before the CI job
-# landed, and the first run came up 43/162 red from causes that predate it. See
-# docs/UPSTREAM_SYNC.md §3.4b for the attribution. Burn-down: GRA-649.
-# This file should only ever get shorter.
-
-# blocking is never applied: the store's empty denylists/allowlists/blockType
-# replace whatever the fixture declared (configstore/convert.go:35,48-49,108).
-Domain blocking functionality Allowlist-only group combined with a denylist group still blocks a denylisted domain
-Domain blocking functionality Block TTL with custom blockTTL and nxDomain uses the configured TTL in SOA record for NXDOMAIN responses
-Domain blocking functionality Block TTL with custom blockTTL and zeroIP uses the configured TTL for blocked responses
-Domain blocking functionality Block types with blockType: custom IPs returns custom IPs for blocked domains
-Domain blocking functionality Block types with blockType: nxDomain returns NXDOMAIN with SOA record for blocked domains
-Domain blocking functionality Block types with blockType: refused returns REFUSED for query types other than A/AAAA
-Domain blocking functionality Block types with blockType: refused returns REFUSED without records for blocked domains
-Domain blocking functionality Block types with blockType: zeroIP (default) returns zero IP for blocked domains
-Domain blocking functionality CNAME blocking with CNAME targets in blocklist blocks domains with CNAME targets in the blocklist
-Domain blocking functionality Domain blocking with available external blocklists blocks domains listed in external blocklists
-Domain blocking functionality Dynamic blocking control via API with HTTP API enabled can enable and disable blocking via API
-Domain blocking functionality External blocklist loading when blocklist is unavailable with loading.strategy = blocking starts with warning and continues to function
-Domain blocking functionality External blocklist loading when blocklist is unavailable with loading.strategy = failOnError fails to start with appropriate error message
-Domain blocking functionality IP blocking with IP addresses in blocklist blocks domains that resolve to blocked IPs
-Domain blocking functionality List refresh via API with HTTP API enabled can refresh blocklists via API
-Domain blocking functionality Regex blocking with regex patterns in blocklist blocks domains matching regex patterns
-Domain blocking functionality Schedule-based blocking when the schedule is active right now blocks domains in the scheduled list
-Domain blocking functionality Wildcard blocking with wildcard patterns in blocklist blocks domains matching wildcard patterns
-Download cache when the source becomes unreachable after a restart keeps blocking from the on-disk copy
-Download cache with cachePath and loading.strategy: fast (seed from disk) blocks from the seeded cache on fast start even though the source returns 404
-Download cache with cachePath configured caches the body to disk and revalidates with a 304 on refresh
-Download cache without cachePath configured writes nothing to the mounted directory
-Integration tests Full resolver chain integration when Multiple resolvers are configured together should handle all resolver chain features correctly
-Integration tests Full resolver chain integration when Multiple resolvers are configured together should handle edge cases in the resolver chain
-Integration tests Full resolver chain integration when Multiple resolvers are configured together should maintain resolver chain order and behavior
-Metrics functional tests Allowlist metrics Should expose allowlist cache sizes per group as metrics
-Metrics functional tests Comprehensive metrics test - ALL metrics Should have ALL expected metrics after various operations
-Metrics functional tests Metrics when Lists are loaded Should expose list cache sizes per group as metrics
-Redis configuration tests Blocking state sync via Redis when Redis, blocking, and 2 blocky instances are configured syncs blocking disable/enable between instances
-Redis configuration tests Cache clear propagation via Redis when Redis and 2 blocky instances share cached entries clears cache entries from Redis when flushed via API
-
-# customDNS is never applied: BuildCustomDNSConfig replaces Mapping with DB
-# state, and the seeded store has none (configstore/convert.go:117).
-Custom DNS tests Custom DNS configuration when Domain rewriting is configured Should rewrite domains according to configuration
-Custom DNS tests Custom DNS configuration when Reverse DNS lookup is performed Should resolve PTR records for defined IP addresses
-Custom DNS tests Custom DNS configuration when Simple mapping is configured Should resolve custom DNS entries
-Custom DNS tests Custom DNS configuration when filterUnmappedTypes is disabled Should forward unmapped types to upstream
-Custom DNS tests Custom DNS configuration when filterUnmappedTypes is enabled (default) Should filter unmapped types
-
-# every /api/* request answers 401 setup_required: server_endpoints.go:290
-# installs RequireAuth whenever a store is present, and the store has no users.
-API endpoints Blocking disable with duration when blocking is configured should temporarily disable blocking for the specified duration
-API endpoints Blocking disable with groups when multiple blocking groups are configured should disable only the specified group
-API endpoints Cache flush when caching is enabled should clear cache via API
-API endpoints Query endpoint when HTTP API is enabled should resolve queries via API
+# THE LIST IS EMPTY, AND SHOULD STAY THAT WAY. It held 39 specs from the first
+# CI run of a suite that had never been run before: the config-store overlay
+# blanked every `blocking:` and `customDNS:` section the fixtures declared, and
+# gated every /api/* route behind a store with no users. GRA-649 fixed the seed
+# bridge instead of the specs; see docs/UPSTREAM_SYNC.md §3.4b.
+#
+# Adding a line here is a decision, not a chore: it says a spec is allowed to
+# stay broken, and it needs the reason written next to it.
