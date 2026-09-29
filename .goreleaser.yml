@@ -70,10 +70,17 @@ dockers:
   - image_templates:
       - "ghcr.io/chrissnell/blockasaurus:{{ .Tag }}-amd64"
     dockerfile: Dockerfile.goreleaser
-    use: docker
+    # buildx, not the classic builder: Dockerfile.goreleaser has a
+    # `--platform=$BUILDPLATFORM` prep stage, and `--platform` below is what
+    # stamps the right architecture into the image config. With `use: docker`
+    # both of these tags are built on an amd64 runner from a `FROM scratch`
+    # base, so BOTH end up declaring linux/amd64 and the manifest list resolves
+    # an arm64 pull to an amd64-labelled image holding an arm64 binary.
+    use: buildx
     goos: linux
     goarch: amd64
     build_flag_templates:
+      - "--platform=linux/amd64"
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
@@ -83,10 +90,11 @@ dockers:
   - image_templates:
       - "ghcr.io/chrissnell/blockasaurus:{{ .Tag }}-arm64"
     dockerfile: Dockerfile.goreleaser
-    use: docker
+    use: buildx
     goos: linux
     goarch: arm64
     build_flag_templates:
+      - "--platform=linux/arm64"
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"

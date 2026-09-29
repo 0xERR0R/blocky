@@ -1,14 +1,60 @@
+# syntax=docker/dockerfile:1
+
+# The image the RELEASE ships. `Dockerfile` (the one `make docker-build` and the
+# e2e suite use) builds from source; goreleaser hands this build a context that
+# holds nothing but the already-compiled binary, so the two cannot share a file.
+#
+# What they must share is the *result*. Everything `Dockerfile`'s build stage
+# does to the binary before the final stage copies it — chown to the container
+# user, `setcap cap_net_bind_service` (Makefile's BIN_USER / BIN_AUTOCAB), the
+# empty dirs that seed writable mount points — has to happen here too, which is
+# what the prep stage below is for. The SPA is the one exception: it is embedded
+# into the binary by the goreleaser build, not copied in as a layer, so there is
+# no `ui` stage here.
+#
+# docs/UPSTREAM_SYNC.md §11 states which differences remain and why. CI builds
+# this file and smoke-tests the result on every PR (`make release-image-smoke`),
+# so it is no longer first built at tag time.
+
+# ----------- stage: prep
+# Pinned to the build platform: setcap/chown only rewrite metadata, so they must
+# not drag the target arch through QEMU. The final stage is `scratch`, so
+# nothing else ever executes in the target arch at build time.
+FROM --platform=$BUILDPLATFORM alpine:3 AS prep
+RUN apk add --no-cache libcap
+
+COPY blockasaurus /out/blockasaurus
+
+# Mirrors `make build` with BIN_USER=100 BIN_AUTOCAB=1. Without the capability
+# the binary cannot bind :53 as uid 100 on any runtime that does not hand the
+# process an effective capability set of its own.
+RUN chmod 0755 /out/blockasaurus \
+  && chown 100:100 /out/blockasaurus \
+  && setcap 'cap_net_bind_service=+p' /out/blockasaurus \
+  && mkdir -p /seed-dir
+
+# ----------- stage: final
 FROM scratch
 
 LABEL org.opencontainers.image.title="blockasaurus" \
   org.opencontainers.image.vendor="chrissnell" \
   org.opencontainers.image.licenses="Apache-2.0" \
-  org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network"
+  org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network" \
+  org.opencontainers.image.url="https://github.com/chrissnell/blockasaurus#readme" \
+  org.opencontainers.image.source="https://github.com/chrissnell/blockasaurus"
 
 USER 100
 WORKDIR /app
 
-COPY blockasaurus /app/blockasaurus
+COPY --from=prep /out/blockasaurus /app/blockasaurus
+
+# Writable mount points owned by the container user. Docker propagates the
+# ownership of an existing image directory to a fresh named volume mounted over
+# it, so pre-creating these makes `-v blocky_cache:/app/cache` writable without
+# any host-side setup. Kubernetes mounts a PVC at /data instead and never
+# touches these, but the compose/`docker run` path depends on them.
+COPY --from=prep --chown=100:100 /seed-dir /app/cache
+COPY --from=prep --chown=100:100 /seed-dir /logs
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 

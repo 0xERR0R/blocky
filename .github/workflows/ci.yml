@@ -65,7 +65,8 @@ jobs:
   # `make e2e-test-baseline` builds the image with `docker buildx` and runs the
   # suite against it, so this also covers `make docker-build`'s Dockerfile —
   # which had never been built either. It is NOT the release image: release.yml
-  # runs goreleaser against Dockerfile.goreleaser, which nothing exercises.
+  # runs goreleaser against Dockerfile.goreleaser. That one is covered by the
+  # `release-image` job below, not by this one.
   #
   # The pass/fail decision comes from tools/e2ebaseline, not from ginkgo's exit
   # status: the suite's first run was 43/162 red from causes that predate the
@@ -117,4 +118,83 @@ jobs:
         with:
           name: e2e-report
           path: e2e-report.json
+          if-no-files-found: warn
+
+  # The image the e2e job builds is not the image the release ships. release.yml
+  # runs goreleaser, which builds `Dockerfile.goreleaser`, and until this job
+  # existed nothing built that file at all — the first time the released image
+  # existed was on a tag, already on its way to ghcr and from there to the
+  # household's DNS. See docs/UPSTREAM_SYNC.md §11.
+  #
+  # The steps below are release.yml's steps minus the publishing ones, and they
+  # are meant to stay that way: the point of the job is that what CI builds and
+  # what a tag builds are the same image, so a step that exists in one pipeline
+  # and not the other is the defect this job was added to prevent. `--snapshot`
+  # is what removes the ghcr login, the push and the GitHub release.
+  #
+  # Building is only half of it. A `FROM scratch` image that builds is not one
+  # that runs: a missing SPA, an unwritable /app/cache or a lost file capability
+  # all produce a perfectly good image that fails at start. The smoke step is
+  # what makes this a gate rather than a compile check.
+  release-image:
+    name: Release image
+    runs-on: ubuntu-latest
+    # goreleaser builds five binary targets, the deb/rpm packages and both
+    # container images; ~8 minutes observed. The cap is a hang guard, not a
+    # budget.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # goreleaser derives the snapshot version from the tag history, and
+          # refuses to run in a shallow clone.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Dockerfile.goreleaser has no `ui` stage: goreleaser hands the image
+      # build an already-compiled binary, so the SPA has to be on disk before
+      # the Go build embeds it. Dropping this step still produces an image that
+      # builds and answers DNS, which is why the smoke step fetches a hashed
+      # asset rather than trusting the build.
+      - name: Build frontend
+        run: cd web/ui && npm install && npx vite build
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Kept in step with release.yml rather than trimmed. The arm64 image needs
+      # no emulation — Go cross-compiles the binary and the prep stage in
+      # Dockerfile.goreleaser is pinned to $BUILDPLATFORM — but a setup step
+      # present in one pipeline and absent from the other is exactly the kind of
+      # difference this job exists to rule out.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Required: .goreleaser.yml's dockers use `use: buildx` so that
+      # `--platform` can stamp the correct architecture into each image config.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build release artifacts
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --snapshot --clean
+
+      - name: Smoke test the release image
+        run: make release-image-smoke
+
+      - name: Upload release manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-snapshot-artifacts
+          path: dist/artifacts.json
           if-no-files-found: warn

@@ -1,4 +1,4 @@
-.PHONY: all clean generate generate-check build test fuzz check-fork-additions check-fork-additions-sync e2e-image e2e-test e2e-test-baseline e2e-test-coverage lint run fmt docker-build docker-push bump-minor bump-point deploy helm-deploy version help check-tools sync-handbook
+.PHONY: all clean generate generate-check build test fuzz check-fork-additions check-fork-additions-sync e2e-image e2e-test e2e-test-baseline e2e-test-coverage release-image-snapshot release-image-smoke lint run fmt docker-build docker-push bump-minor bump-point deploy helm-deploy version help check-tools check-goreleaser sync-handbook
 .DEFAULT_GOAL:=help
 
 VERSION:=$(shell cat VERSION)
@@ -90,6 +90,10 @@ check-docker:
 	$(call check_command,docker,"Please install Docker from https://docs.docker.com/get-docker/")
 	@docker buildx version > /dev/null 2>&1 || { echo "Error: docker buildx is required but not installed. See https://docs.docker.com/buildx/working-with-buildx/"; exit 1; }
 
+check-goreleaser:
+	$(call check_command,goreleaser,"Please install GoReleaser from https://goreleaser.com/install/")
+	$(call check_command,jq,"Required by scripts/smoke-release-image.sh to read dist/artifacts.json")
+
 all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
@@ -137,8 +141,10 @@ fuzz: check-go ## run each fuzz target for FUZZ_TIME (default 30s); e.g. make fu
 
 # NOTE: this is the image `make docker-build` builds, not the one the release
 # ships. release.yml runs goreleaser, which uses Dockerfile.goreleaser - a
-# `FROM scratch` wrapper around a prebuilt binary with no ui stage, no setcap
-# and no seeded /app/cache. Nothing here exercises that one.
+# `FROM scratch` wrapper around an already-compiled binary, so it has no ui
+# stage. `make release-image-snapshot` + `make release-image-smoke` are what
+# build and exercise that one; see docs/UPSTREAM_SYNC.md §11 for what still
+# differs between the two images and what no longer does.
 e2e-image: check-go check-docker ## build the container image the e2e suite runs against
 	docker buildx build \
 		--build-arg VERSION=$(VERSION) \
@@ -211,6 +217,22 @@ e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 	@echo "View full coverage report:"
 	@echo "  - HTML: go tool cover -html=coverage/e2e-coverage.out"
 	@echo "  - Text: go tool cover -func=coverage/e2e-coverage.out"
+
+# The image the release actually ships. `make docker-build` and the e2e suite
+# build `Dockerfile`; release.yml runs goreleaser against Dockerfile.goreleaser,
+# which until GRA-651 was built by nothing until a tag fired. These two targets
+# are that build and its smoke test without a tag and without a push, and the
+# release-image job in .github/workflows/ci.yml runs the same pair on every PR.
+#
+# `goreleaser release --snapshot` rather than a bare `docker buildx build -f
+# Dockerfile.goreleaser`: the per-arch cross-compiled binaries, the ldflags and
+# the build flags that produce the shipped image all come from .goreleaser.yml,
+# so a hand-rolled buildx invocation would prove a different image.
+release-image-snapshot: check-go check-docker check-goreleaser ## build the release artifacts, including the shipped image, with no tag and no push
+	goreleaser release --snapshot --clean
+
+release-image-smoke: check-docker ## start the goreleaser-built image and prove it serves DNS and the admin UI
+	./scripts/smoke-release-image.sh
 
 race: check-go ## run tests with race detector
 	go tool ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
