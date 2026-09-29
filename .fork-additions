@@ -79,6 +79,7 @@ docs/handbook/testing.html
 docs/handbook/tls.html
 docs/handbook/upstreams.html
 docs/upstream-sync/baseline-v0.34.38.md
+docs/upstream-sync/behavioral-replay-2026-09.md
 e2e/upstream_seed.go
 logstream/broadcaster.go
 logstream/broadcaster_test.go
@@ -130,6 +131,7 @@ server/server_stats.go
 server/server_version.go
 server/testdata/api_contract.golden
 server/testdata/api_spec_contract.golden
+tools/dnsreplay/main.go
 util/slug.go
 util/slug_test.go
 web/ui.go
