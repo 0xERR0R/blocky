@@ -255,10 +255,14 @@ func handleDiscoveredClients(w http.ResponseWriter, r *http.Request) {
 //   - DoH is never mounted here — see the caller.
 //   - Everything else (API, config, UI, static, docs, websocket) goes behind
 //     RequireAuth + RequireCSRFHeader. Mutating API routes are further gated by
-//     RequireAdminForMutations so `viewer` users are read-only.
-//   - pprof/expvar is NOT here. RequireAuth only rejects /api/* paths, so a
-//     /debug group on this router would be readable without a session; it lives
-//     on its own loopback listener instead (server/server_debug.go).
+//     RequireAdminForMutations so `viewer` users are read-only. Of those, only
+//     the paths auth.EnforcesAuth covers are actually rejected without a
+//     session — the SPA shell and its assets must stay reachable so the login
+//     page can render.
+//   - pprof/expvar is NOT here. RequireAuth only rejects the paths
+//     auth.EnforcesAuth covers (/api/*, /docs/*), so a /debug group on this
+//     router would be readable without a session; it lives on its own loopback
+//     listener instead (server/server_debug.go).
 func registerUIRoutes(router *chi.Mux, cfg *config.Config,
 	openAPIImpl api.StrictServerInterface,
 	store *configstore.ConfigStore, reconfigurer configapi.Reconfigurer,

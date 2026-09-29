@@ -544,7 +544,7 @@ conflict time produces arbitrary outcomes.
 | D4 | The 9 upstream GitHub workflows | **Re-delete.** |
 | D5 | New upstream features | **Merge the code at upstream defaults; no config-store or UI plumbing during the sync.** DoQ and DoH3 get UI work as dedicated follow-ups immediately after the sync lands (GRA-638, GRA-639). The remainder stay YAML-only until someone asks for them; see §4a. |
 | D6 | `docs/` branding | Take upstream content, re-apply Blockasaurus branding as a final pass. |
-| D7 | `GET /docs/config.schema.json` | **Still open** — provisionally accepted in Phase 5, never confirmed. The one decision the sync did not close. See below, including a correction to what the golden actually proves about its auth. |
+| D7 | `GET /docs/config.schema.json` | **Closed 2026-09-29 — keep the route, and stop serving it to the public.** Owner's call (option C). `auth.EnforcesAuth` now covers `/docs/*`, so an unauthenticated GET of either docs route answers 401 and a session answers 200. Implemented in GRA-652. See below. |
 
 ### D7 — the one upstream route this sync adds
 
@@ -570,8 +570,9 @@ resolver's**, which is why it is written down here instead of being absorbed:
   `/debug/*` rows gained guards they always had at runtime). So keeping the route does not cost a
   golden change that would otherwise have been avoided.
 
-**Correction, Phase 9 — it is reachable without a session.** The third bullet above said the route
-is "inside the authenticated group", and the contract golden records it as:
+**Correction, Phase 9 — it was reachable without a session.** (This paragraph describes the state
+that prompted the owner's decision; the closure that changed it follows below.) The third bullet
+above said the route is "inside the authenticated group", and the contract golden recorded it as:
 
 ```text
 GET     /docs/config.schema.json                      [RequireAuth* RequireCSRFHeader]
@@ -584,15 +585,15 @@ GET     /docs/config.schema.json                      [RequireAuth* RequireCSRFH
 That row is chi reporting which middleware the chain *contains*. It is not a statement that either
 one rejects anything here, and for this route neither does:
 
-- `RequireAuth` only produces a 401 for paths under `/api/` — `isAPIPath` gates every error branch
-  (`auth/middleware.go:68`, used at :116, :137, :151, :165). For any other path a missing, unknown
-  or expired session falls through to `next.ServeHTTP`, by design, so the SPA can load and discover
-  its own auth state from `/api/auth/session`.
+- `RequireAuth` only produced a 401 for paths under `/api/` — `isAPIPath` gated every error branch
+  in `auth/middleware.go`. For any other path a missing, unknown or expired session fell through to
+  `next.ServeHTTP`, by design, so the SPA can load and discover its own auth state from
+  `/api/auth/session`. (That branch predicate is now `EnforcesAuth`, which covers `/docs/*` too.)
 - `RequireCSRFHeader` returns early for `GET`, `HEAD` and `OPTIONS` before it looks at
   `X-Requested-With`.
 
-So the effective disposition is: an unauthenticated `GET /docs/config.schema.json` returns 200 with
-the schema. `TestRequireAuth_NoCookie_NonAPIPassthrough` (`auth/middleware_test.go:192`) is the
+So the effective disposition was: an unauthenticated `GET /docs/config.schema.json` returned 200
+with the schema. `TestRequireAuth_NoCookie_NonAPIPassthrough` (`auth/middleware_test.go:192`) is the
 spec that pins the passthrough itself. Note which spec is *not* evidence here: `server_test.go`'s
 "Docs endpoints" case does a bare `http.Get` and asserts 200, but it builds the server with
 `NewServer(ctx, cfg, nil)` (`server/server_test.go:174`) and `server/server_endpoints.go:290` only
@@ -608,7 +609,40 @@ GRA-647 covered `/debug/pprof/*` and `/debug/vars`, which answered 200 with no s
 middleware reason and were a materially worse exposure; they no longer exist on this router at all,
 and are served — when explicitly enabled — on a loopback-only listener (`debug.enable`).
 
-**To reverse it** — drop `router.Get("/docs/config.schema.json", …)` from `configureDocsHandler`
+**Closed, 2026-09-29 — option C: keep the route, gate `/docs/*`.** The owner was asked the question
+above and answered that the route stays and the exposure does not. Implemented in GRA-652:
+
+- `auth.EnforcesAuth` now returns true for `/docs/*` as well as `/api/*` (`auth/middleware.go`), and
+  every rejection branch in `RequireAuth` keys off that predicate rather than `isAPIPath` directly.
+  One predicate therefore drives both the runtime behavior and the golden's `*` annotation, so the
+  marker cannot drift away from what actually enforces.
+- The contract golden's two docs rows moved from `[RequireAuth* RequireCSRFHeader]` to
+  `[RequireAuth RequireCSRFHeader]`. No other row moved. This is a deliberate contract change: both
+  routes go 200 → 401 for an unauthenticated client. It moves the behavior *toward* what that row
+  already claimed.
+- `/`, `/ui/*`, `/static/*` and `/robots.txt` are deliberately **not** covered. Gating them would
+  serve a 401 in place of the login page and lock the user out of their own server;
+  `TestEnforcesAuth_ShellStaysOpen` (`auth/middleware_test.go`) pins that both ways.
+- Verified against a running server, not inferred: with a user configured, unauthenticated
+  `GET /docs/openapi.yaml` and `GET /docs/config.schema.json` return 401 `unauthorized`, the same
+  requests with a session cookie return 200 with the artifact, and `/`, `/ui/`, the SPA's JS/CSS
+  bundles, `/static/rapidoc.html` and `/robots.txt` still return 200 with no session, through a
+  full setup → login → session-probe flow.
+- Scope note: this also closes something that predates the sync. `/docs/openapi.yaml` is ours, not
+  upstream's addition, and had been public since long before the merge — nobody ever agreed to
+  that either. D7 surfaced it by accident.
+- The risk assessment is unchanged and was re-checked: both routes serve checked-in generated
+  artifacts with no secrets and no runtime values. The only `password` hits in the config schema are
+  field definitions such as `redis.password → {type: string, default: ""}`.
+- Blast radius is `web/static/rapidoc.html`, whose `spec-url` is `/docs/openapi.yaml`. It is a
+  browser page carrying the session cookie, so a logged-in admin is unaffected; an unauthenticated
+  visitor gets 401 on the spec, which is the intent. Nothing in `web/ui/src` fetches either path.
+
+**To make them public again** — drop `isDocsPath` from `EnforcesAuth` in `auth/middleware.go` and
+rerun `go test ./server -run TestAPIContract -update-api-contract`. The golden's two docs rows
+should go back to `RequireAuth*`.
+
+**To drop the route entirely** — drop `router.Get("/docs/config.schema.json", …)` from `configureDocsHandler`
 and its link from `configureRootHandler` in `server/server_endpoints.go`, re-point
 `server/server_test.go`'s "Docs endpoints" and PROXY-protocol specs at `/docs/openapi.yaml`, and
 rerun `go test ./server -run TestAPIContract -update-api-contract`.

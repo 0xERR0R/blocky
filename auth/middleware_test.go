@@ -326,6 +326,103 @@ func TestRequireAuth_NoCookie_WrongMethodOnSetup_Rejected(t *testing.T) {
 	}
 }
 
+// --- /docs/* gating (GRA-652, decision D7) -----------------------------
+
+// The docs routes describe the admin API and its configuration. They sit
+// outside /api/, so they used to ride RequireAuth's non-API passthrough and
+// answer 200 to anyone; auth.EnforcesAuth now covers them.
+
+func TestRequireAuth_NoCookie_DocsUnauthorized(t *testing.T) {
+	s := newFakeStore()
+
+	h := RequireAuth(s)(passthrough)
+
+	for _, path := range []string{"/docs/openapi.yaml", "/docs/config.schema.json"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s without cookie: got %d want 401", path, rec.Code)
+		}
+
+		if body := decodeErr(t, rec.Body.Bytes()); body["error"] != "unauthorized" {
+			t.Fatalf("%s error code: got %q want unauthorized", path, body["error"])
+		}
+	}
+}
+
+func TestRequireAuth_NoUsers_DocsReturnsSetupRequired(t *testing.T) {
+	s := newFakeStore()
+	s.hasUsers = false
+
+	h := RequireAuth(s)(passthrough)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/docs/openapi.yaml", nil)
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d want 401", rec.Code)
+	}
+
+	if body := decodeErr(t, rec.Body.Bytes()); body["error"] != "setup_required" {
+		t.Fatalf("error code: got %q want setup_required", body["error"])
+	}
+}
+
+func TestRequireAuth_ValidSession_DocsPass(t *testing.T) {
+	s := newFakeStore()
+	s.sessions["tok"] = &authmodels.Session{
+		ID:        "tok",
+		UserID:    1,
+		ExpiresAt: time.Now().Add(SessionDuration),
+	}
+	s.users[1] = &authmodels.User{ID: 1, Username: "alice", Role: RoleAdmin}
+
+	h := RequireAuth(s)(passthrough)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/docs/openapi.yaml", nil)
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "tok"})
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("valid session should reach the docs handler; got %d", rec.Code)
+	}
+}
+
+// TestEnforcesAuth_ShellStaysOpen is the regression guard on the other side of
+// the decision: gating the SPA shell, its assets or robots.txt would serve a
+// 401 in place of the login page, locking the user out of their own server.
+func TestEnforcesAuth_ShellStaysOpen(t *testing.T) {
+	gated := []string{
+		"/api/version",
+		"/docs/openapi.yaml",
+		"/docs/config.schema.json",
+	}
+
+	public := []string{
+		"/",
+		"/ui/",
+		"/ui/index.html",
+		"/static/rapidoc.html",
+		"/robots.txt",
+	}
+
+	for _, p := range gated {
+		if !EnforcesAuth(p) {
+			t.Fatalf("%s must be gated", p)
+		}
+	}
+
+	for _, p := range public {
+		if EnforcesAuth(p) {
+			t.Fatalf("%s must stay reachable without a session", p)
+		}
+	}
+}
+
 // --- RequireRole -------------------------------------------------------
 
 // withUser wraps next with a handler that attaches u to the request
