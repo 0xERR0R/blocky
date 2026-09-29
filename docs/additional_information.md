@@ -41,8 +41,35 @@ To print runtime configuration / statistics, you can send `SIGUSR1` signal to ru
 
 ## Debug / Profiling
 
-If http listener is enabled, [pprof](https://golang.org/pkg/net/http/pprof/) endpoint (`/debug/pprof`) is enabled
-automatically.
+The [pprof](https://golang.org/pkg/net/http/pprof/) and `expvar` endpoints are **off by default** and are served on
+their own listener, which binds loopback only (`127.0.0.1` and `[::1]`). Enable them with:
+
+```yaml
+debug:
+  enable: true
+  port: 6060 # optional, this is the default
+```
+
+Then:
+
+```sh
+go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+curl http://127.0.0.1:6060/debug/vars
+```
+
+!!! warning
+
+    The bind address is loopback and is not configurable. Heap and goroutine dumps carry in-flight query names and
+    client addresses, `/debug/pprof/cmdline` leaks the invocation, and `/debug/pprof/profile` lets any caller pin a CPU
+    for the sampling duration. To reach it from another machine, forward the port rather than exposing it:
+
+    ```sh
+    ssh -L 6060:127.0.0.1:6060 blocky-host
+    kubectl port-forward pod/blocky 6060:6060
+    ```
+
+    These endpoints were previously mounted on the HTTP API port. They were reachable there without a session, because
+    the session guard only rejects `/api/*` paths — which is why they moved.
 
 ## List sources
 

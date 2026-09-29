@@ -111,8 +111,9 @@ So: no behavior change, and `/debug` **GETs** were never gated. `RequireCSRFHead
 that chain and does reject a mutation without `X-Requested-With`, so `POST /debug/pprof/symbol`
 is 403 — on both sides. But every pprof and expvar page worth reading is a GET, so they are
 readable without a session on the API port. That is a **pre-existing exposure, not merge
-damage** — see "Follow-ups" below. It is deliberately not fixed here, because fixing it would
-change the very contract this phase exists to hold still.
+damage** — see "Follow-ups" below. It was deliberately not fixed here, because fixing it would
+change the very contract this phase exists to hold still; GRA-647 did that afterwards, and the
+`/debug/*` rows no longer exist in the golden.
 
 ### Delta 2 — `GET /docs/config.schema.json` added
 
@@ -263,14 +264,20 @@ e2e still needs a container runtime and still has not run anywhere; see §3.4a a
 ## Follow-ups
 
 Neither is merge damage; both predate the sync and are recorded here because this is the pass
-that measured them.
+that measured them. **Both are now closed** — GRA-647, after this document was written.
 
-1. **`/debug/pprof/*` and `/debug/vars` are reachable without a session** on the HTTP API port,
+1. ~~**`/debug/pprof/*` and `/debug/vars` are reachable without a session** on the HTTP API port,
    on both sides, because `RequireAuth` passes through non-`/api/*` paths. Heap, goroutine and
    `cmdline` dumps are readable by anyone who can reach the port. Closing it is a deliberate
-   contract change and wants its own issue.
-2. **The route golden's middleware column now over-reads as enforcement.** Since chi v5.3.2 it
+   contract change and wants its own issue.~~
+   **Fixed (GRA-647).** The diagnostics surface is no longer on the API router at all. It moved to
+   an opt-in listener (`debug.enable`, default false) bound to `127.0.0.1` and `[::1]` only —
+   `server/server_debug.go`, `config/debug.go`. The 14 `/debug/*` rows are gone from the golden;
+   `TestDebugNotServedOnAPIPort` asserts the API router 404s them.
+2. ~~**The route golden's middleware column now over-reads as enforcement.** Since chi v5.3.2 it
    lists `RequireAuth` on routes where that middleware is registered but, by design, does not
-   enforce. The test's doc comment already says it records what is registered rather than what it
-   does; with the `/debug` rows now carrying guard names, that caveat deserves to be visible in
-   the golden itself or encoded as an annotation.
+   enforce.~~
+   **Fixed (GRA-647).** The golden now writes `RequireAuth*` on every route where the middleware
+   is registered but does not enforce, with the legend at the top of the file. The marker is
+   derived from `auth.EnforcesAuth` — the same predicate `RequireAuth` itself uses — rather than a
+   second copy of the `/api/*` rule, so it cannot drift from the behavior it describes.

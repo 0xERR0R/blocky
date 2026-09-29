@@ -57,7 +57,12 @@ const apiContractGolden = "testdata/api_contract.golden"
 //   - Fork edits to upstream files generally. See .fork-additions and
 //     docs/UPSTREAM_SYNC.md §7.
 //   - Middleware behavior. Only the identity and order of the chain is
-//     recorded, not what it does.
+//     recorded, not what it does. chi reports what is *registered* on a route,
+//     which is not the same as what enforces on it — RequireAuth is the case
+//     that bit us, and it is annotated (see annotateNonEnforcing). The others
+//     are method-conditional and say so in their own names
+//     (RequireCSRFHeader ignores safe methods; RequireAdminForMutations
+//     ignores reads).
 //
 // A diff here is not automatically a bug — but it is always a change to the
 // contract the web UI and any API consumer depend on, and it must be
@@ -198,12 +203,17 @@ func walkRoutes(router *chi.Mux) ([]string, error) {
 
 	guards := map[routeKey]string{}
 	for key, chain := range chains {
-		guards[key] = formatChain(chain[len(common):])
+		guards[key] = formatChain(annotateNonEnforcing(key.pattern, chain[len(common):]))
 	}
 
 	routes := []string{
 		"# Applied to every route below by withCommonMiddleware (server/http.go):",
 		formatRoute("COMMON", "*", formatChain(common)),
+		"",
+		"# " + nonEnforcingMarker + " = registered on the chain but NOT enforcing on that path.",
+		"# RequireAuth only rejects /api/* (auth.EnforcesAuth); every other path passes",
+		"# through so the SPA shell can render and detect auth state via /api/auth/session.",
+		"# A route that must be protected therefore cannot live outside /api/.",
 		"",
 	}
 
@@ -253,6 +263,36 @@ func commonPrefix(chains map[routeKey][]string) []string {
 	}
 
 	return prefix
+}
+
+// nonEnforcingMarker flags a guard that is on a route's chain but does not
+// enforce on that route's path.
+const nonEnforcingMarker = "*"
+
+// annotateNonEnforcing marks RequireAuth on the routes where it is registered
+// but passes the request straight through.
+//
+// RequireAuth only rejects /api/* paths (auth.EnforcesAuth); on the SPA shell,
+// static assets and docs it is on the chain and does nothing. Without this the
+// guard column reads as protection on routes that have none, which is exactly
+// how /debug/pprof sat in this golden looking guarded while serving heap dumps
+// and cmdline to anyone who could reach the API port (GRA-647).
+func annotateNonEnforcing(pattern string, chain []string) []string {
+	if auth.EnforcesAuth(pattern) {
+		return chain
+	}
+
+	out := make([]string, len(chain))
+
+	for i, name := range chain {
+		if name == "RequireAuth" {
+			name += nonEnforcingMarker
+		}
+
+		out[i] = name
+	}
+
+	return out
 }
 
 func formatRoute(method, pattern, guard string) string {

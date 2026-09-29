@@ -331,6 +331,8 @@ type Config struct {
 	RebindingProtection RebindingProtection `yaml:"rebindingProtection"`
 	// Subdomain- and EDNS-based client group identification endpoints.
 	ClientGroupEndpoints ClientGroupEndpoints `yaml:"clientGroupEndpoints"`
+	// Optional loopback-only pprof/expvar diagnostics listener.
+	Debug Debug `yaml:"debug"`
 	// Path to the SQLite database holding upstreams, blocking, custom DNS, users and statistics.
 	DatabasePath string `yaml:"databasePath"`
 
@@ -731,6 +733,10 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 	}
 
 	if err := cfg.Ports.validate(); err != nil {
+		logger.Fatal(err)
+	}
+
+	if err := cfg.Debug.validate(); err != nil {
 		logger.Fatal(err)
 	}
 

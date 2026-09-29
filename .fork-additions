@@ -36,6 +36,8 @@ auth/wsrevoke.go
 cmd/user.go
 cmd/user_test.go
 config/client_group_endpoints.go
+config/debug.go
+config/debug_test.go
 configstore/auth.go
 configstore/auth_test.go
 configstore/configstore_suite_test.go
@@ -126,6 +128,8 @@ server/api_spec_contract_test.go
 server/chain_wiring_test.go
 server/server_auth.go
 server/server_auth_test.go
+server/server_debug.go
+server/server_debug_test.go
 server/server_endpoint_info.go
 server/server_endpoints_test.go
 server/server_lifecycle_test.go

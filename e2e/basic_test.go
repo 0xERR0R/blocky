@@ -143,8 +143,17 @@ var _ = Describe("Basic functionality", func() {
 						))
 					})
 
-					By("serving pprof debugging endpoint", func() {
-						Eventually(http.Get).WithArguments(url + "/debug/").Should(HaveHTTPStatus(http.StatusOK))
+					// pprof and expvar are not on this port. They used to be, and
+					// RequireAuth does not gate non-/api/* paths, so they were readable
+					// without a session by anything that could reach the API port
+					// (GRA-647). They now live on an opt-in loopback-only listener
+					// (config `debug.enable`), which by construction is not reachable
+					// from the test host.
+					By("not exposing pprof or expvar on the HTTP API port", func() {
+						for _, path := range []string{"/debug/", "/debug/pprof/heap", "/debug/vars"} {
+							Eventually(http.Get).WithArguments(url + path).
+								Should(HaveHTTPStatus(http.StatusNotFound))
+						}
 					})
 
 					By("not exposing prometheus metrics by default", func() {

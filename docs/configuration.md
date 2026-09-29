@@ -100,8 +100,8 @@ All values in this section are optional.
 |---------------|-----------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | ports.dns     | One or more [IP]:Port | 53            | Listen address for DNS (TCP and UDP). Example: `53`, `:53`, `192.168.0.1:53`, `[53, "[::1]:53"]`                                                  |
 | ports.tls     | One or more [IP]:Port |               | Listen address for DoT (DNS-over-TLS). Example: `83`, `:853`, `192.168.0.1:853`, `[853, "[::1]:853"]`                                             |
-| ports.http    | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, pprof, REST API, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
-| ports.https   | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
+| ports.http    | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, REST API, web UI, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
+| ports.https   | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, REST API, web UI, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
 | ports.dohPath | string                | /dns-query    | URL path for DoH queries.                                                                                                                         |
 | ports.freeBind | bool                 | false         | Allow binding the DNS/DoT listeners to addresses not yet assigned to an interface (Linux only, via `IP_FREEBIND`; e.g. Tailscale/WireGuard/VRRP). No effect on wildcard binds; ignored with a warning on non-Linux. |
 | ports.proxyProtocol | list | _empty_ | TCP listener families (any of `dns`, `http`, `https`, `tls`) that must require a HAProxy PROXY protocol header. Enable only when the listener is reachable only through a trusted proxy. |
@@ -1112,6 +1112,43 @@ ports:
   https: 443
 http3:
   enable: true
+```
+
+## Debug / profiling listener {#debug}
+
+Serve the Go runtime diagnostics endpoints — [pprof](https://pkg.go.dev/net/http/pprof) under `/debug/pprof/` and
+`expvar` at `/debug/vars` — on a dedicated listener. Disabled by default.
+
+| Parameter    | Type    | Mandatory | Default value | Description                                                         |
+| ------------ | ------- | --------- | ------------- | ------------------------------------------------------------------- |
+| debug.enable | boolean | no        | false         | Enable the pprof/expvar listener.                                   |
+| debug.port   | int     | no        | 6060          | Port for the listener. Always bound to `127.0.0.1` and `[::1]` only. |
+
+**Notes:**
+
+- **The bind address is loopback and is not configurable.** These endpoints are unauthenticated, and they are not
+  harmless: heap and goroutine dumps carry in-flight query names and client addresses, `/debug/pprof/cmdline` leaks the
+  process invocation, and `/debug/pprof/profile` lets any caller pin a CPU for the sampling duration.
+- Both IP families are attempted. A host with IPv6 disabled binds IPv4 only and logs a warning; failing on *every*
+  address is a startup error, so an enabled listener is never silently absent.
+- To reach it from another machine, forward the port — `ssh -L 6060:127.0.0.1:6060 blocky-host`, or
+  `kubectl port-forward pod/blocky 6060:6060` — rather than exposing it.
+- These endpoints used to be served on `ports.http`/`ports.https`. They were reachable there **without a session**,
+  because the session guard only rejects `/api/*` paths, so they moved here.
+
+**Example:**
+
+```yaml
+debug:
+  enable: true
+  port: 6060
+```
+
+Then:
+
+```sh
+go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+curl http://127.0.0.1:6060/debug/vars
 ```
 
 ## Query logging
