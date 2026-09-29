@@ -490,14 +490,20 @@ The same workflow has a second job, `e2e`, added in Phase 9. It runs
 the 162 e2e specs against it. Deleting it restores two gaps at once: the e2e
 suite, and "`make docker-build`'s image has never been built".
 
-**It is not the release image, and that gap is still open.** `release.yml` runs
-goreleaser, and `.goreleaser.yml` points at `Dockerfile.goreleaser` — a 17-line
-`FROM scratch` wrapper around a prebuilt binary. It has none of `Dockerfile`'s
-substance: no `ui` build stage, no `make build` (so no `BIN_AUTOCAB` and no
-`setcap cap_net_bind_service`), and no seeded `--chown=100:100 /app/cache` and
-`/logs`. Nothing in this repo builds or runs it. So "the e2e job proves the
-container works" is true of the image `make docker-build` produces and false of
+**It is not the release image.** `release.yml` runs goreleaser, and
+`.goreleaser.yml` points at `Dockerfile.goreleaser`. Through Phase 9 that was a
+17-line `FROM scratch` wrapper around a prebuilt binary with none of
+`Dockerfile`'s substance — no `make build` (so no `BIN_AUTOCAB` and no `setcap
+cap_net_bind_service`), and no seeded `--chown=100:100 /app/cache` and `/logs` —
+and nothing in this repo built or ran it. "The e2e job proves the container
+works" was therefore true of the image `make docker-build` produces and false of
 the image the household's DNS actually runs.
+
+A third job, `release-image`, closes that (GRA-651): it runs
+`goreleaser release --snapshot --clean` and then `make release-image-smoke`,
+which starts the shipped image under the Helm chart's securityContext and fails
+unless it serves DNS and the admin SPA. **§11** records what the two images now
+have in common and what they still do not.
 
 ### The e2e baseline
 
@@ -1023,14 +1029,125 @@ nothing had ever started.
 intermediate state to inspect — which is the other reason not to reach for it casually.
 
 Phase 9 moved this, but did not clear it. What is now true: the image `make docker-build` produces
-builds on every push, it starts, it serves DNS, and 119 e2e specs pass against it. What is still not
-true: 39 specs' worth of blocking, customDNS and API behavior have never been confirmed in a
-container (§3.4b), and the image goreleaser actually ships — `Dockerfile.goreleaser` — is still
-built by nothing (§3a).
+builds on every push, it starts, it serves DNS, and 119 e2e specs pass against it. GRA-651 then
+closed the second half — the image goreleaser actually ships is built and started on every PR, and
+§11 states how far it and the e2e image have been reconciled.
 
-So the honest statement of the hold is narrower than it was and no longer absolute. Tagging now
-would ship a tree whose DNS path is container-verified and whose blocking path is not, which for an
-ad-blocker is the wrong half. Clearing it properly wants the §3.4b burn-down; clearing it
-pragmatically wants at minimum a manual confirmation that blocking works in the container. Either
-way the decision is the owner's, and `VERSION` should not move as a side effect of someone else's
-phase.
+What is still not true: 39 specs' worth of blocking, customDNS and API behavior have never been
+confirmed in a container (§3.4b).
+
+So the honest statement of the hold is narrower again. **The release-pipeline reason for the hold is
+gone**: a tag no longer builds an image for the first time, and the image it builds is the one CI
+started. What remains is coverage, not pipeline — tagging now would ship a tree whose DNS path is
+container-verified and whose blocking path is not, which for an ad-blocker is the wrong half.
+Clearing that properly wants the §3.4b burn-down; clearing it pragmatically wants at minimum a
+manual confirmation that blocking works in the container. Either way the decision is the owner's,
+and `VERSION` should not move as a side effect of someone else's phase.
+
+## 11. The two images — what is shared and what is not
+
+The fork builds its container twice, from two files, and only one of them used
+to be tested. This section is the written answer to "are the tested image and
+the shipped image the same thing".
+
+| | `Dockerfile` | `Dockerfile.goreleaser` |
+| --- | --- | --- |
+| Built by | `make docker-build`, `make e2e-image`, the `e2e` CI job | `goreleaser`, from `release.yml` on a tag and from the `release-image` CI job on every PR |
+| Gets its binary from | a `golang:alpine` build stage running `make build` | goreleaser's own cross-compiled `builds:` output, copied into the context |
+| Builds the SPA | `ui` stage, `npx vite build`, copied to `web/ui/dist` | the workflow's `Build frontend` step, before the Go build embeds it |
+| Final stage | `scratch`, `USER 100`, `WORKDIR /app` | same |
+| `setcap cap_net_bind_service` | yes, via `BIN_AUTOCAB` in `make build` | yes, via the `prep` stage |
+| Owner of the binary | uid 100, via `BIN_USER` | uid 100, via the `prep` stage |
+| Seeded `/app/cache`, `/logs` | yes, `--chown=100:100` | yes, `--chown=100:100` |
+| `ENTRYPOINT`, `HEALTHCHECK`, `BLOCKY_CONFIG_FILE` | identical | identical |
+| OCI labels | from `ARG VERSION`/`BUILD_TIME` | static in the file plus `--label` flags from `.goreleaser.yml` |
+
+**The answer: the images are equivalent in everything that determines whether
+the container runs — the same binary layout, the same uid, the same file
+capability, the same writable mount points, the same entrypoint. They are not
+the same file and will not be, for one reason that cannot be designed away:
+goreleaser builds the image from a context containing an already-compiled
+binary, not from the source tree, so it cannot run `make build` and a single
+shared Dockerfile is not possible.**
+
+Three differences remain and are deliberate:
+
+1. **No `ui` stage in the goreleaser file.** The SPA is embedded into the binary
+   by the Go build (`web/ui.go`, `//go:embed all:ui/dist`), which goreleaser has
+   already run by the time the image is built. Building it again as a layer
+   would embed nothing. The cost is that the SPA's presence depends on a
+   workflow step rather than on the Dockerfile, which is why the smoke test
+   fetches a hashed asset out of `/ui/` instead of trusting the build.
+2. **Version stamping.** `Dockerfile` takes `VERSION` as a build arg and
+   stamps `0.34.38`; goreleaser's ldflags come from the tag and stamp
+   `v0.34.38`. Both land in `util.Version`, the `v` is the only difference, and
+   the shipped value is goreleaser's.
+3. **`prep` is Alpine, the e2e build stage is `golang:alpine`.** Both exist only
+   to run `setcap`/`chown` and be thrown away.
+
+Two cosmetic differences are left alone: `make build`'s `chown 100` leaves the
+group as `0` where the `prep` stage uses `100:100` (the chart sets
+`runAsGroup: 100`, so the goreleaser image is the closer of the two), and the
+e2e image's `BUILD_TIME` build arg has no goreleaser equivalent.
+
+One more difference is real but inert: `make build` passes `-tags static` and
+goreleaser does not. No file in the tree has a `static` build constraint —
+`main_static.go`, which links `breml/rootcerts` (the embedded Mozilla CA bundle,
+which is why a `FROM scratch` image can still verify TLS) and `time/tzdata`,
+is gated on `linux`, not on `static`. Both builds therefore produce the same
+binary in this respect. Left alone rather than removed, because "this tag does
+nothing" is a claim worth re-checking rather than acting on during a release
+hold.
+
+### What guards this
+
+`.github/workflows/ci.yml`'s `release-image` job, on every PR:
+
+- `goreleaser release --snapshot --clean` — the real `.goreleaser.yml`, the real
+  `Dockerfile.goreleaser`, the real per-arch binaries. Not a hand-rolled
+  `docker buildx build -f Dockerfile.goreleaser`, which would prove a different
+  image.
+- `make release-image-smoke` (`scripts/smoke-release-image.sh`) then asserts, on
+  the image goreleaser just produced:
+  - each arch-tagged image declares the architecture it claims. `docker build`
+    stamps the *builder's* platform into a `FROM scratch` image unless
+    `--platform` says otherwise, so before GRA-651 the `-arm64` tag declared
+    `amd64` while holding an arm64 binary. The manifest list then had two
+    `linux/amd64` entries and no `linux/arm64` one at all: an amd64 node would
+    have got whichever of the two came first, and an arm64 node's pull would
+    not have resolved. Fixed by `use: buildx` plus `--platform=linux/<arch>`;
+    the assertion is what keeps it fixed.
+  - the arm64 image *runs* and reports `Architecture: arm64`. The image config
+    and the binary inside it come from two independent inputs — `--platform`
+    writes the one, goreleaser's per-`goarch` artifact filter picks the other —
+    so a correct label around the wrong binary passes every other check here.
+  - `/app/blockasaurus` carries `cap_net_bind_service`. Asserted directly rather
+    than inferred from a successful bind, because runtimes differ in whether
+    they hand a non-root process an effective capability set of its own.
+  - the container serves DNS on `:53` over both TCP and UDP under the chart's
+    full securityContext — `--user 100:100 --cap-drop ALL --cap-add
+    NET_BIND_SERVICE --read-only --tmpfs /tmp` — plus
+    `net.ipv4.ip_unprivileged_port_start=1024`, the value Kubernetes uses.
+    Docker's default of `0` lets any uid bind a low port and would hide a
+    missing capability, and without `--read-only` a process that writes outside
+    `/app/cache` passes the smoke test and crash-loops in the cluster.
+  - `/ui/` returns the SPA shell *and* a hashed asset out of `/ui/assets/`.
+  - the seeded `/app/cache` is writable by uid 100 through a fresh named volume.
+
+The job's steps are `release.yml`'s steps minus publishing, on purpose. A step
+that exists in one pipeline and not the other reopens exactly the gap this job
+was added to close, so `Set up QEMU` is kept in both — and it is no longer dead
+weight, because the smoke test executes the arm64 image.
+
+Two things to know before touching this:
+
+- **`--builder default` in the capability check is load-bearing.**
+  `docker/setup-buildx-action` makes a `docker-container` builder current, and
+  that builder has its own image store. A plain `docker build` whose Dockerfile
+  says `FROM <the image goreleaser just built>` would miss the local image and
+  go to the registry — and since the snapshot tag now matches a real release
+  tag, it could silently check a *previously published* image and go green.
+- **`dockers` and `docker_manifests` are deprecated** in goreleaser v2.18 in
+  favour of `dockers_v2`; every run logs a warning about it. Migrating is its
+  own piece of work and not one to start under a release hold, but the warning
+  in the job log is expected, not a symptom.

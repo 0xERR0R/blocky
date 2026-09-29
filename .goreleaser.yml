@@ -2,6 +2,16 @@ version: 2
 
 project_name: blockasaurus
 
+git:
+  # `pre-upstream-sync-v0.34.38` is GRA-629's rollback-safety tag, not a
+  # release. It is also the nearest reachable tag from main, so without this
+  # every untagged build — including the release-image job's snapshot — derives
+  # its version and its image tags from it and then warns that they are not
+  # semver. Ignoring it makes a snapshot resolve to the last real `v*` tag, so
+  # what CI builds is named like what a tag builds.
+  ignore_tags:
+    - "pre-upstream-sync-*"
+
 before:
   hooks:
     - go mod tidy
@@ -70,10 +80,18 @@ dockers:
   - image_templates:
       - "ghcr.io/chrissnell/blockasaurus:{{ .Tag }}-amd64"
     dockerfile: Dockerfile.goreleaser
-    use: docker
+    # buildx, not the classic builder: Dockerfile.goreleaser has a
+    # `--platform=$BUILDPLATFORM` prep stage, and `--platform` below is what
+    # stamps the right architecture into the image config. With `use: docker`
+    # both of these tags are built on an amd64 runner from a `FROM scratch`
+    # base, so BOTH end up declaring linux/amd64: the arm64 binary ships inside
+    # an amd64-labelled image, the manifest list has no linux/arm64 entry at
+    # all, and an arm64 node's pull fails to resolve.
+    use: buildx
     goos: linux
     goarch: amd64
     build_flag_templates:
+      - "--platform=linux/amd64"
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
@@ -83,10 +101,11 @@ dockers:
   - image_templates:
       - "ghcr.io/chrissnell/blockasaurus:{{ .Tag }}-arm64"
     dockerfile: Dockerfile.goreleaser
-    use: docker
+    use: buildx
     goos: linux
     goarch: arm64
     build_flag_templates:
+      - "--platform=linux/arm64"
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"

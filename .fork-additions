@@ -121,6 +121,7 @@ pkg/statscollector/collector.go
 pkg/statscollector/collector_test.go
 pkg/winservice/service_other.go
 pkg/winservice/service_windows.go
+scripts/smoke-release-image.sh
 server/api_contract_test.go
 server/api_spec_contract_test.go
 server/chain_wiring_test.go
