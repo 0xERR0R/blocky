@@ -272,7 +272,7 @@ func seedConfigDB(seed upstreamSeedCfg, cfg *config.Config) (string, error) {
 		return "", err
 	}
 
-	if err := seedAPIUser(store); err != nil {
+	if err := seedAPIUsers(store); err != nil {
 		return "", err
 	}
 

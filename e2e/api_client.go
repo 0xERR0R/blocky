@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,9 +41,16 @@ type apiClient struct {
 	session *http.Cookie
 }
 
-// newAPIClient logs in against the given base URL ("http://host:port") and
-// returns a client carrying the resulting session cookie.
+// newAPIClient logs in as the seeded admin against the given base URL
+// ("http://host:port") and returns a client carrying the resulting session
+// cookie.
 func newAPIClient(ctx context.Context, baseURL string) (*apiClient, error) {
+	return newAPIClientAs(ctx, baseURL, e2eAdminUsername)
+}
+
+// newAPIClientAs is newAPIClient for a named seeded account, so a spec can hold
+// a viewer session as well as an admin one.
+func newAPIClientAs(ctx context.Context, baseURL, username string) (*apiClient, error) {
 	client := &http.Client{Timeout: apiClientTimeout}
 
 	var lastErr error
@@ -56,20 +64,39 @@ func newAPIClient(ctx context.Context, baseURL string) (*apiClient, error) {
 			}
 		}
 
-		cookie, err := login(ctx, client, baseURL)
+		cookie, err := login(ctx, client, baseURL, username)
 		if err == nil {
 			return &apiClient{http: client, session: cookie}, nil
 		}
 
 		lastErr = err
+
+		// A rejected login is a seeding or wiring bug, not a readiness one:
+		// retrying buries the first (useful) error behind two more of the same.
+		// 429 is the exception — the login limiter is per-IP and does clear.
+		var rejected loginRejectedError
+		if errors.As(err, &rejected) && rejected.status != http.StatusTooManyRequests {
+			break
+		}
 	}
 
-	return nil, fmt.Errorf("log in to %s: %w", baseURL, lastErr)
+	return nil, fmt.Errorf("log in to %s as %q: %w", baseURL, username, lastErr)
 }
 
-func login(ctx context.Context, client *http.Client, baseURL string) (*http.Cookie, error) {
+// loginRejectedError is a login the server answered and refused, as opposed to
+// one that never got an answer.
+type loginRejectedError struct {
+	status int
+	body   string
+}
+
+func (e loginRejectedError) Error() string {
+	return fmt.Sprintf("login returned %d: %s", e.status, e.body)
+}
+
+func login(ctx context.Context, client *http.Client, baseURL, username string) (*http.Cookie, error) {
 	body, err := json.Marshal(map[string]string{
-		"username": e2eAPIUsername,
+		"username": username,
 		"password": e2eAPIPassword,
 	})
 	if err != nil {
@@ -94,10 +121,18 @@ func login(ctx context.Context, client *http.Client, baseURL string) (*http.Cook
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(resp.Body)
 
-		return nil, fmt.Errorf("login returned %d: %s", resp.StatusCode, msg)
+		return nil, loginRejectedError{status: resp.StatusCode, body: string(msg)}
 	}
 
+	// Value-checked as well as name-checked, the way auth.ReadSessionCookie
+	// does it: a clearing Set-Cookie carries the right name and an empty value,
+	// and a client that accepted one would 401 on every later call with nothing
+	// pointing at why.
 	for _, c := range resp.Cookies() {
+		if c.Value == "" {
+			continue
+		}
+
 		if c.Name == auth.SessionCookieName || c.Name == auth.SessionCookieNameSecure {
 			return c, nil
 		}

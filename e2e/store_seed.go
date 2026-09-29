@@ -27,10 +27,25 @@ import (
 // translation works on real config.BytesSource / dns.RR values rather than
 // re-parsing YAML by hand: each function here is the inverse of its
 // counterpart in configstore/convert.go.
+//
+// What the bridge deliberately does *not* produce, because YAML cannot express
+// it and the overlay reads it back as something the fixture already has:
+//
+//   - DomainEntry rows. An individual domain in a fixture arrives as an inline
+//     text BytesSource, so it is stored as a text BlocklistSource and comes
+//     back verbatim. convert.go's ListDomainEntries branch (the one that wraps
+//     regex entries in slashes) is a web-UI shape, and stays e2e-unexercised.
+//   - ClientGroup rows holding more than one client. clientGroupsBlock is keyed
+//     per client, so one key is one group here; the UI can group several.
+//   - CNAME custom-DNS entries. `mapping:` only parses IPs. rrToEntryValue
+//     handles CNAME anyway so the inverse is total, not because a fixture can
+//     reach it.
 
-// defaultGroupName is the client-group name BuildBlockingConfig treats as the
-// catch-all: its Groups become clientGroupsBlock["default"] rather than being
-// keyed by each of its Clients.
+// defaultGroupName is the name both group namespaces reserve for their
+// catch-all. For client groups, BuildBlockingConfig turns this group's Groups
+// into clientGroupsBlock["default"] instead of keying them by each of its
+// Clients. For upstream groups, it is the one group the store refuses to leave
+// empty (see resetAndSeedGroups). Same string, unrelated tables.
 const defaultGroupName = "default"
 
 // seedBlockingConfig writes a fixture's parsed `blocking:` section into the
@@ -73,6 +88,10 @@ func seedBlockingConfig(store *configstore.ConfigStore, cfg config.Blocking) err
 	// BuildBlockingConfig keys clientGroupsBlock by client identifier, taking
 	// "default" from the group of that name and everything else from each
 	// group's Clients list. One store group per YAML key reproduces that.
+	// PutClientGroup derives a slug from the name and rejects an empty one or a
+	// collision, so a client key of "*" — legal in clientGroupsBlock, since the
+	// sanitizer strips every non-alphanumeric character — fails the seed rather
+	// than the spec. Loud, but not obviously about the fixture, so: this is why.
 	for _, client := range slices.Sorted(maps.Keys(cfg.ClientGroupsBlock)) {
 		group := &configstore.ClientGroup{
 			Name:   client,
@@ -111,6 +130,10 @@ func seedCustomDNSConfig(store *configstore.ConfigStore, cfg config.CustomDNS) e
 	// honest rather than deciding the answer's TTL.
 	ttl := cfg.CustomTTL.SecondsU32()
 
+	// ListCustomDNSEntries orders by (domain, record_type), so two A records for
+	// one domain come back in whatever order SQLite produces — not the order the
+	// fixture wrote them. Assert on a multi-IP mapping with ContainElements, not
+	// on Answer[0].
 	for _, domain := range slices.Sorted(maps.Keys(cfg.Mapping)) {
 		for _, rr := range cfg.Mapping[domain] {
 			recordType, value, err := rrToEntryValue(rr)
@@ -171,40 +194,49 @@ func rrToEntryValue(rr dns.RR) (recordType, value string, err error) {
 }
 
 const (
-	// e2eAPIUsername / e2eAPIPassword are the credentials every seeded store
-	// carries. Each store is a throwaway file mounted into one container on a
-	// private network, so a fixed credential costs nothing and keeps the specs
-	// from having to thread one around.
-	e2eAPIUsername = "e2e-admin"
-	e2eAPIPassword = "e2e-admin-password" //nolint:gosec // test-only credential
+	// Credentials every seeded store carries. Each store is a throwaway file
+	// mounted into one container on a private network, so fixed credentials
+	// cost nothing and keep the specs from having to thread one around.
+	//
+	// Both roles are seeded because both are load-bearing: the admin is what
+	// the API specs use, and the viewer is what proves RequireAdminForMutations
+	// still rejects a read-only session.
+	e2eAdminUsername  = "e2e-admin"
+	e2eViewerUsername = "e2e-viewer"
+	e2eAPIPassword    = "e2e-api-password"
 )
 
-// bcrypt at DefaultCost is ~60ms, and every container gets the same password,
-// so hash it once per test process instead of once per container.
+// bcrypt at DefaultCost is ~60ms and both seeded accounts share one password,
+// so hash it once per test process rather than twice per container.
 //
 //nolint:gochecknoglobals // one hash per test process, not per container
 var e2eAPIPasswordHash = sync.OnceValues(func() (string, error) {
 	return auth.HashPassword(e2eAPIPassword)
 })
 
-// seedAPIUser creates the admin account the API specs log in as.
+// seedAPIUsers creates the accounts the API specs log in as.
 //
 // server/server_endpoints.go puts every /api/* route behind auth.RequireAuth
 // whenever a config store is present, and a store is now always present. With
 // no users the middleware answers 401 setup_required to all of them, so a
-// store without this user makes the API unreachable rather than open.
-func seedAPIUser(store *configstore.ConfigStore) error {
+// store without these makes the API unreachable rather than open.
+func seedAPIUsers(store *configstore.ConfigStore) error {
 	hash, err := e2eAPIPasswordHash()
 	if err != nil {
 		return fmt.Errorf("hash e2e API password: %w", err)
 	}
 
-	if err := store.CreateUser(&configstore.User{
-		Username:     e2eAPIUsername,
-		PasswordHash: hash,
-		Role:         auth.RoleAdmin,
-	}); err != nil {
-		return fmt.Errorf("seed e2e API user: %w", err)
+	for _, u := range []struct{ username, role string }{
+		{e2eAdminUsername, auth.RoleAdmin},
+		{e2eViewerUsername, auth.RoleViewer},
+	} {
+		if err := store.CreateUser(&configstore.User{
+			Username:     u.username,
+			PasswordHash: hash,
+			Role:         u.role,
+		}); err != nil {
+			return fmt.Errorf("seed e2e %s user: %w", u.role, err)
+		}
 	}
 
 	return nil

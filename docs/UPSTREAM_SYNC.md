@@ -340,13 +340,18 @@ That makes the fixtures, not the overlay, the thing to change, so:
   sources alike), `clientGroupsBlock`, `blockType` and `blockTTL` all round-trip;
   `e2e/store_seed_test.go` pins the round trip with plain Go tests that need no container, by
   seeding a store and reading it back through `BuildBlockingConfig` / `BuildCustomDNSConfig`.
-- The seeded store carries an admin account (`seedAPIUser`), and `e2e/api_client.go` logs in
-  against `POST /api/auth/login` and carries the session cookie and the CSRF header. Deliberately a
-  real login rather than a forged session row or an ungated API surface: the specs then exercise
-  the same middleware chain a browser does, which is the same answer D7 gave for `/docs/*`.
+- The seeded store carries an admin *and* a viewer account (`seedAPIUsers`), and
+  `e2e/api_client.go` logs in against `POST /api/auth/login`, carrying the session cookie and the
+  CSRF header. Deliberately a real login rather than a forged session row or an ungated API
+  surface: the specs then exercise the same middleware chain a browser does, which is the same
+  answer D7 gave for `/docs/*`. The viewer account exists for one spec — `/api/cache/flush` from a
+  read-only session must still be 403 — because with every container now holding users, a
+  regression that *opened* the API would make the rest of `e2e/api_test.go` pass more easily rather
+  than fail.
 
-`e2e/failing-baseline.txt` is empty. The mechanism stays — it is the regression half of the gate,
-not scaffolding for the burn-down.
+**Measured, not predicted.** The first CI run with all of this in place was **162 passed, 0
+failed** of 162, in 137s. `e2e/failing-baseline.txt` is empty. The mechanism stays — it is the
+regression half of the gate, not scaffolding for the burn-down.
 
 What Phase 6 *could* establish without Docker: the suite compiles (`go vet ./e2e/`, `go test -c`),
 `ginkgo --dry-run --label-filter=e2e` enumerates all 162 specs with no tree errors, and every
@@ -565,10 +570,11 @@ passes, which forces the list to shrink as things are fixed rather than rot into
 a record of specs nobody runs. Same shape as §9's lint baseline: record what is
 broken, say why, and notice the moment it moves.
 
-**The list is now empty** — GRA-649 burned it down (§3.4b), so the gate is a
-plain green/red again and the coverage hole that came with it is closed. Keep
-the mechanism: the half of it that fails the build on a *new* failure is the
-half that was always doing the work, and an empty baseline costs nothing.
+**The list is now empty** — GRA-649 burned it down (§3.4b) and the suite ran
+**162/162** against it, so the gate is a plain green/red again and the coverage
+hole that came with it is closed. Keep the mechanism: the half of it that fails
+the build on a *new* failure is the half that was always doing the work, and an
+empty baseline costs nothing.
 
 `make e2e-test` ignores the baseline and reports the raw result; that is the one
 to run when you want the truth rather than the gate.
@@ -814,7 +820,7 @@ Each phase ends at a gate. Do not start a phase before its gate passes.
 | 3. Config + CLI | `config/config.go`, `config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`. Regenerate enums and `docs/config.schema.json`. | `go build ./config/... ./cmd/...`, config tests green. | 1d |
 | 4. Resolver chain | `resolver/blocking_resolver.go`, `metrics_resolver.go`, `query_logging_resolver.go`, plus semantic review of the cleanly-merged `caching_resolver.go`, `dnssec/validator.go`, `querylog/*`, `util/edns0.go`, `model/models.go`. Re-establish our redis and broadcaster injection against upstream's new signatures (§3.2) and our client-group attribution against upstream's new matcher (§3.3). | `go test ./resolver/... ./querylog/... ./util/...` green. | 2–3d |
 | 5. Server + API | `server/server.go`, `http.go`, `server_endpoints.go`. Reconcile admin ports and the UI router with upstream's HTTP/3 and PROXY-protocol listeners. Apply D1. Regenerate `api/*.gen.go` and mocks. | `go build ./...`, `go test ./server/... ./api/...` green. Server starts without a route-registration panic. | 1–1.5d |
-| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Done.** Non-e2e suite, lint (§9) and the SPA build were green from Phase 9. The e2e suite went unrun through Phases 5–8 for want of a container runtime; Phase 9 made it *run* (in CI): **119/162** on the first run, **123/162** after Phase 9 fixed the failures that were not the §3.4b cause. GRA-649 took the remaining 39 — see §3.4b — and the §3a baseline is now empty. | 0.5–1d |
+| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Done.** Non-e2e suite, lint (§9) and the SPA build were green from Phase 9. The e2e suite went unrun through Phases 5–8 for want of a container runtime; Phase 9 made it *run* (in CI): **119/162** on the first run, **123/162** after Phase 9 fixed the failures that were not the §3.4b cause. GRA-649 took the remaining 39 — see §3.4b — and the suite now runs **162/162** against an empty §3a baseline. | 0.5–1d |
 | 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. **Done — `docs/upstream-sync/behavioral-replay-2026-09.md`.** Phase 0 left no capture to replay, so both trees were built and run side by side instead; six deltas, all attributable. | 0.5d |
 | 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. **Done — `docs/upstream-sync/port-checklist-2026-09.md`.** All 50 items settled — 6 by the Phase 7 replay, 41 newly by live probe or benchmark, 3 by code path. Two block types (`769d908`'s `refused`, and the documented comma-separated custom-IP form) were present but unreachable through the fork's config surface and needed a fix. | 0.5d |
 | 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. Stand up the e2e gate in CI. Wire the §8 cadence. | **Done.** The merge is `9e12f21` (PRs #7–#10); the e2e gate and these doc corrections are PR #11. The gate is the `e2e` job in `.github/workflows/ci.yml`, held at a recorded baseline (§3a); the cadence is a scheduled Multica autopilot (§8). Deliberately *not* done: no `VERSION` bump, no tag — §10. Handed on rather than done: the 43 e2e failures (§3.4a). | 0.5d |
@@ -1131,7 +1137,7 @@ closed the second half — the image goreleaser actually ships is built and star
 §11 states how far it and the e2e image have been reconciled.
 
 GRA-649 then closed the coverage half: the blocking, customDNS and API specs that had never been
-confirmed in a container now run there, and the §3a baseline is empty (§3.4b).
+confirmed in a container now run there and pass, 162/162 against an empty §3a baseline (§3.4b).
 
 So **both reasons for the hold are gone.** A tag no longer builds an image for the first time, the
 image it builds is the one CI starts, and the suite that exercises it is green rather than green
