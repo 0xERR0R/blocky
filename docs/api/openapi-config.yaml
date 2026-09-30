@@ -772,6 +772,12 @@ components:
           type: string
         url:
           type: string
+          description: >-
+            Upstream server in `[net:]host[:port][/path][#commonName]` form, or a
+            DNS stamp (`sdns://...`). Supported `net` prefixes are `tcp+udp`
+            (default when omitted), `tcp-tls`, `https://` and `quic:`. `quic://`
+            is also accepted on input for AdGuard compatibility.
+          example: quic:dns.adguard.com
         position:
           type: integer
         enabled:
@@ -783,6 +789,12 @@ components:
       properties:
         url:
           type: string
+          description: >-
+            Upstream server in `[net:]host[:port][/path][#commonName]` form, or a
+            DNS stamp (`sdns://...`). Supported `net` prefixes are `tcp+udp`
+            (default when omitted), `tcp-tls`, `https://` and `quic:`. `quic://`
+            is also accepted on input for AdGuard compatibility.
+          example: quic:dns.adguard.com
         position:
           type: integer
         enabled:

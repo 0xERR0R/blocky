@@ -78,10 +78,13 @@
   //   "1.1.1.1"                        -> plain,   "1.1.1.1"
   //   "tcp-tls:dns.example.com"        -> tcp-tls, "dns.example.com"
   //   "https://dns.google/dns-query"   -> https,   "dns.google/dns-query"
+  //   "quic:dns.adguard.com"           -> quic,    "dns.adguard.com"
+  // Both "quic:" and "quic://" are accepted on read; "quic:" is the canonical form.
   function splitUrl(url) {
     const u = (url ?? '').trim()
     if (u.startsWith('https://')) return { protocol: 'https', host: u.slice('https://'.length) }
     if (u.startsWith('tcp-tls:')) return { protocol: 'tcp-tls', host: u.slice('tcp-tls:'.length) }
+    if (u.startsWith('quic:')) return { protocol: 'quic', host: u.replace(/^quic:(\/\/)?/, '') }
     return { protocol: 'plain', host: u }
   }
 
@@ -89,6 +92,7 @@
     const h = (host ?? '').trim()
     if (protocol === 'https') return `https://${h.replace(/^https:\/\//, '')}`
     if (protocol === 'tcp-tls') return `tcp-tls:${h.replace(/^tcp-tls:/, '')}`
+    if (protocol === 'quic') return `quic:${h.replace(/^quic:(\/\/)?/, '')}`
     return h
   }
 
@@ -101,6 +105,9 @@
     } else if (h.startsWith('tcp-tls:')) {
       serverForm.protocol = 'tcp-tls'
       serverForm.host = h.slice('tcp-tls:'.length)
+    } else if (h.startsWith('quic:')) {
+      serverForm.protocol = 'quic'
+      serverForm.host = h.replace(/^quic:(\/\/)?/, '')
     }
   }
 
@@ -402,6 +409,7 @@
             { value: 'plain', label: 'plain' },
             { value: 'tcp-tls', label: 'tcp-tls' },
             { value: 'https', label: 'https' },
+            { value: 'quic', label: 'quic (DoQ)' },
           ]}
         />
       </div>
@@ -417,7 +425,9 @@
             ? 'dns.google/dns-query'
             : serverForm.protocol === 'tcp-tls'
               ? 'dns.example.com:853'
-              : '1.1.1.1'}
+              : serverForm.protocol === 'quic'
+                ? 'dns.adguard.com'
+                : '1.1.1.1'}
         />
       </div>
     </div>
