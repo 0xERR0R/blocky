@@ -450,14 +450,18 @@ type UpstreamServer struct {
 	GroupName string `json:"group_name"`
 	Id        int    `json:"id"`
 	Position  int    `json:"position"`
-	Url       string `json:"url"`
+
+	// Url Upstream server in `[net:]host[:port][/path][#commonName]` form, or a DNS stamp (`sdns://...`). Supported `net` prefixes are `tcp+udp` (default when omitted), `tcp-tls`, `https:` and `quic:`. For the latter two the `//` after the colon is optional, so `quic://dns.adguard.com` is accepted as well (AdGuard compatibility).
+	Url string `json:"url"`
 }
 
 // UpstreamServerInput defines model for UpstreamServerInput.
 type UpstreamServerInput struct {
-	Enabled  bool   `json:"enabled"`
-	Position *int   `json:"position,omitempty"`
-	Url      string `json:"url"`
+	Enabled  bool `json:"enabled"`
+	Position *int `json:"position,omitempty"`
+
+	// Url Upstream server in `[net:]host[:port][/path][#commonName]` form, or a DNS stamp (`sdns://...`). Supported `net` prefixes are `tcp+udp` (default when omitted), `tcp-tls`, `https:` and `quic:`. For the latter two the `//` after the colon is optional, so `quic://dns.adguard.com` is accepted as well (AdGuard compatibility).
+	Url string `json:"url"`
 }
 
 // UpstreamSettings defines model for UpstreamSettings.
