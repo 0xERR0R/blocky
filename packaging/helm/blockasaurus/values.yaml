@@ -20,6 +20,22 @@ config:
   # group containing 1.1.1.1 and 1.0.0.1.
   # Persistent config store for the web UI
   databasePath: /data/blocky.db
+  # Optional on-disk cache for downloaded blocklists. Left unset, downloads are
+  # stateless: nothing is written to disk and every refresh pulls each source in
+  # full. Point cachePath at a writable directory on the persistence volume below
+  # (the container runs as UID 100) and blocky revalidates with If-None-Match /
+  # If-Modified-Since, falls back to the cached copy when a source is unreachable,
+  # and - with loading.strategy: fast - seeds the lists from disk at startup so it
+  # answers queries without waiting for the downloads. Size the volume for the
+  # uncompressed total of your sources, roughly doubled while a refresh is writing
+  # its temp files. Orphaned files are not pruned when a source URL is removed or
+  # changed, so clear the directory by hand after reworking your blocklists.
+  #
+  # blocking:
+  #   loading:
+  #     strategy: fast
+  #     downloads:
+  #       cachePath: /data/list-cache
 
 # --- Client Group Endpoints ---
 # Per-client-group DNS identification via hostname, path, or EDNS CPE-ID.
