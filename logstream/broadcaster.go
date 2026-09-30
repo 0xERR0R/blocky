@@ -28,6 +28,7 @@ type Broadcaster struct {
 	subscribers map[*subscriber]struct{}
 	ring        *RingBuffer[LogEntry]
 	ctx         context.Context
+	closed      bool
 }
 
 func NewBroadcaster(ctx context.Context, ringSize int) *Broadcaster {
@@ -59,10 +60,25 @@ func (b *Broadcaster) Publish(entry LogEntry) {
 }
 
 // Subscribe returns a channel of log entries and a cancel function.
+//
+// After Shutdown it returns an already-closed channel. Without that, a
+// subscriber that arrives in the window between Shutdown and its own Subscribe
+// registers against a broadcaster nobody will close again, and the streaming
+// handler then blocks on it forever — a leaked goroutine and socket per
+// connection that was mid-upgrade when the server stopped. Server.Stop calls
+// Shutdown precisely to unblock those handlers, so the window is real.
 func (b *Broadcaster) Subscribe() (<-chan LogEntry, func()) {
 	ch := make(chan LogEntry, subscriberBufSize)
 
 	b.mu.Lock()
+
+	if b.closed {
+		b.mu.Unlock()
+		close(ch)
+
+		return ch, func() {}
+	}
+
 	backfill := b.ring.Entries()
 
 	sub := &subscriber{ch: ch}
@@ -90,10 +106,13 @@ func (b *Broadcaster) Subscribe() (<-chan LogEntry, func()) {
 	return ch, sub.cancel
 }
 
-// Shutdown closes all subscriber channels.
+// Shutdown closes all subscriber channels, and makes every later Subscribe
+// return an already-closed one.
 func (b *Broadcaster) Shutdown() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	b.closed = true
 
 	for sub := range b.subscribers {
 		close(sub.ch)

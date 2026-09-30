@@ -40,15 +40,20 @@ GOLANG_LINT_VERSION=v2.12.2
 GINKGO_PROCS?=
 
 # Suite deadline and progress reporting for the fast (non-e2e) suite. The whole
-# run is ~2 minutes and no single spec takes as long as a second, so neither of
-# these fires on a healthy run.
+# run is ~100s over 28 suites, the slowest single spec is ~5s (the caching
+# resolver's prefetch), and 13 specs exceed a second, so 90s leaves an order of
+# magnitude of headroom and neither flag fires on a healthy run.
 #
 # They are here because this suite has been seen to hang rather than fail.
 # ginkgo's default --timeout is one hour, which is how a stuck spec came to hold
 # a CI runner until somebody cancelled the job by hand. The job-level
 # timeout-minutes in ci.yml bounds that, but it kills the runner without saying
 # what was stuck; --poll-progress-after makes a spec that overruns dump its own
-# goroutines first, so the next hang names its culprit. See GRA-650.
+# goroutines first, so the next hang names its culprit. That is what identified
+# the one in GRA-650.
+#
+# --timeout is per suite, not per run: with -r over 28 suites, 28 hangs would
+# still outlast timeout-minutes. The job cap remains the outer bound.
 GINKGO_TIMEOUT?=10m
 GINKGO_RACE_TIMEOUT?=30m
 GINKGO_PROGRESS?=--poll-progress-after=90s --poll-progress-interval=30s

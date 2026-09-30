@@ -493,17 +493,42 @@ same thing as not having it. Both causes are fixed (**GRA-650**); the caps stay
 because the next one will not announce itself either. The ginkgo-level flags
 matter more than `timeout-minutes` does: a killed runner says nothing about what
 was stuck, while `--poll-progress-after` makes an overrunning spec dump its own
-goroutines first. That is what identified the hang.
+goroutines first. That is what identified the hang. Note that ginkgo's
+`--timeout` is per suite and `-r` runs 28 of them, so `timeout-minutes` is still
+the bound on the job as a whole.
 
-**Test ports come from `helpertest.NextFreePort`, never from a constant.** Two
-properties are needed and a constant has neither: the number must be one the
-kernel will never assign to an outbound socket on its own — everything in the
-ephemeral range (32768-60999 on Linux) can be — and no two callers may get the
-same number, including callers in sibling ginkgo processes. `NextFreePort` draws
-from a band below the ephemeral range, never returns a number twice in a
-process, and bind-probes each candidate on TCP and UDP before handing it over.
-A fixture that binds a port it picked earlier, or that asks for a specific
-number, is the shape that produced both CI failures above.
+### Test ports
+
+**Ports come from `helpertest.NextFreePort`, never from a constant.** Two
+properties are needed and a constant has neither:
+
+- The number must be one the kernel will never assign on its own. Everything in
+  the ephemeral range — 32768-60999 by default on Linux — can go to any outbound
+  socket at any moment, so a fixture naming a port in there races every
+  connection the rest of the suite makes.
+- No two callers may get the same number, including callers in sibling ginkgo
+  processes, which are separate OS processes and cannot share a counter.
+
+`NextFreePort` draws from 10000-32749, below the default ephemeral range; gives
+each process its own slice of that band, keyed off ginkgo's collision-free
+process index; does not repeat a number until the band is exhausted; and
+bind-probes every candidate on both TCP and UDP before handing it over. It also
+reads `ip_local_port_range` on first use and panics if the sysctl has been
+widened over the band, because the alternative is the original flakiness with no
+diagnostic.
+
+Two shapes are the ones to avoid. A fixture that **asks for a specific number**
+races whatever else wants it. A fixture that **binds one socket on `:0`, reads
+the port back and then binds a second socket on that number** races the kernel,
+because the number it read came from the range the kernel allocates from — that
+one is what produced `bind: address already in use` on a port no fixture
+mentions.
+
+`GetIntPort` / `GetStringPort` / `GetHostPort` are upstream helpers and were
+deleted, not shimmed: they return `base + GinkgoParallelProcess()`, which is the
+fixed-port pattern with extra steps. If an upstream merge brings back a caller,
+convert the caller. Reinstating the helper is the easy conflict resolution and
+the wrong one.
 
 The same workflow has a second job, `e2e`, added in Phase 9. It runs
 `make e2e-test-baseline`, which `docker buildx build`s the image and then runs

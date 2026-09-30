@@ -98,6 +98,8 @@ func (m *mockTCPUDPUpstreamServer) StartUDPOnly() config.Upstream {
 // helpertest.NextFreePort hands back a number outside the range the kernel allocates from, so both
 // binds below can be expected to succeed.
 func (m *mockTCPUDPUpstreamServer) start(udp, tcp bool) config.Upstream {
+	ginkgo.GinkgoHelper()
+
 	ip := net.ParseIP("127.0.0.1")
 	port := helpertest.NextFreePort()
 

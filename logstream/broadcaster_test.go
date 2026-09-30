@@ -116,6 +116,25 @@ var _ = Describe("Broadcaster", func() {
 		}).Should(BeFalse())
 	})
 
+	It("hands a subscriber that arrives after shutdown a closed channel", func() {
+		// A subscriber in the window between Shutdown and its own Subscribe
+		// used to register against a broadcaster nobody would close again, and
+		// the streaming handler then blocked on that channel for the life of
+		// the process. Server.Stop calls Shutdown to unblock those handlers, so
+		// a late Subscribe has to be closed rather than live.
+		b.Shutdown()
+
+		ch, unsub := b.Subscribe()
+
+		// Eventually, not a bare receive: without the fix this channel stays
+		// open, and the spec has to fail rather than block.
+		Eventually(ch, "2s").Should(BeClosed())
+
+		// And its cancel is still safe to call.
+		Expect(unsub).ShouldNot(BeNil())
+		unsub()
+	})
+
 	It("unsubscribe stops delivery", func() {
 		ch, unsub := b.Subscribe()
 		unsub()
