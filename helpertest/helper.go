@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/log"
@@ -33,27 +32,6 @@ const (
 	TXT   = dns.Type(dns.TypeTXT)
 	DS    = dns.Type(dns.TypeDS)
 )
-
-// GetIntPort returns a port for the current testing
-// process by adding the current ginkgo parallel process to
-// the base port and returning it as int.
-func GetIntPort(port int) int {
-	return port + ginkgo.GinkgoParallelProcess()
-}
-
-// GetStringPort returns a port for the current testing
-// process by adding the current ginkgo parallel process to
-// the base port and returning it as string.
-func GetStringPort(port int) string {
-	return strconv.Itoa(GetIntPort(port))
-}
-
-// GetHostPort returns a host:port string for the current testing
-// process by adding the current ginkgo parallel process to
-// the base port and returning it as string.
-func GetHostPort(host string, port int) string {
-	return net.JoinHostPort(host, GetStringPort(port))
-}
 
 // TempFile creates temp file with passed data
 func TempFile(data string) *os.File {

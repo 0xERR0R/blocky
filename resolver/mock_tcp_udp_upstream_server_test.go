@@ -5,9 +5,10 @@ import (
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/util"
+	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 )
 
 // answerFn builds the response for a received query. The mock fixes the response ID and the
@@ -89,16 +90,24 @@ func (m *mockTCPUDPUpstreamServer) StartUDPOnly() config.Upstream {
 
 // start always binds both sockets so the port is guaranteed to belong to this mock on both
 // protocols, then closes the ones not asked for so queries over them are refused immediately.
+//
+// config.Upstream carries a single port, so UDP and TCP have to share one number and the port
+// cannot simply be left to the kernel: binding UDP on :0 and then asking for the same number on
+// TCP loses whenever an outbound connection already holds it, which is how this fixture failed CI
+// with "bind: address already in use" on a port it never named (GRA-650).
+// helpertest.NextFreePort hands back a number outside the range the kernel allocates from, so both
+// binds below can be expected to succeed.
 func (m *mockTCPUDPUpstreamServer) start(udp, tcp bool) config.Upstream {
+	ginkgo.GinkgoHelper()
+
 	ip := net.ParseIP("127.0.0.1")
+	port := helpertest.NextFreePort()
 
-	udpConn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: ip})
-	util.FatalOnError("can't create UDP connection: ", err)
-
-	port := udpConn.LocalAddr().(*net.UDPAddr).Port
+	udpConn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: ip, Port: port})
+	gomega.Expect(err).Should(gomega.Succeed(), "can't create UDP connection")
 
 	tcpLn, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: ip, Port: port})
-	util.FatalOnError("can't create TCP listener: ", err)
+	gomega.Expect(err).Should(gomega.Succeed(), "can't create TCP listener")
 
 	if udp {
 		m.udpSrv = &dns.Server{PacketConn: udpConn, Handler: m.handler(&m.udpCount, m.udpAnswer)}

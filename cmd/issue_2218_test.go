@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/0xERR0R/blocky/helpertest"
 
@@ -31,14 +32,11 @@ var _ = Describe("Healthcheck derives the port from the config (#2218)", func() 
 
 	It("probes the DNS port from ports.dns when no flag is given", func() {
 		ip := "127.0.0.1"
-		port := helpertest.GetStringPort(65111)
-		hostPort := helpertest.GetHostPort(ip, 65111)
+		p := helpertest.NextFreePort()
+		port := strconv.Itoa(p)
+		hostPort := helpertest.HostPort(ip, p)
 
-		srv := createMockServer(hostPort)
-		go func() {
-			defer GinkgoRecover()
-			Expect(srv.ListenAndServe()).Should(Succeed())
-		}()
+		startMockServer(hostPort)
 
 		writeConfig("ports:\n  dns: " + port + "\n")
 
@@ -52,17 +50,14 @@ var _ = Describe("Healthcheck derives the port from the config (#2218)", func() 
 
 	It("still lets an explicit --port win over the config", func() {
 		ip := "127.0.0.1"
-		port := helpertest.GetStringPort(65112)
-		hostPort := helpertest.GetHostPort(ip, 65112)
+		p := helpertest.NextFreePort()
+		port := strconv.Itoa(p)
+		hostPort := helpertest.HostPort(ip, p)
 
-		srv := createMockServer(hostPort)
-		go func() {
-			defer GinkgoRecover()
-			Expect(srv.ListenAndServe()).Should(Succeed())
-		}()
+		startMockServer(hostPort)
 
 		// Config points somewhere nothing is listening; the flag must take precedence.
-		writeConfig("ports:\n  dns: 65113\n")
+		writeConfig("ports:\n  dns: " + strconv.Itoa(helpertest.NextFreePort()) + "\n")
 
 		Eventually(func() error {
 			c := NewHealthcheckCommand()
@@ -74,14 +69,11 @@ var _ = Describe("Healthcheck derives the port from the config (#2218)", func() 
 
 	It("keeps working when no config file exists at all", func() {
 		ip := "127.0.0.1"
-		port := helpertest.GetStringPort(65114)
-		hostPort := helpertest.GetHostPort(ip, 65114)
+		p := helpertest.NextFreePort()
+		port := strconv.Itoa(p)
+		hostPort := helpertest.HostPort(ip, p)
 
-		srv := createMockServer(hostPort)
-		go func() {
-			defer GinkgoRecover()
-			Expect(srv.ListenAndServe()).Should(Succeed())
-		}()
+		startMockServer(hostPort)
 
 		GinkgoT().Setenv("BLOCKY_CONFIG_FILE", filepath.Join(GinkgoT().TempDir(), "does-not-exist.yml"))
 		old := configPath

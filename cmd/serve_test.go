@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"net"
-	"net/http"
 	"os"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -12,17 +12,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const (
-	basePort = 5000
-)
-
 var _ = Describe("Serve command", func() {
 	var (
 		tmpDir *helpertest.TmpFolder
 		port   string
 	)
 	BeforeEach(func() {
-		port = helpertest.GetStringPort(basePort)
+		// A fresh port per spec. Nothing here has to reuse one, and the spec
+		// below deliberately occupies its port for the rest of the spec.
+		port = strconv.Itoa(helpertest.NextFreePort())
 		tmpDir = helpertest.NewTmpFolder("config")
 
 		configPath = defaultConfigPath
@@ -67,12 +65,20 @@ var _ = Describe("Serve command", func() {
 		})
 	})
 
+	// This spec makes blocky lose a bind on purpose, so a passing run still logs
+	// `server start failed: ... bind: address already in use`. That line is the
+	// assertion below succeeding, not a flake — it has been read as one.
 	When("Serve command is called with valid config", func() {
 		It("should fail if server start fails", func() {
-			By("start http server on port "+port, func() {
-				go func(p string) {
-					Expect(http.ListenAndServe(":"+p, nil)).Should(Succeed())
-				}(port)
+			By("occupy port "+port, func() {
+				// A listener, not an http.Server: all this spec needs is for
+				// blocky's bind to lose. The previous version leaked an
+				// http.ListenAndServe goroutine that held the port — and
+				// asserted from a goroutine with no GinkgoRecover — for the
+				// rest of the suite process.
+				blocker, err := net.Listen("tcp", ":"+port)
+				Expect(err).Should(Succeed())
+				DeferCleanup(blocker.Close)
 			})
 			By("initialize config with blocked port "+port, func() {
 				cfgFile := tmpDir.CreateStringFile("config.yaml",

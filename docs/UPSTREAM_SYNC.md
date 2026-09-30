@@ -528,12 +528,51 @@ the build" meant "the merge fails if someone remembers to run the suite
 locally". If you delete or disable that workflow, these guardrails go back to
 being a convention.
 
-Both jobs are capped with `timeout-minutes`. That is not tidiness: the fast
-suite can *hang* rather than fail when two specs want the same port, and an
-uncapped hang holds a runner for GitHub's 6-hour default. The collisions
-themselves are pre-existing and tracked in **GRA-650** — worth knowing about,
-because a gate that goes red for reasons unrelated to the diff gets re-run until
-it passes, which is the same thing as not having it.
+Both jobs are capped with `timeout-minutes`, and `make test` passes ginkgo its
+own `--timeout` plus `--poll-progress-after`. That is not tidiness. This suite
+has twice failed for reasons unrelated to the diff, once by failing fast and
+once by hanging until the job was cancelled by hand, and a gate that goes red
+for reasons unrelated to the diff gets re-run until it passes — which is the
+same thing as not having it. Both causes are fixed (**GRA-650**); the caps stay
+because the next one will not announce itself either. The ginkgo-level flags
+matter more than `timeout-minutes` does: a killed runner says nothing about what
+was stuck, while `--poll-progress-after` makes an overrunning spec dump its own
+goroutines first. That is what identified the hang. Note that ginkgo's
+`--timeout` is per suite and `-r` runs 28 of them, so `timeout-minutes` is still
+the bound on the job as a whole.
+
+### Test ports
+
+**Ports come from `helpertest.NextFreePort`, never from a constant.** Two
+properties are needed and a constant has neither:
+
+- The number must be one the kernel will never assign on its own. Everything in
+  the ephemeral range — 32768-60999 by default on Linux — can go to any outbound
+  socket at any moment, so a fixture naming a port in there races every
+  connection the rest of the suite makes.
+- No two callers may get the same number, including callers in sibling ginkgo
+  processes, which are separate OS processes and cannot share a counter.
+
+`NextFreePort` draws from 10000-32749, below the default ephemeral range; gives
+each process its own slice of that band, keyed off ginkgo's collision-free
+process index; does not repeat a number until the band is exhausted; and
+bind-probes every candidate on both TCP and UDP before handing it over. It also
+reads `ip_local_port_range` on first use and panics if the sysctl has been
+widened over the band, because the alternative is the original flakiness with no
+diagnostic.
+
+Two shapes are the ones to avoid. A fixture that **asks for a specific number**
+races whatever else wants it. A fixture that **binds one socket on `:0`, reads
+the port back and then binds a second socket on that number** races the kernel,
+because the number it read came from the range the kernel allocates from — that
+one is what produced `bind: address already in use` on a port no fixture
+mentions.
+
+`GetIntPort` / `GetStringPort` / `GetHostPort` are upstream helpers and were
+deleted, not shimmed: they return `base + GinkgoParallelProcess()`, which is the
+fixed-port pattern with extra steps. If an upstream merge brings back a caller,
+convert the caller. Reinstating the helper is the easy conflict resolution and
+the wrong one.
 
 The same workflow has a second job, `e2e`, added in Phase 9. It runs
 `make e2e-test-baseline`, which `docker buildx build`s the image and then runs

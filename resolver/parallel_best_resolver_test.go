@@ -450,7 +450,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						testUpstream2 := config.Upstream{Host: "wrong"}
 
 						upstreams = []config.Upstream{testUpstream1, testUpstream2}
-						Expect(err).Should(Succeed())
 					})
 					It("Should return error", func() {
 						request := newRequest("example.com.", A)

@@ -32,12 +32,15 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const (
-	httpBasePort  = 4000
-	dnsBasePort   = 5000
-	dnsBasePort2  = 55000
-	httpsBasePort = 6000
-	tlsBasePort   = 8000
+// Ports for the BeforeSuite server. Reserved once per suite process from
+// helpertest rather than declared as constants: the old constants included
+// 55000, which is inside the range the kernel hands to outbound sockets, so the
+// suite competed with its own connections for it (GRA-650).
+var (
+	httpPort  int
+	dnsPort   int
+	httpsPort int
+	tlsPort   int
 )
 
 var (
@@ -50,8 +53,13 @@ var (
 )
 
 var _ = BeforeSuite(func() {
+	httpPort = NextFreePort()
+	dnsPort = NextFreePort()
+	httpsPort = NextFreePort()
+	tlsPort = NextFreePort()
+
 	mockClientName.Store("")
-	baseURL = fmt.Sprintf("http://%s/", GetHostPort("localhost", httpBasePort))
+	baseURL = fmt.Sprintf("http://%s/", HostPort("localhost", httpPort))
 	queryURL = baseURL + "dns-query"
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 	ctx, cancelFn := context.WithCancel(context.Background())
@@ -156,10 +164,10 @@ var _ = BeforeSuite(func() {
 		},
 
 		Ports: config.Ports{
-			DNS:     config.ListenConfig{GetHostPort("", dnsBasePort)},
-			TLS:     config.ListenConfig{GetHostPort("", tlsBasePort)},
-			HTTP:    config.ListenConfig{GetHostPort("", httpBasePort)},
-			HTTPS:   config.ListenConfig{GetHostPort("", httpsBasePort)},
+			DNS:     config.ListenConfig{HostPort("", dnsPort)},
+			TLS:     config.ListenConfig{HostPort("", tlsPort)},
+			HTTP:    config.ListenConfig{HostPort("", httpPort)},
+			HTTPS:   config.ListenConfig{HostPort("", httpsPort)},
 			DOHPath: "/dns-query",
 		},
 		CertFile: certPem.Path,
@@ -767,7 +775,7 @@ var _ = Describe("Running DNS server", func() {
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}}
 
-			resp, err := client.Get(fmt.Sprintf("https://%s/docs/config.schema.json", GetHostPort("localhost", httpsBasePort)))
+			resp, err := client.Get(fmt.Sprintf("https://%s/docs/config.schema.json", HostPort("localhost", httpsPort)))
 			Expect(err).Should(Succeed())
 			DeferCleanup(resp.Body.Close)
 			Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
@@ -824,7 +832,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 
 			It("does not leak spurious errors when Stop closes after Serve has started", func() {
-				cfg.Ports.DNS = config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)}
+				cfg.Ports.DNS = config.ListenConfig{NextFreeHostPort("127.0.0.1")}
 				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
 				cfg.HTTP3.Enable = true
 
@@ -924,7 +932,7 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.Ports{
-						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DNS:     config.ListenConfig{NextFreeHostPort("127.0.0.1")},
 						DOHPath: "/dns-query",
 					},
 				}, nil)
@@ -969,7 +977,7 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.Ports{
-						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DNS:     config.ListenConfig{NextFreeHostPort("127.0.0.1")},
 						DOHPath: "/dns-query",
 					},
 				}, nil)
@@ -1099,8 +1107,6 @@ var _ = Describe("Running DNS server", func() {
 	})
 
 	Describe("Admin port mode", func() {
-		const adminBasePort = 9000
-
 		var (
 			adminServer  *Server
 			adminErrChan chan error
@@ -1110,12 +1116,15 @@ var _ = Describe("Running DNS server", func() {
 		)
 
 		BeforeEach(func() {
-			mainPort := GetHostPort("", httpBasePort+100) // offset to avoid conflict with BeforeSuite server
-			adminPort := GetHostPort("", adminBasePort)
-			dnsPort := GetHostPort("127.0.0.1", dnsBasePort+100)
+			mainHTTPPort := NextFreePort()
+			adminHTTPPort := NextFreePort()
 
-			mainBaseURL = fmt.Sprintf("http://%s/", GetHostPort("localhost", httpBasePort+100))
-			adminBaseURL = fmt.Sprintf("http://%s/", GetHostPort("localhost", adminBasePort))
+			mainPort := HostPort("", mainHTTPPort)
+			adminPort := HostPort("", adminHTTPPort)
+			adminDNSPort := NextFreeHostPort("127.0.0.1")
+
+			mainBaseURL = fmt.Sprintf("http://%s/", HostPort("localhost", mainHTTPPort))
+			adminBaseURL = fmt.Sprintf("http://%s/", HostPort("localhost", adminHTTPPort))
 			dnsQueryURL = mainBaseURL + "dns-query"
 
 			adminServer, err = NewServer(ctx, &config.Config{
@@ -1131,7 +1140,7 @@ var _ = Describe("Running DNS server", func() {
 				},
 				Blocking: config.Blocking{BlockType: "zeroIp"},
 				Ports: config.Ports{
-					DNS:       config.ListenConfig{dnsPort},
+					DNS:       config.ListenConfig{adminDNSPort},
 					HTTP:      config.ListenConfig{mainPort},
 					AdminPort: config.ListenConfig{adminPort},
 					DOHPath:   "/dns-query",
@@ -1844,7 +1853,7 @@ var _ = Describe("Running DNS server", func() {
 })
 
 func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
-	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", GetHostPort("", dnsBasePort))
+	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", HostPort("", dnsPort))
 	if err != nil {
 		Log().Fatal("could not connect to server: ", err)
 	}

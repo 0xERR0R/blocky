@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/miekg/dns"
@@ -32,14 +33,10 @@ var _ = Describe("Healthcheck command", func() {
 
 		It("should succeed", func() {
 			ip := "127.0.0.1"
-			hostPort := helpertest.GetHostPort(ip, 65100)
-			port := helpertest.GetStringPort(65100)
-			srv := createMockServer(hostPort)
-			go func() {
-				defer GinkgoRecover()
-				err := srv.ListenAndServe()
-				Expect(err).Should(Succeed())
-			}()
+			p := helpertest.NextFreePort()
+			hostPort := helpertest.HostPort(ip, p)
+			port := strconv.Itoa(p)
+			startMockServer(hostPort)
 
 			Eventually(func() error {
 				c := NewHealthcheckCommand()
@@ -51,27 +48,48 @@ var _ = Describe("Healthcheck command", func() {
 	})
 })
 
-func createMockServer(hostPort string) *dns.Server {
-	res := &dns.Server{
-		Addr:    hostPort,
-		Net:     "tcp",
-		Handler: dns.NewServeMux(),
-		NotifyStartedFunc: func() {
-			fmt.Printf("Mock healthcheck server is up: %s\n", hostPort)
-		},
+// startMockServer brings up a DNS listener on hostPort and blocks until it is
+// accepting, so a failed bind fails the spec that asked for the server instead
+// of surfacing later as a healthcheck timeout.
+//
+// It replaces a bare `go srv.ListenAndServe()` per spec: those goroutines were
+// never shut down, so each one held its port for the rest of the suite process
+// and asserted from a goroutine whose spec had already finished.
+func startMockServer(hostPort string) {
+	started := make(chan struct{})
+
+	srv := &dns.Server{
+		Addr:              hostPort,
+		Net:               "tcp",
+		Handler:           dns.NewServeMux(),
+		NotifyStartedFunc: func() { close(started) },
 	}
 
-	th := res.Handler.(*dns.ServeMux)
-	th.HandleFunc("healthcheck.blocky", func(w dns.ResponseWriter, request *dns.Msg) {
+	srv.Handler.(*dns.ServeMux).HandleFunc("healthcheck.blocky", func(w dns.ResponseWriter, request *dns.Msg) {
+		defer GinkgoRecover()
+
 		resp := new(dns.Msg)
 		resp.SetReply(request)
 		resp.Rcode = dns.RcodeSuccess
 
-		err := w.WriteMsg(resp)
-		Expect(err).Should(Succeed())
+		Expect(w.WriteMsg(resp)).Should(Succeed())
 	})
 
-	DeferCleanup(res.Shutdown)
+	errChan := make(chan error, 1)
 
-	return res
+	go func() {
+		defer GinkgoRecover()
+		errChan <- srv.ListenAndServe()
+	}()
+
+	DeferCleanup(srv.Shutdown)
+
+	Eventually(started, "2s").Should(BeClosed(), func() string {
+		select {
+		case err := <-errChan:
+			return fmt.Sprintf("mock DNS server on %s never started: %v", hostPort, err)
+		default:
+			return fmt.Sprintf("mock DNS server on %s never started", hostPort)
+		}
+	})
 }
