@@ -119,6 +119,11 @@
               <td><code>https://host/path</code></td>
               <td><code>https://dns.google/dns-query</code></td>
             </tr>
+            <tr>
+              <td><strong>DNS-over-QUIC</strong> (RFC 9250)</td>
+              <td><code>quic:host[:port]</code></td>
+              <td><code>quic:dns.adguard.com</code></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -130,7 +135,8 @@
         <p>
           If you paste a full URL (e.g., <code>https://cloudflare-dns.com/dns-query</code>)
           into the host field, the UI auto-detects the protocol and splits the
-          address for you.
+          address for you. <code>quic://dns.adguard.com</code> works too &mdash; it is
+          accepted for AdGuard compatibility and saved as <code>quic:dns.adguard.com</code>.
         </p>
       </div>
     </div>
@@ -234,7 +240,7 @@
       <div class="box-body">
         <table>
           <thead>
-            <tr><th>Provider</th><th>Plain</th><th>DoT</th><th>DoH</th></tr>
+            <tr><th>Provider</th><th>Plain</th><th>DoT</th><th>DoH</th><th>DoQ</th></tr>
           </thead>
           <tbody>
             <tr>
@@ -242,27 +248,43 @@
               <td><code>1.1.1.1</code></td>
               <td><code>tcp-tls:one.one.one.one:853</code></td>
               <td><code>https://cloudflare-dns.com/dns-query</code></td>
+              <td>&mdash;</td>
             </tr>
             <tr>
               <td><strong>Google</strong></td>
               <td><code>8.8.8.8</code></td>
               <td><code>tcp-tls:dns.google:853</code></td>
               <td><code>https://dns.google/dns-query</code></td>
+              <td>&mdash;</td>
             </tr>
             <tr>
               <td><strong>Quad9</strong></td>
               <td><code>9.9.9.9</code></td>
               <td><code>tcp-tls:dns.quad9.net:853</code></td>
               <td><code>https://dns.quad9.net/dns-query</code></td>
+              <td><code>quic:dns.quad9.net</code></td>
+            </tr>
+            <tr>
+              <td><strong>AdGuard</strong></td>
+              <td><code>94.140.14.14</code></td>
+              <td><code>tcp-tls:dns.adguard.com:853</code></td>
+              <td><code>https://dns.adguard.com/dns-query</code></td>
+              <td><code>quic:dns.adguard.com</code></td>
             </tr>
             <tr>
               <td><strong>Mullvad</strong></td>
               <td>&mdash;</td>
               <td><code>tcp-tls:dns.mullvad.net:853</code></td>
               <td><code>https://dns.mullvad.net/dns-query</code></td>
+              <td>&mdash;</td>
             </tr>
           </tbody>
         </table>
+        <p>
+          A <span>&mdash;</span> in the DoQ column means the provider has no public
+          DNS-over-QUIC endpoint we could confirm; availability changes, so check
+          with the provider before assuming.
+        </p>
       </div>
     </div>
 

@@ -78,29 +78,37 @@
   //   "1.1.1.1"                        -> plain,   "1.1.1.1"
   //   "tcp-tls:dns.example.com"        -> tcp-tls, "dns.example.com"
   //   "https://dns.google/dns-query"   -> https,   "dns.google/dns-query"
+  //   "quic:dns.adguard.com"           -> quic,    "dns.adguard.com"
+  // The "//" after the colon is optional for https and quic, matching
+  // config.extractNet; joinUrl emits the canonical form of each.
   function splitUrl(url) {
     const u = (url ?? '').trim()
-    if (u.startsWith('https://')) return { protocol: 'https', host: u.slice('https://'.length) }
+    if (u.startsWith('https:')) return { protocol: 'https', host: u.replace(/^https:(\/\/)?/, '') }
     if (u.startsWith('tcp-tls:')) return { protocol: 'tcp-tls', host: u.slice('tcp-tls:'.length) }
+    if (u.startsWith('quic:')) return { protocol: 'quic', host: u.replace(/^quic:(\/\/)?/, '') }
     return { protocol: 'plain', host: u }
   }
 
   function joinUrl(protocol, host) {
     const h = (host ?? '').trim()
-    if (protocol === 'https') return `https://${h.replace(/^https:\/\//, '')}`
+    if (protocol === 'https') return `https://${h.replace(/^https:(\/\/)?/, '')}`
     if (protocol === 'tcp-tls') return `tcp-tls:${h.replace(/^tcp-tls:/, '')}`
+    if (protocol === 'quic') return `quic:${h.replace(/^quic:(\/\/)?/, '')}`
     return h
   }
 
   // Detect a pasted full URL in the host field and auto-split into protocol + host.
   function cleanHostInput() {
     const h = (serverForm.host ?? '').trim()
-    if (h.startsWith('https://')) {
+    if (h.startsWith('https:')) {
       serverForm.protocol = 'https'
-      serverForm.host = h.slice('https://'.length)
+      serverForm.host = h.replace(/^https:(\/\/)?/, '')
     } else if (h.startsWith('tcp-tls:')) {
       serverForm.protocol = 'tcp-tls'
       serverForm.host = h.slice('tcp-tls:'.length)
+    } else if (h.startsWith('quic:')) {
+      serverForm.protocol = 'quic'
+      serverForm.host = h.replace(/^quic:(\/\/)?/, '')
     }
   }
 
@@ -402,6 +410,7 @@
             { value: 'plain', label: 'plain' },
             { value: 'tcp-tls', label: 'tcp-tls' },
             { value: 'https', label: 'https' },
+            { value: 'quic', label: 'quic (DoQ)' },
           ]}
         />
       </div>
@@ -417,7 +426,9 @@
             ? 'dns.google/dns-query'
             : serverForm.protocol === 'tcp-tls'
               ? 'dns.example.com:853'
-              : '1.1.1.1'}
+              : serverForm.protocol === 'quic'
+                ? 'dns.adguard.com'
+                : '1.1.1.1'}
         />
       </div>
     </div>
