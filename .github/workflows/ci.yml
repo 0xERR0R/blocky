@@ -22,11 +22,13 @@ jobs:
   test:
     name: Build and test
     runs-on: ubuntu-latest
-    # Normally ~2 minutes. The cap is here because this suite can hang rather
-    # than fail: several specs bind listeners, and when one collides with a port
-    # another spec already took it has been seen both to fail fast
-    # (`bind: address already in use`) and to wait forever. Without a cap a hang
-    # holds a runner for GitHub's 6-hour default. See GRA-650.
+    # Normally ~2 minutes. The cap is the outer guard: this suite has been seen
+    # both to fail fast (`bind: address already in use`) and to wait forever
+    # when two listeners wanted the same port, and without a cap a hang holds a
+    # runner for GitHub's 6-hour default. Those causes are fixed in GRA-650 and
+    # `make test` now passes ginkgo a suite `--timeout` of its own, which fails
+    # with a goroutine dump instead of a killed runner. This stays for the hang
+    # that gets past both.
     timeout-minutes: 20
     steps:
       - name: Checkout

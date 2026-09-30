@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/helpertest"
 )
 
 // debugPaths is the diagnostics surface: every page this listener exists to
@@ -322,37 +323,17 @@ func httpGetEventually(t *testing.T, url string) (*http.Response, error) {
 	return nil, err
 }
 
-// freeLoopbackPort returns a port that was free on loopback a moment ago, with
-// the probe listener closed so the caller can bind it on both families — which
-// is the shape createDebugListeners needs and the reason this cannot just hand
-// back an open listener's address.
+// freeLoopbackPort returns a port createDebugListeners can bind on both
+// loopback families.
 //
-// The gap between closing the probe and the caller binding is this file's
-// likeliest source of flakiness if these tests are ever run in parallel or with
-// -count. They are not, and within a package Go runs tests serially, so the
-// window is microseconds wide.
+// It used to bind 127.0.0.1:0, read the assigned port back and close the probe,
+// which meant the number came from the kernel's ephemeral range — the same
+// range every outbound socket in the process draws from — and was only known to
+// be free on IPv4, only until the probe closed. helpertest.NextFreePort draws
+// from a band outside that range and checks both families, so nothing else can
+// be holding the port when the caller binds it. See GRA-650.
 func freeLoopbackPort(t *testing.T) uint16 {
 	t.Helper()
 
-	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve a loopback port: %v", err)
-	}
-
-	_, portStr, err := net.SplitHostPort(l.Addr().String())
-	if err != nil {
-		_ = l.Close()
-		t.Fatalf("split %s: %v", l.Addr(), err)
-	}
-
-	if err := l.Close(); err != nil {
-		t.Fatalf("release the reserved port: %v", err)
-	}
-
-	port, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		t.Fatalf("parse port %q: %v", portStr, err)
-	}
-
-	return uint16(port)
+	return uint16(helpertest.NextFreePort())
 }

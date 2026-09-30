@@ -220,7 +220,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			When("None are working", func() {
 				BeforeEach(func() {
 					upstreams = []config.Upstream{{Host: "wrong"}, {Host: "wrong"}}
-					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", A)

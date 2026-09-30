@@ -39,6 +39,20 @@ GOLANG_LINT_VERSION=v2.12.2
 
 GINKGO_PROCS?=
 
+# Suite deadline and progress reporting for the fast (non-e2e) suite. The whole
+# run is ~2 minutes and no single spec takes as long as a second, so neither of
+# these fires on a healthy run.
+#
+# They are here because this suite has been seen to hang rather than fail.
+# ginkgo's default --timeout is one hour, which is how a stuck spec came to hold
+# a CI runner until somebody cancelled the job by hand. The job-level
+# timeout-minutes in ci.yml bounds that, but it kills the runner without saying
+# what was stuck; --poll-progress-after makes a spec that overruns dump its own
+# goroutines first, so the next hang names its culprit. See GRA-650.
+GINKGO_TIMEOUT?=10m
+GINKGO_RACE_TIMEOUT?=30m
+GINKGO_PROGRESS?=--poll-progress-after=90s --poll-progress-interval=30s
+
 # Fuzzing. Fuzz target seed corpora run as ordinary tests on every `make test`;
 # this is the opt-in discovery mode that actively generates new inputs. `go test
 # -fuzz` only fuzzes one target in one package per invocation, so `make fuzz`
@@ -129,7 +143,8 @@ ifdef BIN_AUTOCAB
 endif
 
 test: check-go check-fork-additions ## run tests
-	go tool ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
+	go tool ginkgo --label-filter="!e2e" --timeout=$(GINKGO_TIMEOUT) $(GINKGO_PROGRESS) \
+		--coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
 	go tool cover -html coverage.txt -o coverage.html
 
 fuzz: check-go ## run each fuzz target for FUZZ_TIME (default 30s); e.g. make fuzz FUZZ_TIME=2m
@@ -239,7 +254,8 @@ release-image-smoke: check-docker check-jq ## start the goreleaser-built image a
 	./scripts/smoke-release-image.sh
 
 race: check-go ## run tests with race detector
-	go tool ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
+	go tool ginkgo --label-filter="!e2e" --timeout=$(GINKGO_RACE_TIMEOUT) $(GINKGO_PROGRESS) \
+		--race -r ${GINKGO_PROCS}
 
 check-fork-additions: ## verify no Blockasaurus-only file was dropped by an upstream merge
 	@test -s .fork-additions || { \

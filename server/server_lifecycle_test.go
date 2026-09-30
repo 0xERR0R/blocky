@@ -15,15 +15,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// Base ports for this file only, kept clear of the ones the rest of the suite
-// uses (4000/5000 in BeforeSuite, +100 and 9000 for admin-port mode) so these
-// specs cannot be the reason another one fails to bind.
-const (
-	lifecycleHTTPBasePort  = 4300
-	lifecycleAdminBasePort = 9300
-	lifecycleDNSBasePort   = 5300
-)
-
 // Stop has to hand the ports back before it returns.
 //
 // It used to release the HTTP and HTTPS listeners only via the
@@ -36,14 +27,24 @@ var _ = Describe("Server lifecycle", func() {
 	var (
 		ctx      context.Context
 		cancelFn context.CancelFunc
+
+		// Reserved once per spec, not per server: the point of the spec is that
+		// the second cycle rebinds the very same ports the first one released.
+		dnsAddr   string
+		httpAddr  string
+		adminAddr string
 	)
 
 	BeforeEach(func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
+
+		dnsAddr = NextFreeHostPort("127.0.0.1")
+		httpAddr = NextFreeHostPort("")
+		adminAddr = NextFreeHostPort("")
 	})
 
-	newServerOnFixedPorts := func() (*Server, error) {
+	newServerOnSamePorts := func() (*Server, error) {
 		return NewServer(ctx, &config.Config{
 			Upstreams: config.Upstreams{
 				Groups: map[string][]config.Upstream{
@@ -57,9 +58,9 @@ var _ = Describe("Server lifecycle", func() {
 			},
 			Blocking: config.Blocking{BlockType: "zeroIp"},
 			Ports: config.Ports{
-				DNS:       config.ListenConfig{GetHostPort("127.0.0.1", lifecycleDNSBasePort)},
-				HTTP:      config.ListenConfig{GetHostPort("", lifecycleHTTPBasePort)},
-				AdminPort: config.ListenConfig{GetHostPort("", lifecycleAdminBasePort)},
+				DNS:       config.ListenConfig{dnsAddr},
+				HTTP:      config.ListenConfig{httpAddr},
+				AdminPort: config.ListenConfig{adminAddr},
 				DOHPath:   "/dns-query",
 			},
 		}, nil)
@@ -69,7 +70,7 @@ var _ = Describe("Server lifecycle", func() {
 		// Two cycles on the same ports. The context stays alive throughout, so
 		// only Stop can be what frees them.
 		for range 2 {
-			sut, err := newServerOnFixedPorts()
+			sut, err := newServerOnSamePorts()
 			Expect(err).Should(Succeed())
 
 			errChan := make(chan error, 10)

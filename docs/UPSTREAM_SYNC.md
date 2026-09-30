@@ -484,12 +484,26 @@ the build" meant "the merge fails if someone remembers to run the suite
 locally". If you delete or disable that workflow, these guardrails go back to
 being a convention.
 
-Both jobs are capped with `timeout-minutes`. That is not tidiness: the fast
-suite can *hang* rather than fail when two specs want the same port, and an
-uncapped hang holds a runner for GitHub's 6-hour default. The collisions
-themselves are pre-existing and tracked in **GRA-650** — worth knowing about,
-because a gate that goes red for reasons unrelated to the diff gets re-run until
-it passes, which is the same thing as not having it.
+Both jobs are capped with `timeout-minutes`, and `make test` passes ginkgo its
+own `--timeout` plus `--poll-progress-after`. That is not tidiness. This suite
+has twice failed for reasons unrelated to the diff, once by failing fast and
+once by hanging until the job was cancelled by hand, and a gate that goes red
+for reasons unrelated to the diff gets re-run until it passes — which is the
+same thing as not having it. Both causes are fixed (**GRA-650**); the caps stay
+because the next one will not announce itself either. The ginkgo-level flags
+matter more than `timeout-minutes` does: a killed runner says nothing about what
+was stuck, while `--poll-progress-after` makes an overrunning spec dump its own
+goroutines first. That is what identified the hang.
+
+**Test ports come from `helpertest.NextFreePort`, never from a constant.** Two
+properties are needed and a constant has neither: the number must be one the
+kernel will never assign to an outbound socket on its own — everything in the
+ephemeral range (32768-60999 on Linux) can be — and no two callers may get the
+same number, including callers in sibling ginkgo processes. `NextFreePort` draws
+from a band below the ephemeral range, never returns a number twice in a
+process, and bind-probes each candidate on TCP and UDP before handing it over.
+A fixture that binds a port it picked earlier, or that asks for a specific
+number, is the shape that produced both CI failures above.
 
 The same workflow has a second job, `e2e`, added in Phase 9. It runs
 `make e2e-test-baseline`, which `docker buildx build`s the image and then runs

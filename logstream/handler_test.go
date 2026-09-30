@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"time"
 
 	"github.com/0xERR0R/blocky/logstream"
 	. "github.com/onsi/ginkgo/v2"
@@ -32,43 +33,87 @@ var _ = Describe("WebSocket Handler", func() {
 	})
 
 	It("streams log entries over WebSocket", func() {
-		conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[4:], nil)
-		Expect(err).Should(Succeed())
-		defer conn.CloseNow() //nolint:errcheck
+		conn := dialAndSubscribe(ctx, b, wsURL(srv))
 
 		b.Publish(entry("ws-test"))
 
-		_, data, err := conn.Read(ctx)
-		Expect(err).Should(Succeed())
-
-		var received logstream.LogEntry
-		Expect(json.Unmarshal(data, &received)).Should(Succeed())
-		Expect(received.Message).Should(Equal("ws-test"))
+		Expect(readEntry(ctx, conn).Message).Should(Equal("ws-test"))
 	})
 
 	It("backfills existing entries on connect", func() {
 		b.Publish(entry("before-connect"))
 
-		conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[4:], nil)
+		conn, _, err := websocket.Dial(ctx, wsURL(srv), nil)
 		Expect(err).Should(Succeed())
 		defer conn.CloseNow() //nolint:errcheck
 
-		_, data, err := conn.Read(ctx)
-		Expect(err).Should(Succeed())
-
-		var received logstream.LogEntry
-		Expect(json.Unmarshal(data, &received)).Should(Succeed())
-		Expect(received.Message).Should(Equal("before-connect"))
+		Expect(readEntry(ctx, conn).Message).Should(Equal("before-connect"))
 	})
 
 	It("sends close frame on shutdown", func() {
-		conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[4:], nil)
-		Expect(err).Should(Succeed())
-		defer conn.CloseNow() //nolint:errcheck
+		conn := dialAndSubscribe(ctx, b, wsURL(srv))
 
 		b.Shutdown()
 
-		_, _, err = conn.Read(ctx)
+		readCtx, cancelRead := context.WithTimeout(ctx, readTimeout)
+		defer cancelRead()
+
+		_, _, err := conn.Read(readCtx)
 		Expect(err).Should(HaveOccurred())
+		Expect(readCtx.Err()).Should(Succeed(), "no close frame arrived before the deadline")
 	})
 })
+
+// Every read in this file used to run on the spec context, which is cancelled
+// only in cleanup. A handler that never wrote therefore blocked the suite
+// instead of failing it — one spec here held a CI runner for 20 minutes until
+// it was cancelled by hand. See GRA-650.
+const readTimeout = 5 * time.Second
+
+func wsURL(srv *httptest.Server) string {
+	return "ws" + srv.URL[4:]
+}
+
+// readEntry reads one entry, with a deadline.
+func readEntry(ctx context.Context, conn *websocket.Conn) logstream.LogEntry {
+	GinkgoHelper()
+
+	readCtx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
+	_, data, err := conn.Read(readCtx)
+	Expect(err).Should(Succeed())
+
+	var received logstream.LogEntry
+	Expect(json.Unmarshal(data, &received)).Should(Succeed())
+
+	return received
+}
+
+// dialAndSubscribe connects and returns only once the handler has reached
+// Broadcaster.Subscribe.
+//
+// websocket.Dial returns on the 101 response, which is several statements
+// before the handler subscribes, and anything a spec does in that window acts
+// on a broadcaster with no subscribers. A Publish is dropped, because Publish
+// gives up on a contended lock and the contending holder is that very Subscribe
+// call; a Shutdown closes nothing, after which the handler blocks on a channel
+// that will never be closed and never sends the close frame the spec is waiting
+// to read.
+//
+// An entry published before the dial is already in the ring buffer, and
+// Subscribe reads the backfill under the lock, so it cannot be missed. Reading
+// that entry back is therefore proof that the subscription exists.
+func dialAndSubscribe(ctx context.Context, b *logstream.Broadcaster, url string) *websocket.Conn {
+	GinkgoHelper()
+
+	b.Publish(entry("subscribe-handshake"))
+
+	conn, _, err := websocket.Dial(ctx, url, nil)
+	Expect(err).Should(Succeed())
+	DeferCleanup(func() { _ = conn.CloseNow() })
+
+	Expect(readEntry(ctx, conn).Message).Should(Equal("subscribe-handshake"))
+
+	return conn
+}

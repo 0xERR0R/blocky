@@ -86,6 +86,7 @@ docs/upstream-sync/port-checklist-2026-09.md
 e2e/failing-baseline.txt
 e2e/upstream_seed.go
 e2e/upstream_seed_test.go
+helpertest/port.go
 logstream/broadcaster.go
 logstream/broadcaster_test.go
 logstream/handler.go
