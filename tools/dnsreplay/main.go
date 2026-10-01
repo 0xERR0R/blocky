@@ -173,16 +173,20 @@ func matrix() []probe {
 		{name: "edns0 plain OPT on blocked", qname: blocked, qtype: dns.TypeA, edns: true},
 		{name: "edns0 plain OPT on customdns", qname: customA, qtype: dns.TypeA, edns: true},
 		{name: "edns0 plain OPT on notfqdn", qname: singleLbl, qtype: dns.TypeA, edns: true},
-		{name: "edns0 cookie passthrough", qname: upstreamA, qtype: dns.TypeA,
-			cookie: "0102030405060708", volatile: true},
+		{
+			name: "edns0 cookie passthrough", qname: upstreamA, qtype: dns.TypeA,
+			cookie: "0102030405060708", volatile: true,
+		},
 		{name: "dnssec DO signed zone", qname: signedZone, qtype: dns.TypeA, do: true, volatile: true},
 		{name: "dnssec DO unsigned zone", qname: "example.org.", qtype: dns.TypeA, do: true, volatile: true},
 		{name: "dnssec DO on blocked", qname: blocked, qtype: dns.TypeA, do: true},
 		{name: "dnssec DNSKEY", qname: signedZone, qtype: dns.TypeDNSKEY, do: true, volatile: true},
 		{name: "tcp blocked A", qname: blocked, qtype: dns.TypeA, tcp: true},
 		{name: "tcp customdns A", qname: customA, qtype: dns.TypeA, tcp: true},
-		{name: "cached authority TTL counts down", qname: "aaaa-only-nx.example.net.",
-			qtype: dns.TypeAAAA, ttlCountdown: true},
+		{
+			name: "cached authority TTL counts down", qname: "aaaa-only-nx.example.net.",
+			qtype: dns.TypeAAAA, ttlCountdown: true,
+		},
 	}
 }
 
@@ -313,9 +317,13 @@ func flags(m *dns.Msg) string {
 		on bool
 		s  string
 	}{
-		{m.Response, "qr"}, {m.Authoritative, "aa"}, {m.Truncated, "tc"},
-		{m.RecursionDesired, "rd"}, {m.RecursionAvailable, "ra"},
-		{m.AuthenticatedData, "ad"}, {m.CheckingDisabled, "cd"},
+		{m.Response, "qr"},
+		{m.Authoritative, "aa"},
+		{m.Truncated, "tc"},
+		{m.RecursionDesired, "rd"},
+		{m.RecursionAvailable, "ra"},
+		{m.AuthenticatedData, "ad"},
+		{m.CheckingDisabled, "cd"},
 	} {
 		if x.on {
 			f = append(f, x.s)

@@ -168,7 +168,7 @@ func readBaseline(path string) (map[string]bool, error) {
 
 	baseline := map[string]bool{}
 
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

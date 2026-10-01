@@ -83,7 +83,10 @@ docs/handbook/upstreams.html
 docs/upstream-sync/baseline-v0.34.38.md
 docs/upstream-sync/behavioral-replay-2026-09.md
 docs/upstream-sync/port-checklist-2026-09.md
+e2e/api_client.go
 e2e/failing-baseline.txt
+e2e/store_seed.go
+e2e/store_seed_test.go
 e2e/upstream_seed.go
 e2e/upstream_seed_test.go
 helpertest/port.go
