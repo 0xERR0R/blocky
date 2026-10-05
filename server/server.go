@@ -147,30 +147,34 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
-	redisCtx, redisCancel := context.WithCancel(ctx)
-	var redisClosers []io.Closer
-	defer func() {
+	var (
+		redisConn      *goredis.Client
+		redisConnected bool
+		redisCancel    context.CancelFunc
+		redisClosers   []io.Closer
+	)
+
+	redisCtx := ctx
+	if cfg.Redis.IsEnabled() {
+		redisCtx, redisCancel = context.WithCancel(ctx)
+		defer func() {
+			if err != nil {
+				redisCancel()
+				closeAll(redisClosers)
+			}
+		}()
+
+		redisConn, redisConnected, err = createRedisClient(redisCtx, &cfg.Redis)
 		if err != nil {
-			redisCancel()
-			closeAll(redisClosers)
+			return nil, err
 		}
-	}()
 
-	redisConn, err := redis.New(redisCtx, &cfg.Redis)
-	if redisConn != nil {
 		redisClosers = append(redisClosers, redisConn)
-	}
-	if err != nil {
-		if cfg.Redis.Required {
-			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
-		}
-
-		logger().WithError(err).Warn("Redis is optional and unavailable; continuing with reconnection enabled")
 	}
 
 	addRedisCloser := func(c io.Closer) { redisClosers = append([]io.Closer{c}, redisClosers...) }
 
-	redisResult, err := createRedisCacheDecorator(redisCtx, redisConn, cfg.Redis.Required, err == nil, addRedisCloser)
+	redisResult, err := createRedisCacheDecorator(redisCtx, redisConn, cfg.Redis.Required, redisConnected, addRedisCloser)
 	if err != nil {
 		return nil, err
 	}
@@ -462,6 +466,26 @@ func createTCPServer(ctx context.Context, address string, opts listenerOptions) 
 
 func createUDPServer(ctx context.Context, address string, opts listenerOptions) (*dns.Server, error) {
 	return createDNSServer(ctx, networkUDP, address, nil, opts)
+}
+
+// createRedisClient keeps an optional client whose startup Ping failed so it can reconnect.
+func createRedisClient(ctx context.Context, cfg *config.Redis) (client *goredis.Client, connected bool, err error) {
+	client, err = redis.New(ctx, cfg)
+	if err == nil {
+		return client, true, nil
+	}
+
+	if cfg.Required {
+		if client != nil {
+			_ = client.Close()
+		}
+
+		return nil, false, fmt.Errorf("failed to create required Redis client: %w", err)
+	}
+
+	logger().WithError(err).Warn("Redis is optional and unavailable; continuing with reconnection enabled")
+
+	return client, false, nil
 }
 
 type redisBridgeResult struct {

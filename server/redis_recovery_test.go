@@ -35,6 +35,15 @@ var _ = Describe("Optional Redis recovery", func() {
 		cfg.Redis.ConnectionCooldown = config.Duration(10 * time.Millisecond)
 	})
 
+	It("does not set up Redis resources when Redis is disabled", func(ctx context.Context) {
+		srv, err := NewServer(ctx, &cfg)
+		Expect(err).Should(Succeed())
+		DeferCleanup(func() { Expect(srv.Stop(ctx)).Should(Succeed()) })
+
+		Expect(srv.redisCancel).Should(BeNil())
+		Expect(srv.closers).Should(BeEmpty())
+	})
+
 	It("resumes cache writes and blocking synchronization after Redis starts", func(ctx context.Context) {
 		redisServer, err := miniredis.Run()
 		Expect(err).Should(Succeed())
