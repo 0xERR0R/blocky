@@ -168,13 +168,15 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		logger().WithError(err).Warn("Redis is optional and unavailable; continuing with reconnection enabled")
 	}
 
-	redisResult, err := createRedisCacheDecorator(redisCtx, redisConn, cfg.Redis.Required, err == nil)
+	addRedisCloser := func(c io.Closer) { redisClosers = append([]io.Closer{c}, redisClosers...) }
+
+	redisResult, err := createRedisCacheDecorator(redisCtx, redisConn, cfg.Redis.Required, err == nil, addRedisCloser)
 	if err != nil {
 		return nil, err
 	}
 
 	if redisResult.bridge != nil {
-		redisClosers = append([]io.Closer{redisResult.bridge}, redisClosers...)
+		addRedisCloser(redisResult.bridge)
 	}
 
 	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisResult.decorator)
@@ -468,7 +470,7 @@ type redisBridgeResult struct {
 }
 
 func createRedisCacheDecorator(
-	ctx context.Context, redisConn *goredis.Client, required, connected bool,
+	ctx context.Context, redisConn *goredis.Client, required, connected bool, addCloser func(io.Closer),
 ) (*redisBridgeResult, error) {
 	if redisConn == nil {
 		return &redisBridgeResult{}, nil
@@ -486,11 +488,18 @@ func createRedisCacheDecorator(
 	}
 
 	decorator := func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
-		return cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
+		redisCache, err := cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
 			Prefix:          "blocky:cache:",
 			Channel:         "blocky_cache_sync",
 			SkipInitialLoad: !connected,
 		})
+		if err != nil {
+			return nil, err
+		}
+
+		addCloser(redisCache)
+
+		return redisCache, nil
 	}
 
 	return &redisBridgeResult{decorator: decorator, bridge: bridge}, nil

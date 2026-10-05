@@ -38,6 +38,7 @@ type EventBusBridge struct {
 	cancel  context.CancelFunc
 	done    <-chan struct{}
 	once    sync.Once
+	wg      sync.WaitGroup
 
 	pendingMu sync.Mutex
 	pending   *pendingBlockingState
@@ -96,20 +97,27 @@ func NewEventBusBridgeWithOptions(
 		Handler: b.handleMessage,
 	}
 
-	go b.runPublisher(ctx)
-
-	go func() {
-		defer b.Close()
+	b.wg.Go(func() { b.runPublisher(ctx) })
+	b.wg.Go(func() {
+		defer func() { _ = b.stop() }()
 
 		loop.RunWithSub(ctx, ps)
-	}()
+	})
 
 	return b, nil
 }
 
-// Close signals both workers to stop and unsubscribes from the local event bus.
-// It is safe to call multiple times.
+// Close stops both workers, waits for them to exit and unsubscribes from the
+// local event bus. It is safe to call multiple times.
 func (b *EventBusBridge) Close() error {
+	err := b.stop()
+	b.wg.Wait()
+
+	return err
+}
+
+// stop lets the subscription worker end the bridge without waiting for itself.
+func (b *EventBusBridge) stop() error {
 	var unsubErr error
 
 	b.once.Do(func() {

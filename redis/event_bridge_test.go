@@ -332,3 +332,19 @@ var _ = Describe("EventBusBridge", func() {
 		})
 	})
 })
+
+var _ = Describe("EventBusBridge Close", func() {
+	It("waits for a background subscription to stop", func() {
+		client, dialStarted, dialReturned := newSlowCancelClient()
+		DeferCleanup(client.Close)
+
+		bridge, err := NewEventBusBridgeWithOptions(context.Background(), client, EventBusBridgeOptions{
+			BackgroundConnect: true,
+		})
+		Expect(err).Should(Succeed())
+		Eventually(dialStarted).Should(Receive())
+
+		Expect(bridge.Close()).Should(Succeed())
+		Expect(dialReturned.Load()).Should(BeTrue())
+	})
+})
