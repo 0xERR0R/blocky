@@ -54,6 +54,7 @@ type Server struct {
 	http3Server      *http3Server     // nil when disabled
 	http3PacketConns []net.PacketConn // one per address in ports.https
 	closers          []io.Closer
+	redisCancel      context.CancelFunc
 }
 
 func logger() *logrus.Entry {
@@ -146,21 +147,40 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
-	var redisConn *goredis.Client
-	if cfg.Redis.IsEnabled() {
-		redisConn, err = redis.New(ctx, &cfg.Redis)
-		if err != nil {
-			if cfg.Redis.Required {
-				return nil, fmt.Errorf("failed to create required Redis client: %w", err)
-			}
+	var (
+		redisConn      *goredis.Client
+		redisConnected bool
+		redisCancel    context.CancelFunc
+		redisClosers   []io.Closer
+	)
 
-			logger().WithError(err).Warn("Redis is enabled but optional and could not be initialized, continuing without Redis")
+	redisCtx := ctx
+	if cfg.Redis.IsEnabled() {
+		redisCtx, redisCancel = context.WithCancel(ctx)
+		defer func() {
+			if err != nil {
+				redisCancel()
+				closeAll(redisClosers)
+			}
+		}()
+
+		redisConn, redisConnected, err = createRedisClient(redisCtx, &cfg.Redis)
+		if err != nil {
+			return nil, err
 		}
+
+		redisClosers = append(redisClosers, redisConn)
 	}
 
-	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required)
+	addRedisCloser := func(c io.Closer) { redisClosers = append([]io.Closer{c}, redisClosers...) }
+
+	redisResult, err := createRedisCacheDecorator(redisCtx, redisConn, cfg.Redis.Required, redisConnected, addRedisCloser)
 	if err != nil {
 		return nil, err
+	}
+
+	if redisResult.bridge != nil {
+		addRedisCloser(redisResult.bridge)
 	}
 
 	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisResult.decorator)
@@ -174,14 +194,8 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		cfg:              cfg,
 		servers:          make(map[net.Listener]*httpServer),
 		http3PacketConns: http3PacketConns,
-	}
-
-	if redisResult.bridge != nil {
-		server.closers = append(server.closers, redisResult.bridge)
-	}
-
-	if redisConn != nil {
-		server.closers = append(server.closers, redisConn)
+		redisCancel:      redisCancel,
+		closers:          redisClosers,
 	}
 
 	server.printConfiguration()
@@ -454,19 +468,41 @@ func createUDPServer(ctx context.Context, address string, opts listenerOptions) 
 	return createDNSServer(ctx, networkUDP, address, nil, opts)
 }
 
+// createRedisClient keeps an optional client whose startup Ping failed so it can reconnect.
+func createRedisClient(ctx context.Context, cfg *config.Redis) (client *goredis.Client, connected bool, err error) {
+	client, err = redis.New(ctx, cfg)
+	if err == nil {
+		return client, true, nil
+	}
+
+	if cfg.Required {
+		if client != nil {
+			_ = client.Close()
+		}
+
+		return nil, false, fmt.Errorf("failed to create required Redis client: %w", err)
+	}
+
+	logger().WithError(err).Warn("Redis is optional and unavailable; continuing with reconnection enabled")
+
+	return client, false, nil
+}
+
 type redisBridgeResult struct {
 	decorator resolver.CacheDecorator
 	bridge    *redis.EventBusBridge
 }
 
 func createRedisCacheDecorator(
-	ctx context.Context, redisConn *goredis.Client, required bool,
+	ctx context.Context, redisConn *goredis.Client, required, connected bool, addCloser func(io.Closer),
 ) (*redisBridgeResult, error) {
 	if redisConn == nil {
 		return &redisBridgeResult{}, nil
 	}
 
-	bridge, err := redis.NewEventBusBridge(ctx, redisConn)
+	bridge, err := redis.NewEventBusBridgeWithOptions(ctx, redisConn, redis.EventBusBridgeOptions{
+		BackgroundConnect: !required,
+	})
 	if err != nil {
 		if required {
 			return nil, fmt.Errorf("failed to create required Redis event bridge: %w", err)
@@ -476,10 +512,18 @@ func createRedisCacheDecorator(
 	}
 
 	decorator := func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
-		return cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
-			Prefix:  "blocky:cache:",
-			Channel: "blocky_cache_sync",
+		redisCache, err := cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
+			Prefix:          "blocky:cache:",
+			Channel:         "blocky_cache_sync",
+			SkipInitialLoad: !connected,
 		})
+		if err != nil {
+			return nil, err
+		}
+
+		addCloser(redisCache)
+
+		return redisCache, nil
 	}
 
 	return &redisBridgeResult{decorator: decorator, bridge: bridge}, nil
@@ -699,6 +743,10 @@ func (s *Server) Stop(ctx context.Context) error {
 		if err := pc.Close(); err != nil {
 			logger().Warn("failed to close http3 packet conn: ", err)
 		}
+	}
+
+	if s.redisCancel != nil {
+		s.redisCancel()
 	}
 
 	for _, c := range s.closers {

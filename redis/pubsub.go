@@ -34,11 +34,11 @@ func (p *PubSubLoop) Run(ctx context.Context) {
 func (p *PubSubLoop) RunWithSub(ctx context.Context, initial *goredis.PubSub) {
 	sub := initial
 	if sub == nil {
-		sub = p.Client.Subscribe(ctx, p.Channel)
+		var err error
 
-		if _, err := sub.Receive(ctx); err != nil {
+		sub, err = p.subscribe(ctx)
+		if err != nil {
 			p.Logger.WithError(err).Warn("Redis pub/sub initial subscribe failed, attempting to reconnect")
-			_ = sub.Close()
 
 			sub = p.reconnect(ctx)
 			if sub == nil {
@@ -98,10 +98,8 @@ func (p *PubSubLoop) reconnect(ctx context.Context) *goredis.PubSub {
 		case <-time.After(delay):
 		}
 
-		sub := p.Client.Subscribe(ctx, p.Channel)
-
-		if _, err := sub.Receive(ctx); err != nil {
-			_ = sub.Close()
+		sub, err := p.subscribe(ctx)
+		if err != nil {
 			p.Logger.WithError(err).Warn("Redis pub/sub reconnect failed, retrying")
 
 			delay *= 2
@@ -116,4 +114,20 @@ func (p *PubSubLoop) reconnect(ctx context.Context) *goredis.PubSub {
 
 		return sub
 	}
+}
+
+// subscribe closes the subscription on cancellation because Receive ignores
+// context cancellation while waiting for Redis.
+func (p *PubSubLoop) subscribe(ctx context.Context) (*goredis.PubSub, error) {
+	sub := p.Client.Subscribe(ctx, p.Channel)
+	stop := context.AfterFunc(ctx, func() { _ = sub.Close() })
+	defer stop()
+
+	if _, err := sub.Receive(ctx); err != nil {
+		_ = sub.Close()
+
+		return nil, err
+	}
+
+	return sub, nil
 }
