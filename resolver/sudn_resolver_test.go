@@ -135,6 +135,8 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			},
 
 			entry(A, "1.0.0.10.in-addr.arpa.", dns.RcodeNameError),
+			entry(PTR, "1.0.64.100.in-addr.arpa.", dns.RcodeNameError),
+			entry(PTR, "254.255.127.100.in-addr.arpa.", dns.RcodeNameError),
 			entry(A, "something.test.", dns.RcodeNameError),
 			entry(A, "something.localhost.", dns.RcodeSuccess, BeDNSRecord("something.localhost.", A, loopbackV4.String())),
 			entry(AAAA, "thing.localhost.", dns.RcodeSuccess, BeDNSRecord("thing.localhost.", AAAA, loopbackV6.String())),
@@ -208,6 +210,16 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			Expect(err).Should(Succeed())
 			Expect(resp).ShouldNot(HaveResponseType(ResponseTypeSPECIAL))
 		})
+
+		DescribeTable("should forward reverse queries outside of the Shared Address Space",
+			func(qName string) {
+				resp, err := sut.Resolve(ctx, newRequest(qName, PTR))
+				Expect(err).Should(Succeed())
+				Expect(resp).ShouldNot(HaveResponseType(ResponseTypeSPECIAL))
+			},
+			Entry("100.63.255.254", "254.255.63.100.in-addr.arpa."),
+			Entry("100.128.0.1", "1.0.128.100.in-addr.arpa."),
+		)
 
 		// RFC 9462: Discovery of Designated Resolvers (DDR).
 		// Section 4 + 6.1 + 6.4: blocky has no Designated Resolvers to announce
