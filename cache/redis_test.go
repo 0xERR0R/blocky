@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
+	"sync/atomic"
 	"time"
 
 	expirationcache "github.com/0xERR0R/expiration-cache"
@@ -817,5 +819,38 @@ var _ = Describe("RedisExpiringCache", func() {
 				Expect(data).To(Equal(original))
 			})
 		})
+	})
+})
+
+var _ = Describe("RedisExpiringCache Close", func() {
+	It("waits for the background subscriber to stop", func() {
+		dialStarted := make(chan struct{}, 1)
+		var dialReturned atomic.Bool
+		client := goredis.NewClient(&goredis.Options{
+			Addr:       "127.0.0.1:0",
+			MaxRetries: -1,
+			Dialer: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				select {
+				case dialStarted <- struct{}{}:
+				default:
+				}
+				<-ctx.Done()
+				// Returning late shows whether Close waited for the subscriber.
+				time.Sleep(50 * time.Millisecond)
+				dialReturned.Store(true)
+
+				return nil, ctx.Err()
+			},
+		})
+		DeferCleanup(client.Close)
+
+		opts := defaultOpts("close:")
+		opts.SkipInitialLoad = true
+		c, err := NewRedisExpiringCache(context.Background(), newTestInner(context.Background()), client, opts)
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(dialStarted).Should(Receive())
+
+		Expect(c.Close()).To(Succeed())
+		Expect(dialReturned.Load()).To(BeTrue())
 	})
 })

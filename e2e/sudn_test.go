@@ -30,6 +30,8 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 			`A myhost.home/NOERROR("A 1.2.3.4 300")`,
 			`A myhost.corp/NOERROR("A 1.2.3.4 300")`,
 			`A google.com/NOERROR("A 8.8.8.8 300")`,
+			`PTR 1.0.64.100.in-addr.arpa/NOERROR("PTR shared.example. 300")`,
+			`PTR 1.0.128.100.in-addr.arpa/NOERROR("PTR public.example. 300")`,
 		)
 		Expect(err).Should(Succeed())
 	})
@@ -64,6 +66,34 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 				resp, err := doDNSRequest(ctx, blocky, msg)
 				Expect(err).Should(Succeed())
 				Expect(resp.Rcode).ShouldNot(Equal(dns.RcodeServerFailure))
+			})
+		})
+	})
+
+	Describe("RFC 6598 Shared Address Space", func() {
+		When("SUDN is enabled (default)", func() {
+			BeforeEach(func(ctx context.Context) {
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					`))
+				Expect(err).Should(Succeed())
+			})
+
+			It("should return NXDOMAIN for PTR (not forward to upstream)", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("1.0.64.100.in-addr.arpa.", PTR)
+				resp, err := doDNSRequest(ctx, blocky, msg)
+				Expect(err).Should(Succeed())
+				Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(resp.Answer).Should(BeEmpty())
+			})
+
+			It("should forward PTR outside of the range to upstream", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("1.0.128.100.in-addr.arpa.", PTR)
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(BeDNSRecord("1.0.128.100.in-addr.arpa.", PTR, "public.example."))
 			})
 		})
 	})
