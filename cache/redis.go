@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -50,6 +51,8 @@ type RedisOptions[T any] struct {
 	FlushInterval time.Duration
 	// SendBufSize is the capacity of the internal send buffer channel.
 	SendBufSize int
+	// SkipInitialLoad avoids another blocking dial when Redis already failed its startup check.
+	SkipInitialLoad bool
 }
 
 // ReloadPublishable is implemented by inner caches that reload entries internally
@@ -87,6 +90,8 @@ type RedisExpiringCache[T any] struct {
 	instanceID string
 	sendBuf    chan sendBufferEntry[T]
 	logger     *logrus.Entry
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 // NewRedisExpiringByteCache creates a RedisExpiringCache for []byte values,
@@ -113,8 +118,9 @@ func NewRedisExpiringByteCache(
 // NewRedisExpiringCache creates a new RedisExpiringCache decorator.
 //
 // It performs a blocking startup scan of existing Redis keys and loads them
-// into inner before launching the background writer and subscriber goroutines.
-// The goroutines run until ctx is cancelled.
+// into inner before launching the background writer and subscriber goroutines,
+// unless SkipInitialLoad is set.
+// The goroutines run until ctx is cancelled or Close is called.
 func NewRedisExpiringCache[T any](
 	ctx context.Context,
 	inner ExpiringCache[T],
@@ -153,15 +159,26 @@ func NewRedisExpiringCache[T any](
 		rp.SetReloadPublisher(c.publishWriteThrough)
 	}
 
-	// Blocking startup load.
-	if err := c.loadFromRedis(ctx); err != nil {
-		c.logger.WithError(err).Warn("startup Redis scan failed – starting with empty local cache")
+	if !opts.SkipInitialLoad {
+		if err := c.loadFromRedis(ctx); err != nil {
+			c.logger.WithError(err).Warn("startup Redis scan failed – starting with empty local cache")
+		}
 	}
 
-	go c.runSubscriber(ctx)
-	go c.runWriter(ctx)
+	ctx, c.cancel = context.WithCancel(ctx) //nolint:gosec // Close cancels the workers
+	c.wg.Go(func() { c.runSubscriber(ctx) })
+	c.wg.Go(func() { c.runWriter(ctx) })
 
 	return c, nil
+}
+
+// Close stops the background goroutines and waits for them to exit,
+// flushing buffered entries as on cancellation.
+func (c *RedisExpiringCache[T]) Close() error {
+	c.cancel()
+	c.wg.Wait()
+
+	return nil
 }
 
 // Put stores the value in the inner cache immediately, then enqueues a
