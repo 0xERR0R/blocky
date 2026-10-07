@@ -61,3 +61,13 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
 # --- leading/trailing hyphen labels (allowed by blocky's relaxed validation) ---
 -leading-hyphen.example.com
 trailing-hyphen-.example.com
+
+# --- rejected: a label that vanishes in IDNA mapping would widen the rule ---
+# (empty "xn--" payload; the second line ends in a soft hyphen, U+00AD;
+# the third uses an ideographic full stop, U+3002, as the separator)
+*.com.xn--
+*.com.­
+*.com。xn--
+com.xn--
+*..com
+*.
