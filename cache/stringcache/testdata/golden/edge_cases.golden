@@ -21,7 +21,7 @@ string	spaced-eol.example.com
 string	sub.domain.with-hyphen.example.com
 string	tab-separated.example.com
 string	trailing-hyphen-.example.com
-string	trailing.dot.example.com.
+string	trailing.dot.example.com
 string	under_score.example.org
 string	xn--bcher-kva.example.com
 string	xn--mnchen-3ya.example.de
