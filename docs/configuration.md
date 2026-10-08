@@ -1342,6 +1342,30 @@ Configuration parameters:
         strategy: fast
     ```
 
+## Response compression
+
+Blocky sends a response uncompressed when it fits both the client's buffer and 512 bytes as it is, and uses DNS
+name compression ([RFC 1035 §4.1.4](https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.4)) otherwise. Every
+client must understand both forms, but some embedded devices (e.g. smart home devices with a minimal stub resolver)
+only work with compressed responses and silently discard uncompressed ones. For those, compression can be forced.
+
+| Parameter                   | Type                        | Mandatory | Default value | Description                                                                                       |
+| --------------------------- | --------------------------- | --------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| responseCompression.always  | bool                        | no        | false         | If true, every response is compressed, as blocky did before v0.32.0                               |
+| responseCompression.clients | list of IPs, CIDRs or names | no        |               | Responses to these clients are always compressed. Client names support wildcards (`*`, `?`, `[]`) |
+
+Client names are the names resolved by the [client name lookup](#client-name-lookup), compared case-insensitively.
+Forcing compression costs a little CPU and memory per response, so prefer listing the affected clients over `always`.
+
+!!! example
+
+    ```yaml
+    responseCompression:
+      clients:
+        - 192.168.178.10
+        - smart-scale*
+    ```
+
 ## Deliver EDE codes as EDNS0 option
 
 DNS responses can be extended with EDE codes according to [RFC8914](https://datatracker.ietf.org/doc/rfc8914/).
