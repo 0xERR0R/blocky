@@ -6,8 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/trie"
 )
 
 type stringCache interface {
@@ -29,6 +30,14 @@ func normalizeEntry(entry string) string {
 	return strings.ToLower(entry)
 }
 
+// logMatch runs on every hit, so it skips the logrus entry and argument
+// allocations unless debug logging is on.
+func logMatch(prefix, kind, rule, searchString string) {
+	if log.Log().IsLevelEnabled(logrus.DebugLevel) {
+		log.PrefixedLog(prefix).Debugf("%s '%s' matched with '%s'", kind, rule, searchString)
+	}
+}
+
 func (cache stringMap) elementCount() int {
 	count := 0
 
@@ -47,15 +56,16 @@ func (cache stringMap) findMatch(searchString string) (string, bool) {
 		return "", false
 	}
 
-	searchBucketLen := len(cache[searchLen]) / searchLen
+	bucket := cache[searchLen]
+	searchBucketLen := len(bucket) / searchLen
 	idx := sort.Search(searchBucketLen, func(i int) bool {
-		return cache[searchLen][i*searchLen:i*searchLen+searchLen] >= normalized
+		return bucket[i*searchLen:i*searchLen+searchLen] >= normalized
 	})
 
 	if idx < searchBucketLen {
-		blockRule := cache[searchLen][idx*searchLen : idx*searchLen+searchLen]
+		blockRule := bucket[idx*searchLen : idx*searchLen+searchLen]
 		if blockRule == normalized {
-			log.PrefixedLog("string_map").Debugf("block rule '%s' matched with '%s'", blockRule, searchString)
+			logMatch("string_map", "block rule", blockRule, searchString)
 
 			return blockRule, true
 		}
@@ -131,7 +141,7 @@ func (cache regexCache) elementCount() int {
 func (cache regexCache) findMatch(searchString string) (string, bool) {
 	for _, regex := range cache {
 		if regex.MatchString(searchString) {
-			log.PrefixedLog("regex_cache").Debugf("regex '%s' matched with '%s'", regex, searchString)
+			logMatch("regex_cache", "regex", regex.String(), searchString)
 
 			// re-wrap in the '/.../' delimiters that addEntry strips on insertion
 			// so the reported rule matches the entry as configured by the user.
@@ -186,84 +196,4 @@ func newRegexCacheFactory() cacheFactory {
 	return &regexCacheFactory{
 		cache: make(regexCache, 0),
 	}
-}
-
-type wildcardCache struct {
-	trie trie.Trie
-	cnt  int
-}
-
-func (cache wildcardCache) elementCount() int {
-	return cache.cnt
-}
-
-func (cache wildcardCache) findMatch(domain string) (string, bool) {
-	labels, ok := cache.trie.HasParentOf(domain)
-	if !ok {
-		return "", false
-	}
-
-	// labels reconstruct the stored wildcard base (normalized, with the "*."
-	// prefix stripped on insertion); re-prepend "*." so the reported rule
-	// matches the entry as configured by the user. trie.JoinTLD pairs with the
-	// trie.SplitTLD this cache is built with, so the separator stays the trie's
-	// concern rather than being hard-coded here.
-	rule := "*." + trie.JoinTLD(labels)
-
-	log.PrefixedLog("wildcard_cache").Debugf("wildcard block rule '%s' matched with '%s'", rule, domain)
-
-	return rule, true
-}
-
-type wildcardCacheFactory struct {
-	trie *trie.Trie
-	cnt  int
-}
-
-func newWildcardCacheFactory() cacheFactory {
-	return &wildcardCacheFactory{
-		trie: trie.NewTrie(trie.SplitTLD),
-	}
-}
-
-func (r *wildcardCacheFactory) addEntry(entry string) bool {
-	globCount := strings.Count(entry, "*")
-	if globCount == 0 {
-		return false
-	}
-
-	if !strings.HasPrefix(entry, "*.") || globCount > 1 {
-		log.Log().Warnf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
-
-		return true // invalid but handled
-	}
-
-	entry = normalizeWildcard(entry)
-
-	r.trie.Insert(entry)
-
-	r.cnt++
-
-	return true
-}
-
-func (r *wildcardCacheFactory) count() int {
-	return r.cnt
-}
-
-func (r *wildcardCacheFactory) create() stringCache {
-	if r.cnt == 0 {
-		return nil
-	}
-
-	return wildcardCache{*r.trie, r.cnt}
-}
-
-func normalizeWildcard(domain string) string {
-	domain = normalizeEntry(domain)
-	domain = strings.TrimLeft(domain, "*")
-	domain = strings.Trim(domain, ".")
-	domain = strings.ToLower(domain)
-
-	return domain
 }
