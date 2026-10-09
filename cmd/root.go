@@ -101,7 +101,14 @@ func initConfig() error {
 		return fmt.Errorf("unable to load configuration file '%s': %w", configPath, err)
 	}
 
-	log.Configure(&cfg.Log)
+	// a command answers in the terminal, so it never logs to syslog; serve
+	// configures logging again from the full config when the server starts
+	logCfg := cfg.Log
+	if logCfg.Target == log.TargetTypeSyslog {
+		logCfg.Target = log.TargetTypeStdout
+	}
+
+	log.Configure(&logCfg)
 
 	if len(cfg.Ports.HTTP) != 0 {
 		split := strings.Split(cfg.Ports.HTTP[0], ":")

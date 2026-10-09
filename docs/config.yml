@@ -465,6 +465,18 @@ log:
   level: info
   # optional: Log format (text or json). Default: text
   format: text
+  # optional: where log entries go (stdout, stderr or syslog). Default: stdout
+  target: stdout
+  # optional: used when target is syslog
+  syslog:
+    # optional: empty for the local syslog socket, else udp or tcp. Default: empty
+    network: ""
+    # optional: host:port of the syslog server, when network is set
+    address: ""
+    # optional: tag each entry is logged under. Default: blocky
+    tag: blocky
+    # optional: syslog facility (daemon, user or local0-local7). Default: daemon
+    facility: daemon
   # optional: log timestamps. Default: true
   timestamp: true
   # optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false

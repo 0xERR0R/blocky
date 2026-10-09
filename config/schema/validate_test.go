@@ -31,6 +31,19 @@ var _ = Describe("ValidateYAML", func() {
 		Expect(errs[0].Path).Should(ContainSubstring("connectIPVersion"))
 	})
 
+	It("validates syslog facilities against the documented enum", func() {
+		for _, facility := range []string{"daemon", "user", "local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7"} {
+			errs, err := schema.ValidateYAML([]byte("log:\n  target: syslog\n  syslog:\n    facility: " + facility + "\n"))
+			Expect(err).Should(Succeed())
+			Expect(errs).Should(BeEmpty(), "facility %q should be allowed", facility)
+		}
+
+		errs, err := schema.ValidateYAML([]byte("log:\n  target: syslog\n  syslog:\n    facility: invalid\n"))
+		Expect(err).Should(Succeed())
+		Expect(errs).ShouldNot(BeEmpty())
+		Expect(errs[0].Path).Should(ContainSubstring("facility"))
+	})
+
 	It("returns an error for unparseable YAML", func() {
 		_, err := schema.ValidateYAML([]byte("\tnot: [valid"))
 		Expect(err).Should(HaveOccurred())
