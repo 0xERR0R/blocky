@@ -3272,6 +3272,18 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">info</span>
 <span class="w">  </span><span class="c1"># optional: Log format (text or json). Default: text</span>
 <span class="w">  </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">text</span>
+<span class="w">  </span><span class="c1"># optional: where log entries go (stdout, stderr or syslog). Default: stdout</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stdout</span>
+<span class="w">  </span><span class="c1"># optional: used when target is syslog</span>
+<span class="w">  </span><span class="nt">syslog</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># optional: empty for the local syslog socket, else udp or tcp. Default: empty</span>
+<span class="w">    </span><span class="nt">network</span><span class="p">:</span><span class="w"> </span><span class="s">""</span>
+<span class="w">    </span><span class="c1"># optional: host:port of the syslog server, when network is set</span>
+<span class="w">    </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">""</span>
+<span class="w">    </span><span class="c1"># optional: tag each entry is logged under. Default: blocky</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">blocky</span>
+<span class="w">    </span><span class="c1"># optional: syslog facility (daemon, user or local0-local7). Default: daemon</span>
+<span class="w">    </span><span class="nt">facility</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">daemon</span>
 <span class="w">  </span><span class="c1"># optional: log timestamps. Default: true</span>
 <span class="w">  </span><span class="nt">timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="c1"># optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false</span>
@@ -3613,6 +3625,36 @@ file in that folder (subfolders included) and merges them into one configuration
 <td>Log format (text or json).</td>
 </tr>
 <tr>
+<td>log.target</td>
+<td>enum (stdout, stderr, syslog)</td>
+<td>stdout</td>
+<td>Where log entries are written. <code>syslog</code> logs each entry at the priority matching its level.</td>
+</tr>
+<tr>
+<td>log.syslog.network</td>
+<td>string</td>
+<td></td>
+<td>Empty for the local syslog socket, otherwise <code>udp</code> or <code>tcp</code>.</td>
+</tr>
+<tr>
+<td>log.syslog.address</td>
+<td>string</td>
+<td></td>
+<td><code>host:port</code> of the syslog server. Requires <code>network</code>.</td>
+</tr>
+<tr>
+<td>log.syslog.tag</td>
+<td>string</td>
+<td>blocky</td>
+<td>Tag each entry is logged under.</td>
+</tr>
+<tr>
+<td>log.syslog.facility</td>
+<td>enum (daemon, user, local0-local7)</td>
+<td>daemon</td>
+<td>Syslog facility.</td>
+</tr>
+<tr>
 <td>log.timestamp</td>
 <td>bool</td>
 <td>true</td>
@@ -3634,6 +3676,22 @@ file in that folder (subfolders included) and merges them into one configuration
 <span class="w">  </span><span class="nt">timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 <span class="w">  </span><span class="nt">privacy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">logging to syslog</p>
+<div class="highlight"><pre><span></span><code><span class="nt">log</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">syslog</span>
+<span class="w">  </span><span class="nt">syslog</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">blocky</span>
+<span class="w">    </span><span class="nt">facility</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">daemon</span>
+</code></pre></div>
+<p>Entries are mapped to syslog priorities: <code>error</code> to <code>err</code>, <code>warn</code> to <code>warning</code>,
+<code>info</code> to <code>info</code>, <code>debug</code> and <code>trace</code> to <code>debug</code>, and <code>fatal</code> and <code>panic</code> to <code>crit</code>.
+Each record carries the message alone: syslog supplies the timestamp and the
+severity itself, so <code>log.timestamp</code> is ignored and the level is not repeated in
+the text. Use <code>format: json</code> if you want the level in the message as well.
+Only the server logs to syslog: <abbr title="Command Line Interface">CLI</abbr> commands such as <code>blocky query</code> still print
+to the terminal.</p>
 </div>
 <h2 id="init-strategy">Init Strategy</h2>
 <p>A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.

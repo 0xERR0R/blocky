@@ -901,6 +901,51 @@
           "description": "- `text`: Human-readable text.\n- `json`: Structured JSON.",
           "default": "text"
         },
+        "target": {
+          "type": "string",
+          "enum": [
+            "stdout",
+            "stderr",
+            "syslog"
+          ],
+          "description": "- `stdout`: Standard output.\n- `stderr`: Standard error.\n- `syslog`: System log, each entry at the priority matching its level.",
+          "default": "stdout"
+        },
+        "syslog": {
+          "properties": {
+            "network": {
+              "type": "string",
+              "default": ""
+            },
+            "address": {
+              "type": "string",
+              "default": ""
+            },
+            "tag": {
+              "type": "string",
+              "default": "blocky"
+            },
+            "facility": {
+              "type": "string",
+              "enum": [
+                "daemon",
+                "user",
+                "local0",
+                "local1",
+                "local2",
+                "local3",
+                "local4",
+                "local5",
+                "local6",
+                "local7"
+              ],
+              "description": "- `daemon`: System daemon messages.\n- `user`: User-level messages.\n- `local0`: Local use facility 0.\n- `local1`: Local use facility 1.\n- `local2`: Local use facility 2.\n- `local3`: Local use facility 3.\n- `local4`: Local use facility 4.\n- `local5`: Local use facility 5.\n- `local6`: Local use facility 6.\n- `local7`: Local use facility 7.",
+              "default": "daemon"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object"
+        },
         "privacy": {
           "type": "boolean",
           "default": false
