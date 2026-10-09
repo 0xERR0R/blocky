@@ -256,7 +256,7 @@ See [https://formulae.brew.sh/formula/blocky](https://formulae.brew.sh/formula/b
 
 ### TrueNAS SCALE via TrueCharts
 
-See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/charts/enterprise/blocky/)
+See [https://truecharts.org/charts/stable/blocky/](https://truecharts.org/charts/stable/blocky/)
 (TrueCharts is not an official TrueNAS project)
 
 ## Companion projects

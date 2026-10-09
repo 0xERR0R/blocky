@@ -51,6 +51,10 @@ type ListCache struct {
 	listType     ListCacheType
 	groupSources map[string][]config.BytesSource
 	downloader   FileDownloader
+
+	// refreshSem admits one refresh at a time. A caller waiting for its turn
+	// returns as soon as its context ends.
+	refreshSem chan struct{}
 }
 
 // LogConfig implements `config.Configurable`.
@@ -94,6 +98,7 @@ func NewListCache(ctx context.Context,
 		listType:     t,
 		groupSources: groupSources,
 		downloader:   downloader,
+		refreshSem:   make(chan struct{}, 1),
 	}
 
 	if cfg.Strategy == config.InitStrategyFast {
@@ -138,14 +143,26 @@ func (b *ListCache) PublishGroupCounts() {
 }
 
 func (b *ListCache) refresh(ctx context.Context) error {
+	select {
+	case b.refreshSem <- struct{}{}:
+		defer func() { <-b.refreshSem }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
 	unlimitedGrp, _ := jobgroup.WithContext(ctx)
 	defer unlimitedGrp.Close()
 
 	producersGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, b.cfg.Concurrency)
 	defer producersGrp.Close()
 
+	// Only one group retains a replacement cache and its parse buffers at a
+	// time. Producers and consumers remain outside this limit to avoid stalls.
+	groupsGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, 1)
+	defer groupsGrp.Close()
+
 	for group, sources := range b.groupSources {
-		unlimitedGrp.Go(func(ctx context.Context) error {
+		groupsGrp.Go(func(ctx context.Context) error {
 			err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources)
 			if err != nil {
 				count := b.groupedCache.ElementCount(group)
@@ -177,7 +194,7 @@ func (b *ListCache) refresh(ctx context.Context) error {
 		})
 	}
 
-	if err := unlimitedGrp.Wait(); err != nil {
+	if err := groupsGrp.Wait(); err != nil {
 		return fmt.Errorf("failed to refresh %s list cache: %w", b.listType, err)
 	}
 
@@ -255,8 +272,11 @@ func (b *ListCache) seedFromDisk(ctx context.Context) {
 	producersGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, b.cfg.Concurrency)
 	defer producersGrp.Close()
 
+	groupsGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, 1)
+	defer groupsGrp.Close()
+
 	for group, sources := range localSources {
-		unlimitedGrp.Go(func(ctx context.Context) error {
+		groupsGrp.Go(func(ctx context.Context) error {
 			if err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources); err != nil {
 				logger().WithError(err).WithField(logFieldGroup, group).Debug("disk seed: skipping group with no usable local data")
 
@@ -272,7 +292,7 @@ func (b *ListCache) seedFromDisk(ctx context.Context) {
 		})
 	}
 
-	_ = unlimitedGrp.Wait()
+	_ = groupsGrp.Wait()
 }
 
 // localSeedSources maps each group's configured sources to the ones loadable without
