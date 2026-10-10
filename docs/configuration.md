@@ -840,6 +840,8 @@ The supported list formats are:
 
 You can use wildcards to block a domain and all its subdomains.
 Example: `*.example.com` will block `example.com` and `any.subdomains.example.com`.
+Wildcards are case-insensitive. A wildcard may also be a top-level domain: `*.com` blocks `com` and every domain below it.
+If several wildcards match a domain, the broadest one is reported as the block reason.
 
 #### Regex support
 
@@ -852,6 +854,24 @@ Examples:
 
 !!! warning
     Regexes use more a lot more memory and are much slower than wildcards, you should use them as a last resort.
+
+#### Storage of entries
+
+Exact domains and wildcards are stored as 64-bit hashes, not as text. This keeps even multi-million entry lists small
+(roughly 10 bytes per entry) and makes lookups fast. Regex entries are kept as written.
+
+As a consequence:
+
+- The text of a matched rule is not stored. It is derived from the query: for an exact entry it is the lowercased
+  domain, for a wildcard it is `*.` followed by the matching suffix of the domain. This is what you see as the block
+  reason, in the query log and in the API.
+- A different domain can, with a very small probability, hash to the same value as a listed entry and be treated as
+  listed. The probability is about N / 2^64 per lookup for N entries (about 5 in 10^14 for one million entries), and
+  a few times higher for wildcards, because every parent of the queried domain is checked. On a denylist this
+  wrongly blocks a domain, on an allowlist it wrongly allows one. At this probability neither is a practical concern.
+- The hashes are seeded with a random value chosen each time a list is loaded, which makes crafting a domain that
+  collides with a specific entry, for example one on your allowlist, impractical. The hash is not a vetted keyed hash,
+  so this is a practical barrier, not a cryptographic guarantee. The seed is never written to disk.
 
 ### Client groups
 
@@ -1264,7 +1284,7 @@ Configuration parameters:
 | queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged; ignored for dnstap                                        |
 | queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite) or dnstap socket batching |
 | queryLog.ignore.sudn      | bool                                                                                 | no        | false         | if true, queries answered as Special Use Domain Names (SUDN) are not logged                   |
-| queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is matched against the query name as an exact domain, a `*.wildcard`, or a `/regex/` |
+| queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is matched against the query name as an exact domain, a `*.wildcard`, or a `/regex/` (exact domains and wildcards are stored as hashes, see [Storage of entries](#storage-of-entries)) |
 
 !!! hint
 

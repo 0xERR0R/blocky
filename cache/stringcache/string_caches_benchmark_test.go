@@ -65,13 +65,12 @@ func init() {
 
 // --- Cache Building ---
 //
-// Most memory efficient: Wildcard (blocky/trie    radix) because of peak
-// Fastest:               Wildcard (blocky/trie original)
+// Exact and wildcard entries are 64-bit hashes (see hash.go). Measured with
+// benchstat (n=6) on linux/arm64, Go 1.27, with the oisd big lists, as
+// "before (sorted text / trie) -> after (hashes)":
 //
-// BenchmarkRegexFactory-8                1     1 253 023 507 ns/op   430.60 fact_heap_MB   430.60 peak_heap_MB   1 792 669 024 B/op   9 826 986 allocs/op
-// BenchmarkStringFactory-8               7       163 969 933 ns/op    11.79 fact_heap_MB    26.91 peak_heap_MB      67 613 890 B/op       1 306 allocs/op
-// BenchmarkWildcardFactory-8            19        60 592 988 ns/op    16.60 fact_heap_MB    16.60 peak_heap_MB      26 740 317 B/op      92 245 allocs/op (original)
-// BenchmarkWildcardFactory-8            16        65 179 284 ns/op    14.92 fact_heap_MB    14.92 peak_heap_MB      27 997 734 B/op      52 937 allocs/op (radix)
+// BenchmarkStringFactory     73.4ms ->  70.1ms (~same)  63.7Mi ->  32.7Mi B/op  1257 ->  40 allocs  peak_heap_MB 26.9 -> 7.4
+// BenchmarkWildcardFactory   49.6ms ->  29.5ms (-40%)   14.8Mi ->   8.2Mi B/op  25719 -> 34 allocs  peak_heap_MB 3.90 -> 1.93
 
 func BenchmarkRegexFactory(b *testing.B) {
 	benchmarkRegexFactory(b, newRegexCacheFactory)
@@ -169,12 +168,19 @@ func benchmarkFactory(b *testing.B, data []string, newFactory func() cacheFactor
 
 // --- Cache Querying ---
 //
-// Most memory efficient: Wildcard (blocky/trie radix)
-// Fastest:               Wildcard (blocky/trie original)
+// Exact and wildcard entries are 64-bit hashes (see hash.go). Measured with
+// benchstat (n=6) on linux/arm64, Go 1.27, with the oisd big lists, as
+// "before (sorted text / trie) -> after (hashes)":
 //
-// BenchmarkStringCache-8                 6       204 754 798 ns/op    15.11 cache_heap_MB              0 B/op          0 allocs/op
-// BenchmarkWildcardCache-8              14        76 186 334 ns/op    16.61 cache_heap_MB              0 B/op          0 allocs/op (original)
-// BenchmarkWildcardCache-8              12        95 316 121 ns/op    14.91 cache_heap_MB              0 B/op          0 allocs/op (radix)
+// BenchmarkStringCache      111.0ms -> 79.4ms (-28%)  0 allocs both                   cache_heap_MB 15.11 -> 7.45
+// BenchmarkWildcardCache    124.4ms -> 76.9ms (-38%)  681.7k allocs both (rule string per hit)  cache_heap_MB 3.87 -> 1.93
+//
+// Per lookup, see BenchmarkLargeList (oisd-big-wildcard.txt), in ns:
+//   exact/base 135.9 -> 38.1   exact/miss-tld 128.0 -> 27.5   exact/miss-parent 82.4 -> 24.0
+//   wildcard/base 179.9 -> 76.9   wildcard/subdomain 182.3 -> 109.8   wildcard/miss-parent 35.7 -> 32.0
+//   wildcard/miss-tld 11.2 -> 38.7 (n=10): the trie's TLD map short-circuited unknown TLDs,
+//   the walk now hashes the name and probes each label. Accepted.
+// BenchmarkGroupedCacheStringHit 168 -> 152 ns (n=10); miss, parallel and lock contention are unchanged.
 
 // Regex search is too slow to even complete
 // func BenchmarkRegexCache(b *testing.B) {

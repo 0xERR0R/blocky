@@ -758,8 +758,25 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		)
 
 		BeforeEach(func() {
-			mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-			mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			// The first answer cancels the request to the other upstream, which may not
+			// have been sent yet. So neither answers before both have been queried.
+			var (
+				queried     atomic.Int32
+				bothQueried = make(chan struct{})
+			)
+
+			answer := rrAnswerFn("example.com 123 IN A 123.124.122.122")
+			answerWhenBothQueried := func(request *dns.Msg) *dns.Msg {
+				if queried.Add(1) == 2 {
+					close(bothQueried)
+				}
+				<-bothQueried
+
+				return answer(request)
+			}
+
+			mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(answerWhenBothQueried)
+			mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerFn(answerWhenBothQueried)
 
 			sutConfig.BootstrapDNS = []config.BootstrappedUpstream{
 				{Upstream: mockUpstream1.Start()},
@@ -772,10 +789,9 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 			Expect(err).To(Succeed())
 
-			Eventually(func(g Gomega) {
-				g.Expect(mockUpstream1.GetCallCount()).To(Equal(1))
-				g.Expect(mockUpstream2.GetCallCount()).To(Equal(1))
-			}, "100ms").Should(Succeed())
+			// calls are counted before answering, and resolve returns only after an answer
+			Expect(mockUpstream1.GetCallCount()).To(Equal(1))
+			Expect(mockUpstream2.GetCallCount()).To(Equal(1))
 		})
 	})
 
