@@ -122,9 +122,9 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 
 				util.FatalOnError("can't deserialize message: ", err)
 
-				response := t.answerFn(msg)
-
 				t.callCount.Add(1)
+
+				response := t.answerFn(msg)
 				// nil should indicate an error
 				if response == nil {
 					_, _ = ln.WriteToUDP([]byte("dummy"), addr)
