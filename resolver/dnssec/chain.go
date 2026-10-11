@@ -247,7 +247,7 @@ func (v *Validator) validateAnyDNSKEY(keys []*dns.DNSKEY, dsRecords []*dns.DS, d
 	return v.findAndValidateKSKs(keys, dsRecords, domain) != nil
 }
 
-// findAndValidateKSKs validates DNSKEYs against DS records and returns the all validated KSKs
+// findAndValidateKSKs validates DNSKEYs against DS records and returns all validated KSKs
 // This function is similar to validateAnyDNSKEY but returns the validated keys instead of bool
 func (v *Validator) findAndValidateKSKs(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) []*dns.DNSKEY {
 	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
@@ -270,6 +270,7 @@ func (v *Validator) findAndValidateKSKs(keys []*dns.DNSKEY, dsRecords []*dns.DS,
 					domain, key.Flags, key.Algorithm, key.KeyTag())
 
 				validKSKs = append(validKSKs, key)
+
 				break
 			}
 		}
@@ -309,21 +310,20 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSKs []*dns.DNSK
 		return errors.New("no RRSIG records found for DNSKEY RRset")
 	}
 
-	// Find RRSIG that matches the validated KSK
+	// Find any match between RRSIG and validated KSKs
 	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
 	var matchingRRSIG *dns.RRSIG
 	var lastErr error
 
 	domainFQDN := dns.Fqdn(domain)
 
-  // Iterate through validated KSKs and check against available RRSIGs
+	// Iterate through validated KSKs and check against available RRSIGs
 	for _, ksk := range validatedKSKs {
 		for _, sig := range rrsigs {
 			// Match by KeyTag, Algorithm, AND SignerName for security
 			if sig.KeyTag == ksk.KeyTag() &&
 				sig.Algorithm == ksk.Algorithm &&
 				sig.SignerName == domainFQDN {
-
 				matchingRRSIG = sig
 
 				// Attempt to verify the DNSKEY RRset with this KSK and signature
@@ -332,19 +332,19 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSKs []*dns.DNSK
 						domain, ksk.KeyTag())
 
 					return nil
-				} else {
-					lastErr = err
 				}
+				lastErr = err
 			}
 		}
 	}
 
 	if matchingRRSIG == nil {
 		var kskDetails []string
-    for _, ksk := range validatedKSKs {
-      kskDetails = append(kskDetails, fmt.Sprintf("(keytag=%d, algorithm=%d)", ksk.KeyTag(), ksk.Algorithm))
-    }
-    return fmt.Errorf("no RRSIG found for validated KSKs %s", strings.Join(kskDetails, "; "))
+		for _, ksk := range validatedKSKs {
+			kskDetails = append(kskDetails, fmt.Sprintf("(keytag=%d, algorithm=%d)", ksk.KeyTag(), ksk.Algorithm))
+		}
+
+		return fmt.Errorf("no RRSIG found for validated KSKs %s", strings.Join(kskDetails, "; "))
 	}
 
 	return fmt.Errorf("DNSKEY RRset signature verification failed: %w", lastErr)
