@@ -327,7 +327,8 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSKs []*dns.DNSK
 				matchingRRSIG = sig
 
 				// Attempt to verify the DNSKEY RRset with this KSK and signature
-				if err := v.verifyRRSIG(dnskeyRecords, matchingRRSIG, ksk, nil, domain); err == nil {
+				err := v.verifyRRSIG(dnskeyRecords, matchingRRSIG, ksk, nil, domain)
+				if err == nil {
 					v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
 						domain, ksk.KeyTag())
 
