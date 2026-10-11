@@ -11,6 +11,8 @@ import (
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +42,6 @@ func NewRootCommand() *cobra.Command {
 and ad-blocker for local network.
 
 Complete documentation is available at https://github.com/0xERR0R/blocky`,
-		PreRunE: initConfigPreRun,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return newServeCommand().RunE(cmd, args)
 		},
@@ -84,6 +85,54 @@ func initConfigPreRun(cmd *cobra.Command, args []string) error {
 }
 
 func initConfig() error {
+	_, err := loadConfig(false, func(cfg *config.Config) {
+		// a command answers in the terminal, so it never logs to syslog
+		logCfg := cfg.Log
+		if logCfg.Target == log.TargetTypeSyslog {
+			logCfg.Target = log.TargetTypeStdout
+		}
+
+		log.Configure(&logCfg)
+	})
+	if err != nil {
+		return fmt.Errorf("unable to load configuration file '%s': %w", configPath, err)
+	}
+
+	return nil
+}
+
+// loadConfig loads the config, sets up logging with configure, then logs what loading
+// the config logged, so that follows the config's log settings too. If the config
+// can't be used, that is logged as logging was set up before.
+func loadConfig(mandatory bool, configure func(*config.Config)) (*config.Config, error) {
+	resolveConfigPath()
+
+	logger, loaded := test.NewNullLogger()
+	logger.SetLevel(logrus.TraceLevel)
+
+	cfg, err := config.LoadConfigWithLogger(logrus.NewEntry(logger), configPath, mandatory)
+	if err == nil {
+		// reject a listen address the commands can't parse
+		err = setListenAddresses(cfg.Ports)
+	}
+
+	if err == nil {
+		configure(cfg)
+	}
+
+	for _, entry := range loaded.AllEntries() {
+		log.Log().WithFields(entry.Data).WithTime(entry.Time).Log(entry.Level, entry.Message)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// resolveConfigPath takes the config path from the environment while it is still the default
+func resolveConfigPath() {
 	if configPath == defaultConfigPath {
 		val, present := os.LookupEnv(configFileEnvVar)
 		if present {
@@ -95,23 +144,12 @@ func initConfig() error {
 			}
 		}
 	}
+}
 
-	cfg, err := config.LoadConfig(configPath, false)
-	if err != nil {
-		return fmt.Errorf("unable to load configuration file '%s': %w", configPath, err)
-	}
-
-	// a command answers in the terminal, so it never logs to syslog; serve
-	// configures logging again from the full config when the server starts
-	logCfg := cfg.Log
-	if logCfg.Target == log.TargetTypeSyslog {
-		logCfg.Target = log.TargetTypeStdout
-	}
-
-	log.Configure(&logCfg)
-
-	if len(cfg.Ports.HTTP) != 0 {
-		split := strings.Split(cfg.Ports.HTTP[0], ":")
+// setListenAddresses points the commands at the server's first HTTP and DNS listen addresses
+func setListenAddresses(ports config.Ports) error {
+	if len(ports.HTTP) != 0 {
+		split := strings.Split(ports.HTTP[0], ":")
 
 		lastIdx := len(split) - 1
 
@@ -125,10 +163,10 @@ func initConfig() error {
 		apiPort = port
 	}
 
-	if len(cfg.Ports.DNS) != 0 {
-		host, port, err := splitListenAddress(cfg.Ports.DNS[0])
+	if len(ports.DNS) != 0 {
+		host, port, err := splitListenAddress(ports.DNS[0])
 		if err != nil {
-			return fmt.Errorf("can't parse DNS listen address '%s': %w", cfg.Ports.DNS[0], err)
+			return fmt.Errorf("can't parse DNS listen address '%s': %w", ports.DNS[0], err)
 		}
 
 		if host != "" {
