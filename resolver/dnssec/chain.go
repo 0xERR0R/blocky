@@ -13,6 +13,10 @@ import (
 	"github.com/miekg/dns"
 )
 
+// maxDNSKEYVerifyAttempts caps the signature verifications spent on one DNSKEY RRset
+// (KeyTrap, CVE-2023-50387). Legitimate zones need one or two, even during a key rollover.
+const maxDNSKEYVerifyAttempts = 8
+
 // validationCacheKey scopes a cached validation result to the originating client's view
 // (the same identity that selects the upstream group for DS/DNSKEY sub-queries). Per
 // GHSA-x845-2f78-7v36 finding 3 the cache must NOT be keyed by bare domain name: a status
@@ -310,36 +314,55 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSKs []*dns.DNSK
 		return errors.New("no RRSIG records found for DNSKEY RRset")
 	}
 
-	// Find any match between RRSIG and validated KSKs
-	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
-	var matchingRRSIG *dns.RRSIG
-	var lastErr error
+	err := v.verifyRRSIGMatch(validatedKSKs, dnskeyRecords, rrsigs, domain)
 
+	if err != nil {
+		return fmt.Errorf("DNSKEY RRset signature verification failed: %w", err)
+	}
+
+	return nil
+}
+
+// verifyRRSIGMatch verifies that a match between RRSIG and validated KSKs exists
+func (v *Validator) verifyRRSIGMatch(
+	validatedKSKs []*dns.DNSKEY, dnskeyRecords []dns.RR, rrsigs []*dns.RRSIG, domain string,
+) error {
+	var sigErrors []error
+
+	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
 	domainFQDN := dns.Fqdn(domain)
 
 	// Iterate through validated KSKs and check against available RRSIGs
 	for _, ksk := range validatedKSKs {
+		kskTag := ksk.KeyTag()
+
 		for _, sig := range rrsigs {
 			// Match by KeyTag, Algorithm, AND SignerName for security
-			if sig.KeyTag == ksk.KeyTag() &&
-				sig.Algorithm == ksk.Algorithm &&
-				sig.SignerName == domainFQDN {
-				matchingRRSIG = sig
+			if sig.KeyTag != kskTag ||
+				sig.Algorithm != ksk.Algorithm ||
+				sig.SignerName != domainFQDN {
+				continue
+			}
 
-				// Attempt to verify the DNSKEY RRset with this KSK and signature
-				err := v.verifyRRSIG(dnskeyRecords, matchingRRSIG, ksk, nil, domain)
-				if err == nil {
-					v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
-						domain, ksk.KeyTag())
+			// Attempt to verify the DNSKEY RRset with this KSK and signature
+			err := v.verifyRRSIG(dnskeyRecords, sig, ksk, nil, domain)
+			if err == nil {
+				v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
+					domain, ksk.KeyTag())
 
-					return nil
-				}
-				lastErr = err
+				return nil
+			}
+
+			sigErrors = append(sigErrors, fmt.Errorf("keytag=%d: %w", ksk.KeyTag(), err))
+
+			// Give up verification after some number of attempts to prevent DoS.
+			if len(sigErrors) >= maxDNSKEYVerifyAttempts {
+				return fmt.Errorf("giving up after %d verification attempts: %w", len(sigErrors), errors.Join(sigErrors...))
 			}
 		}
 	}
 
-	if matchingRRSIG == nil {
+	if sigErrors == nil {
 		var kskDetails []string
 		for _, ksk := range validatedKSKs {
 			kskDetails = append(kskDetails, fmt.Sprintf("(keytag=%d, algorithm=%d)", ksk.KeyTag(), ksk.Algorithm))
@@ -348,7 +371,7 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSKs []*dns.DNSK
 		return fmt.Errorf("no RRSIG found for validated KSKs %s", strings.Join(kskDetails, "; "))
 	}
 
-	return fmt.Errorf("DNSKEY RRset signature verification failed: %w", lastErr)
+	return errors.Join(sigErrors...)
 }
 
 // verifyAgainstTrustAnchors verifies DNSKEY records against root trust anchors
