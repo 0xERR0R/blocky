@@ -197,6 +197,10 @@ var _ = Describe("Config", func() {
 				Expect(err).Should(MatchError(ContainSubstring(expected)))
 			},
 			Entry("ports", []string{"ports:", "  dohPath: nope"}, "dohPath must start with '/'"),
+			Entry("DNS64",
+				[]string{"dns64:", "  enable: true", "filtering:", "  queryTypes: [AAAA]"},
+				"DNS64 will have no effect"),
+			Entry("rate limit", []string{"rateLimit:", "  enable: true"}, "rate must be > 0"),
 			Entry("rebinding protection",
 				[]string{"rebindingProtection:", "  allowedDomains: [\"  \"]"},
 				"allowedDomains[0] must not be empty"),
