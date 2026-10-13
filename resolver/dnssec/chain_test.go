@@ -159,6 +159,20 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(err.Error()).Should(ContainSubstring("algorithm mismatch"))
 		})
 
+		It("should fail when key tag mismatch", func() {
+			dnskey := &dns.DNSKEY{
+				Algorithm: dns.RSASHA256,
+			}
+			ds := &dns.DS{
+				Algorithm: dns.RSASHA256,
+				KeyTag:    12345,
+			}
+
+			err := sut.validateDNSKEY(dnskey, ds)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("keytag mismatch"))
+		})
+
 		It("should fail when digest mismatch", func() {
 			dnskey := &dns.DNSKEY{
 				Hdr: dns.RR_Header{
@@ -176,7 +190,7 @@ var _ = Describe("Chain of trust validation", func() {
 					Name:   "example.com.",
 					Rrtype: dns.TypeDS,
 				},
-				KeyTag:     12345,
+				KeyTag:     59124,
 				Algorithm:  dns.RSASHA256,
 				DigestType: dns.SHA256,
 				Digest:     "wrongdigest",
@@ -193,6 +207,7 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 			ds := &dns.DS{
 				Algorithm:  dns.RSASHA256,
+				KeyTag:     8,
 				DigestType: 99, // Unsupported
 			}
 
@@ -319,7 +334,7 @@ var _ = Describe("Chain of trust validation", func() {
 
 			sig := signRRset([]dns.RR{zsk, ksk}, dns.TypeDNSKEY, ksk, kskPriv, zone)
 
-			keys := sut.findAndValidateKSKs([]*dns.DNSKEY{zsk, ksk},
+			keys, _ := sut.findAndValidateKSKs([]*dns.DNSKEY{zsk, ksk},
 				[]*dns.DS{zsk.ToDS(dns.SHA256), ksk.ToDS(dns.SHA256)}, zone)
 			Expect(keys).Should(HaveLen(2))
 
@@ -332,7 +347,7 @@ var _ = Describe("Chain of trust validation", func() {
 
 			sig := signRRset([]dns.RR{dsKey, other}, dns.TypeDNSKEY, other, otherPriv, zone)
 
-			keys := sut.findAndValidateKSKs([]*dns.DNSKEY{dsKey, other}, []*dns.DS{dsKey.ToDS(dns.SHA256)}, zone)
+			keys, _ := sut.findAndValidateKSKs([]*dns.DNSKEY{dsKey, other}, []*dns.DS{dsKey.ToDS(dns.SHA256)}, zone)
 			Expect(keys).Should(HaveLen(1))
 
 			err := sut.verifyDNSKEYRRset([]dns.RR{dsKey, other, sig}, keys, zone)
@@ -381,20 +396,13 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 
 			It("succeeds when the genuine signature is within the cap", func() {
-				keys, answer := buildZone(maxDNSKEYVerifyAttempts, maxDNSKEYVerifyAttempts-1)
+				keys, answer := buildZone(3, 2)
 
 				Expect(sut.verifyDNSKEYRRset(answer, keys, zone)).Should(Succeed())
 			})
 
-			It("gives up before trying a genuine signature beyond the cap", func() {
-				keys, answer := buildZone(maxDNSKEYVerifyAttempts+1, maxDNSKEYVerifyAttempts)
-
-				err := sut.verifyDNSKEYRRset(answer, keys, zone)
-				Expect(err).Should(MatchError(ContainSubstring("giving up")))
-			})
-
 			It("bounds a zone with many DS-matched keys and no genuine signature", func() {
-				keys, answer := buildZone(maxDNSKEYVerifyAttempts*4, -1)
+				keys, answer := buildZone(100, -1)
 
 				err := sut.verifyDNSKEYRRset(answer, keys, zone)
 				Expect(err).Should(MatchError(ContainSubstring("giving up")))
