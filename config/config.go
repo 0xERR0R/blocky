@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -679,6 +680,11 @@ func LoadConfigWithLogger(logger *logrus.Entry, path string, mandatory bool) (*C
 //nolint:gochecknoglobals
 var loading atomic.Pointer[logrus.Entry]
 
+// loadMu serializes loads, so loading belongs to one load at a time
+//
+//nolint:gochecknoglobals
+var loadMu sync.Mutex
+
 // loadLogger returns the logger of the config load in progress, or the global logger
 func loadLogger() *logrus.Entry {
 	if logger := loading.Load(); logger != nil {
@@ -699,6 +705,9 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 			util.LogPrivacy.Store(rCfg.Log.Privacy)
 		}
 	}()
+
+	loadMu.Lock()
+	defer loadMu.Unlock()
 
 	loading.Store(logger)
 	defer loading.Store(nil)
