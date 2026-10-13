@@ -357,7 +357,7 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSKs []*dns.DNSK
 func (v *Validator) verifyRRSIGMatch(
 	validatedKSKs []*dns.DNSKEY, dnskeyRecords []dns.RR, rrsigs []*dns.RRSIG, domain string,
 ) error {
-	const maxDNSKEYVerifyAttempts = 8 // Caps signature verification attempts (KeyTrap, CVE-2023-50387).
+	const maxRRSIGVerificationAttempts = 8 // Caps signature verification attempts (KeyTrap, CVE-2023-50387)
 
 	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
 	domainFQDN := dns.CanonicalName(domain)
@@ -393,7 +393,7 @@ func (v *Validator) verifyRRSIGMatch(
 				continue
 			}
 			verifyAttempts++
-			if verifyAttempts >= maxDNSKEYVerifyAttempts {
+			if verifyAttempts >= maxRRSIGVerificationAttempts {
 				return fmt.Errorf("giving up after %d verification attempts: %w", verifyAttempts, errors.Join(sigErrors...))
 			}
 		}
