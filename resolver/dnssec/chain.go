@@ -362,6 +362,7 @@ func (v *Validator) verifyRRSIGMatch(
 	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
 	domainFQDN := dns.CanonicalName(domain)
 	var sigErrors []error
+	verifyAttempts := 0
 
 	// Iterate through validated KSKs and check against available RRSIGs
 	for _, ksk := range validatedKSKs {
@@ -386,9 +387,14 @@ func (v *Validator) verifyRRSIGMatch(
 
 			sigErrors = append(sigErrors, fmt.Errorf("keytag=%d: %w", ksk.KeyTag(), err))
 
-			// Give up verification after some number of attempts to prevent DoS.
-			if len(sigErrors) >= maxDNSKEYVerifyAttempts {
-				return fmt.Errorf("giving up after %d verification attempts: %w", len(sigErrors), errors.Join(sigErrors...))
+			// Give up verification after some number of attempts to prevent DoS
+			// Only failed cryptographic verifications count against the budget
+			if !errors.Is(err, errRRSIGVerificationFailed) {
+				continue
+			}
+			verifyAttempts++
+			if verifyAttempts >= maxDNSKEYVerifyAttempts {
+				return fmt.Errorf("giving up after %d verification attempts: %w", verifyAttempts, errors.Join(sigErrors...))
 			}
 		}
 	}
