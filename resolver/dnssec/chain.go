@@ -286,8 +286,7 @@ outer:
 			// Limit the number of key validations to prevent DoS
 			if validationAttempts == maxDNSKEYValidationAttempts {
 				if len(validKSKs) == 0 {
-					return nil, fmt.Errorf("%w, %d validation attempts failed",
-						errors.New("exceeded KSK validation budget"), maxDNSKEYValidationAttempts)
+					return nil, fmt.Errorf("exceeded KSK validation budget (%d attempts)", validationAttempts)
 				}
 
 				v.logger.Warnf("Exceeded KSK validation budget for domain %s, stopping with %d validated KSKs",
@@ -361,7 +360,7 @@ func (v *Validator) verifyRRSIGMatch(
 	const maxDNSKEYVerifyAttempts = 8 // Caps signature verification attempts (KeyTrap, CVE-2023-50387).
 
 	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
-	domainFQDN := dns.Fqdn(domain)
+	domainFQDN := dns.CanonicalName(domain)
 	var sigErrors []error
 
 	// Iterate through validated KSKs and check against available RRSIGs
@@ -372,7 +371,7 @@ func (v *Validator) verifyRRSIGMatch(
 			// Match by KeyTag, Algorithm, AND SignerName for security
 			if sig.KeyTag != kskTag ||
 				sig.Algorithm != ksk.Algorithm ||
-				sig.SignerName != domainFQDN {
+				dns.CanonicalName(sig.SignerName) != domainFQDN {
 				continue
 			}
 
