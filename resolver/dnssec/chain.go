@@ -380,12 +380,12 @@ func (v *Validator) verifyRRSIGMatch(
 			err := v.verifyRRSIG(dnskeyRecords, sig, ksk, nil, domain)
 			if err == nil {
 				v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
-					domain, ksk.KeyTag())
+					domain, kskTag)
 
 				return nil
 			}
 
-			sigErrors = append(sigErrors, fmt.Errorf("keytag=%d: %w", ksk.KeyTag(), err))
+			sigErrors = append(sigErrors, fmt.Errorf("keytag=%d: %w", kskTag, err))
 
 			// Give up verification after some number of attempts to prevent DoS
 			// Only failed cryptographic verifications count against the budget

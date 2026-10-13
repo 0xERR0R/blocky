@@ -190,7 +190,7 @@ var _ = Describe("Chain of trust validation", func() {
 					Name:   "example.com.",
 					Rrtype: dns.TypeDS,
 				},
-				KeyTag:     59124,
+				KeyTag:     dnskey.KeyTag(),
 				Algorithm:  dns.RSASHA256,
 				DigestType: dns.SHA256,
 				Digest:     "wrongdigest",
@@ -207,7 +207,7 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 			ds := &dns.DS{
 				Algorithm:  dns.RSASHA256,
-				KeyTag:     8,
+				KeyTag:     dnskey.KeyTag(),
 				DigestType: 99, // Unsupported
 			}
 
