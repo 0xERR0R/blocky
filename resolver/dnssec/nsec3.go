@@ -279,6 +279,24 @@ func nsec3AssertsDelegation(nsec3 *dns.NSEC3) bool {
 	return assertsInsecureDelegation(nsec3.TypeBitMap)
 }
 
+// nsec3MatchesName reports whether nsec3 is the NSEC3 record whose owner hash is the NSEC3
+// hash of name - i.e. a DIRECT match, the NODATA case of RFC 5155 §8.6. The hash is computed
+// with the NSEC3 record's own parameters (algorithm/salt/iterations), so callers can test a
+// response's records against an arbitrary name without knowing the zone's NSEC3 config.
+func (v *Validator) nsec3MatchesName(nsec3 *dns.NSEC3, name string) bool {
+	labels := dns.SplitDomainName(nsec3.Hdr.Name)
+	if len(labels) == 0 {
+		return false
+	}
+
+	hash, err := v.computeNSEC3Hash(name, nsec3.Hash, nsec3.Salt, nsec3.Iterations)
+	if err != nil {
+		return false
+	}
+
+	return strings.EqualFold(labels[0], hash)
+}
+
 // checkWildcardNSEC3Match checks for wildcard NODATA proof
 func (v *Validator) checkWildcardNSEC3Match(nsec3Records []*dns.NSEC3, qname string, qtype uint16,
 	zoneName string, hashAlg uint8, salt string, iterations uint16, qnameHash string,

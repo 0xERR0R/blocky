@@ -175,6 +175,22 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// Extract and validate DS records (may be in answer or authority section)
 	dsRecords, result := v.extractAndValidateDSRecords(ctx, domain, parentDomain, dsResponse)
 	if result != ValidationResultSecure {
+		// An authenticated DS-absence proof whose matching NSEC/NSEC3 does NOT assert a
+		// delegation (no NS bit) does not describe an unsigned delegation - it describes a
+		// name that lives INSIDE the parent zone (an empty non-terminal such as `co.jp`
+		// inside `jp`, or an ordinary host name). Such a label is not a zone cut, so it has
+		// no DNSKEY of its own and must not be validated as a child level: treating its
+		// DS-absence proof as Bogus makes every signed name delegated below it (e.g.
+		// jprs.co.jp) fail the chain of trust and return SERVFAIL (issue #2280). Because the
+		// parent zone is already validated Secure, this level is transparent - continue the
+		// walk to the next (deeper) label, which will be validated against its real parent.
+		if result == ValidationResultBogus && v.dsAbsenceProvesInZoneName(dsResponse, domain) {
+			v.logger.Debugf("DS absence for %s is authenticated but proves an in-zone (non-delegation) "+
+				"name, not an unsigned delegation - treating this level as transparent", domain)
+
+			return ValidationResultSecure
+		}
+
 		return result
 	}
 
@@ -457,14 +473,43 @@ func (v *Validator) getParentDomain(domain string) string {
 	return parent
 }
 
+// isAncestorOf reports whether ancestor is an ancestor of (or equal to) name, comparing
+// label-wise so `jp.` is an ancestor of `jprs.co.jp.` while `co.jp.` is not (it is only a
+// label-wise suffix that may be an empty non-terminal). Used to keep DS-RRSIG signer
+// selection constrained to genuine zones on the path to the child (#2280).
+func (v *Validator) isAncestorOf(ancestor, name string) bool {
+	ancestor = strings.ToLower(dns.Fqdn(ancestor))
+	name = strings.ToLower(dns.Fqdn(name))
+
+	if ancestor == name {
+		return true
+	}
+
+	return strings.HasSuffix(name, "."+ancestor)
+}
+
 // validateDSRecordSignature validates a DS record RRSIG using the parent zone's DNSKEY
 func (v *Validator) validateDSRecordSignature(
 	ctx context.Context, domain, parentDomain string, dsRRset []dns.RR, dsRRSIG *dns.RRSIG,
 ) ValidationResult {
-	// Get parent zone's DNSKEY to validate the DS RRSIG
-	_, parentKeys, err := v.queryDNSKEY(ctx, parentDomain)
+	// The DS RRset is signed by the zone that owns the delegation, which is the RRSIG's
+	// SignerName (RFC 4034 §3.1.7). Normally that is parentDomain, but when an intermediate
+	// label is an empty non-terminal (e.g. `co.jp` inside `jp`) the DS for the delegated child
+	// (`jprs.co.jp`) is signed by the enclosing zone (`jp`), not by the non-zone `co.jp`.
+	// Trusting the SignerName (after it is itself validated during this walk) keeps the DS
+	// chain-of-trust anchored to a real zone instead of failing with Indeterminate (#2280).
+	signer := parentDomain
+	if dsRRSIG.SignerName != "" && dns.Fqdn(dsRRSIG.SignerName) != dns.Fqdn(parentDomain) &&
+		v.isAncestorOf(dsRRSIG.SignerName, domain) {
+		v.logger.Debugf("DS RRSIG for %s is signed by %s (not immediate parent %s) - validating "+
+			"against the signing zone", domain, dsRRSIG.SignerName, parentDomain)
+		signer = dsRRSIG.SignerName
+	}
+
+	// Get the signing zone's DNSKEY to validate the DS RRSIG
+	_, parentKeys, err := v.queryDNSKEY(ctx, signer)
 	if err != nil {
-		v.logger.Warnf("Failed to query parent DNSKEY for %s: %v", parentDomain, err)
+		v.logger.Warnf("Failed to query parent DNSKEY for %s: %v", signer, err)
 
 		return ValidationResultIndeterminate
 	}
@@ -605,6 +650,42 @@ func (v *Validator) nsecProvesInsecureDelegation(nsecRecords []*dns.NSEC, domain
 		}
 
 		return assertsInsecureDelegation(nsec.TypeBitMap)
+	}
+
+	return false
+}
+
+// dsAbsenceProvesInZoneName reports whether the DS-absence proof in dsResponse proves that
+// domain is a name INSIDE its parent zone rather than a child zone cut. The signature of such
+// a name is a matching NSEC/NSEC3 NODATA proof for the DS type whose bitmap carries NEITHER
+// the NS bit (which would mark a delegation) NOR the SOA bit (which would mark a zone apex):
+// an ordinary in-zone name such as an empty non-terminal (`co.jp` inside `jp`) has exactly
+// this shape. The proof must be signed - an unsigned denial is not authenticated evidence and
+// stays Bogus.
+//
+// This is the complement of nsecProvesInsecureDelegation: an NS bit means an insecure
+// delegation (Insecure), NS+SOA clear means an in-zone name (not a zone boundary, #2280).
+func (v *Validator) dsAbsenceProvesInZoneName(dsResponse *dns.Msg, domain string) bool {
+	domain = dns.Fqdn(domain)
+
+	if rrsigs := extractRRSIGs(append(dsResponse.Answer, dsResponse.Ns...)); len(rrsigs) == 0 {
+		return false
+	}
+
+	for _, nsec := range extractNSECRecords(dsResponse.Ns) {
+		if dns.Fqdn(nsec.Header().Name) != domain {
+			continue
+		}
+
+		return !assertsInsecureDelegation(nsec.TypeBitMap) &&
+			!slices.Contains(nsec.TypeBitMap, dns.TypeSOA)
+	}
+
+	for _, nsec3 := range extractNSEC3Records(dsResponse.Ns) {
+		if v.nsec3MatchesName(nsec3, domain) {
+			return !assertsInsecureDelegation(nsec3.TypeBitMap) &&
+				!slices.Contains(nsec3.TypeBitMap, dns.TypeSOA)
+		}
 	}
 
 	return false
