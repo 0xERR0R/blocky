@@ -2,7 +2,9 @@ package dnssec
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
+	"slices"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -1242,6 +1244,90 @@ var _ = Describe("Chain of trust validation", func() {
 
 			result := sut.validateDomainLevel(ctx, "test.example.com.")
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+	})
+
+	Describe("validateDomainLevel - KSK rollover (issue #2302)", func() {
+		// During a double-DS KSK rollover the parent publishes a DS for the old and the new KSK,
+		// but only one of them signs the DNSKEY RRset. Per RFC 4035 §5.2 one DS that matches a
+		// DNSKEY which signs the DNSKEY RRset is enough, so the zone must validate no matter in
+		// which order the upstream returns the DNSKEY records.
+		var (
+			parentKey       *dns.DNSKEY
+			parentPriv      *ecdsa.PrivateKey
+			parentDNSKEYSig *dns.RRSIG
+			v               *Validator
+		)
+
+		BeforeEach(func() {
+			var anchor string
+			parentKey, parentPriv, anchor = newSignedZoneKey("example.")
+			parentDNSKEYSig = signRRset([]dns.RR{parentKey}, dns.TypeDNSKEY, parentKey, parentPriv, "example.")
+
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+
+			logger, _ := log.NewMockEntry()
+			v = NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+		})
+
+		// serveZone answers DS and DNSKEY queries for signed.example. with the given records.
+		// The DS RRset is signed by the parent key, the DNSKEY answer is returned as is.
+		serveZone := func(dsRecords []dns.RR, dnskeyAnswer []dns.RR) {
+			dsSig := signRRset(dsRecords, dns.TypeDS, parentKey, parentPriv, "example.")
+
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				q := req.Req.Question[0]
+				switch {
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{parentKey, parentDNSKEYSig}}}, nil
+				case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: append(slices.Clone(dsRecords), dsSig)}}, nil
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: dnskeyAnswer}}, nil
+				default:
+					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+				}
+			}
+		}
+
+		It("should be Secure when the first DS-matching KSK does not sign the DNSKEY RRset", func() {
+			oldKey, _, _ := newSignedZoneKey("signed.example.")
+			newKey, newPriv, _ := newSignedZoneKey("signed.example.")
+			sig := signRRset([]dns.RR{oldKey, newKey}, dns.TypeDNSKEY, newKey, newPriv, "signed.example.")
+
+			serveZone(
+				[]dns.RR{oldKey.ToDS(dns.SHA256), newKey.ToDS(dns.SHA256)},
+				[]dns.RR{oldKey, newKey, sig}, // the non-signing KSK comes first
+			)
+
+			Expect(v.validateDomainLevel(ctx, "signed.example.")).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should be Secure when the signing KSK comes first", func() {
+			oldKey, oldPriv, _ := newSignedZoneKey("signed.example.")
+			newKey, _, _ := newSignedZoneKey("signed.example.")
+			sig := signRRset([]dns.RR{oldKey, newKey}, dns.TypeDNSKEY, oldKey, oldPriv, "signed.example.")
+
+			serveZone(
+				[]dns.RR{oldKey.ToDS(dns.SHA256), newKey.ToDS(dns.SHA256)},
+				[]dns.RR{oldKey, newKey, sig},
+			)
+
+			Expect(v.validateDomainLevel(ctx, "signed.example.")).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should stay Bogus when only a key without DS signs the DNSKEY RRset", func() {
+			dsKey, _, _ := newSignedZoneKey("signed.example.")
+			otherKey, otherPriv, _ := newSignedZoneKey("signed.example.")
+			sig := signRRset([]dns.RR{dsKey, otherKey}, dns.TypeDNSKEY, otherKey, otherPriv, "signed.example.")
+
+			serveZone(
+				[]dns.RR{dsKey.ToDS(dns.SHA256)},
+				[]dns.RR{dsKey, otherKey, sig},
+			)
+
+			Expect(v.validateDomainLevel(ctx, "signed.example.")).Should(Equal(ValidationResultBogus))
 		})
 	})
 

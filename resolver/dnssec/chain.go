@@ -194,19 +194,19 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 		return ValidationResultIndeterminate
 	}
 
-	// Validate at least one DNSKEY against the DS records
-	// This validates the KSK (Key Signing Key) which is pointed to by the DS
-	validatedKSK := v.findAndValidateKSK(keys, dsRecords, domain)
-	if validatedKSK == nil {
+	// Validate the DNSKEYs against the DS records
+	// This validates the KSKs (Key Signing Keys) which are pointed to by the DS
+	validatedKSKs := v.findValidatedKSKs(keys, dsRecords, domain)
+	if len(validatedKSKs) == 0 {
 		v.logger.Warnf("Failed to validate any DNSKEY against DS records for %s", domain)
 
 		return ValidationResultBogus
 	}
 
-	// CRITICAL: Now verify the DNSKEY RRset itself using the validated KSK
+	// CRITICAL: Now verify the DNSKEY RRset itself using a validated KSK
 	// Per RFC 4035 §5.2: The DNSKEY RRset MUST be signed by a key in the DNSKEY RRset itself
 	// This allows us to trust ALL keys in the set (including ZSKs with different algorithms)
-	if err := v.verifyDNSKEYRRset(dnskeyResponse.Answer, validatedKSK, domain); err != nil {
+	if err := v.verifyDNSKEYRRsetWithAnyKSK(dnskeyResponse.Answer, validatedKSKs, domain); err != nil {
 		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", domain, err)
 
 		return ValidationResultBogus
@@ -215,6 +215,32 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
 
 	return ValidationResultSecure
+}
+
+// verifyDNSKEYRRsetWithAnyKSK verifies the DNSKEY RRset with each validated KSK until one succeeds
+// During a KSK rollover the parent has a DS for more than one KSK, but only one of them
+// may sign the DNSKEY RRset. Per RFC 4035 §5.2 one of them is enough.
+func (v *Validator) verifyDNSKEYRRsetWithAnyKSK(answer []dns.RR, validatedKSKs []*dns.DNSKEY, domain string) error {
+	if len(validatedKSKs) == 0 {
+		return errors.New("no validated KSK")
+	}
+
+	var lastErr error
+
+	for _, ksk := range validatedKSKs {
+		lastErr = v.verifyDNSKEYRRset(answer, ksk, domain)
+		if lastErr == nil {
+			return nil
+		}
+
+		v.logger.Debugf("DNSKEY RRset for %s not verified with KSK keytag=%d: %v", domain, ksk.KeyTag(), lastErr)
+	}
+
+	if len(validatedKSKs) > 1 {
+		return fmt.Errorf("none of %d validated KSKs verifies it, last error: %w", len(validatedKSKs), lastErr)
+	}
+
+	return lastErr
 }
 
 // validateDNSKEY validates a DNSKEY against a DS record from parent zone
@@ -240,17 +266,19 @@ func (v *Validator) validateDNSKEY(dnskey *dns.DNSKEY, parentDS *dns.DS) error {
 }
 
 // validateAnyDNSKEY validates at least one DNSKEY against DS records
-// This is a convenience wrapper around findAndValidateKSK for callers that only need a bool result
+// This is a convenience wrapper around findValidatedKSKs for callers that only need a bool result
 //
 //nolint:unparam // domain parameter used for logging, test usage pattern is acceptable
 func (v *Validator) validateAnyDNSKEY(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) bool {
-	return v.findAndValidateKSK(keys, dsRecords, domain) != nil
+	return len(v.findValidatedKSKs(keys, dsRecords, domain)) > 0
 }
 
-// findAndValidateKSK validates DNSKEYs against DS records and returns the first validated KSK
-// This function is similar to validateAnyDNSKEY but returns the validated key instead of bool
-func (v *Validator) findAndValidateKSK(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) *dns.DNSKEY {
+// findValidatedKSKs validates DNSKEYs against DS records and returns every validated KSK
+// This function is similar to validateAnyDNSKEY but returns the validated keys instead of bool
+func (v *Validator) findValidatedKSKs(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) []*dns.DNSKEY {
 	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
+
+	var validated []*dns.DNSKEY
 
 	for _, key := range keys {
 		// Per RFC 4034 §2.1.1: Only validate keys with the ZONE flag (bit 7) set
@@ -268,12 +296,14 @@ func (v *Validator) findAndValidateKSK(keys []*dns.DNSKEY, dsRecords []*dns.DS, 
 				v.logger.Debugf("Validated KSK for %s: flags=%d, algorithm=%d, keytag=%d",
 					domain, key.Flags, key.Algorithm, key.KeyTag())
 
-				return key
+				validated = append(validated, key)
+
+				break
 			}
 		}
 	}
 
-	return nil
+	return validated
 }
 
 // verifyDNSKEYRRset verifies the DNSKEY RRset using a validated KSK
