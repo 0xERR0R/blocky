@@ -79,16 +79,15 @@ func (v *Validator) validateWildcardExpansionDetails(
 	return v.validateWildcardProof(wildcardName, rrsetName, nsRecords, qname)
 }
 
-// validateWildcardProof verifies NSEC/NSEC3 proof that qname doesn't exist
+// validateWildcardProof verifies NSEC/NSEC3 proof that the expanded name (rrsetName) doesn't exist.
+// After a CNAME the expanded name is the CNAME target, not qname.
 func (v *Validator) validateWildcardProof(
 	wildcardName, rrsetName string, nsRecords []dns.RR, qname string,
 ) error {
-	qname = dns.Fqdn(qname)
-
 	// Try NSEC validation first
 	nsecRecords := extractNSECRecords(nsRecords)
 	if len(nsecRecords) > 0 {
-		if err := v.validateWildcardNSEC(nsecRecords, qname); err != nil {
+		if err := v.validateWildcardNSEC(nsecRecords, rrsetName); err != nil {
 			return fmt.Errorf("wildcard NSEC validation failed: %w", err)
 		}
 		v.logger.Debugf("Wildcard NSEC validation succeeded: %s expanded to %s", wildcardName, rrsetName)
@@ -99,7 +98,7 @@ func (v *Validator) validateWildcardProof(
 	// Try NSEC3 validation
 	nsec3Records := extractNSEC3Records(nsRecords)
 	if len(nsec3Records) > 0 {
-		if err := v.validateWildcardNSEC3(nsec3Records, qname); err != nil {
+		if err := v.validateWildcardNSEC3(nsec3Records, rrsetName); err != nil {
 			return fmt.Errorf("wildcard NSEC3 validation failed: %w", err)
 		}
 		v.logger.Debugf("Wildcard NSEC3 validation succeeded: %s expanded to %s", wildcardName, rrsetName)
