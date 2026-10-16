@@ -32,12 +32,11 @@ const shutdownTimeout = 10 * time.Second
 
 func newServeCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:               "serve",
-		Args:              cobra.NoArgs,
-		Short:             "start blocky DNS server (default command)",
-		RunE:              startServer,
-		PersistentPreRunE: initConfigPreRun,
-		SilenceUsage:      true,
+		Use:          "serve",
+		Args:         cobra.NoArgs,
+		Short:        "start blocky DNS server (default command)",
+		RunE:         startServer,
+		SilenceUsage: true,
 	}
 }
 
@@ -77,15 +76,24 @@ func warnMissingPrivilegedPortCapability(ports config.Ports) {
 	}
 }
 
-func startServer(_ *cobra.Command, _ []string) error {
-	printBanner()
-
-	cfg, err := config.LoadConfig(configPath, isConfigMandatory)
+// loadServerConfig loads the config, sets up logging from it and logs the banner
+func loadServerConfig() (*config.Config, error) {
+	cfg, err := loadConfig(isConfigMandatory, func(cfg *config.Config) {
+		log.Configure(&cfg.Log)
+		printBanner()
+	})
 	if err != nil {
-		return fmt.Errorf("unable to load configuration: %w", err)
+		return nil, fmt.Errorf("unable to load configuration: %w", err)
 	}
 
-	log.Configure(&cfg.Log)
+	return cfg, nil
+}
+
+func startServer(_ *cobra.Command, _ []string) error {
+	cfg, err := loadServerConfig()
+	if err != nil {
+		return err
+	}
 
 	warnMissingPrivilegedPortCapability(cfg.Ports)
 
