@@ -320,6 +320,8 @@ type Config struct {
 	RateLimit RateLimit `yaml:"rateLimit"`
 	// DNS rebinding protection configuration.
 	RebindingProtection RebindingProtection `yaml:"rebindingProtection"`
+	// Forces DNS name compression of responses, for all or selected clients.
+	ResponseCompression ResponseCompression `yaml:"responseCompression"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -980,6 +982,10 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 	}
 
 	if err := cfg.RebindingProtection.validate(); err != nil {
+		logger.Fatal(err)
+	}
+
+	if err := cfg.ResponseCompression.validate(); err != nil {
 		logger.Fatal(err)
 	}
 }
