@@ -644,6 +644,12 @@ The zone file supports standard DNS zone file syntax including:
 
 For records defined using the `zone` parameter, the `customTTL` parameter is unused. Instead, the TTL is defined in the zone directly.
 
+custom DNS answers queries for `A`, `AAAA`, `CNAME`, `TXT` and `SRV` records. Other record types
+that are valid in a zone file (for example `SOA`, `NS`, `MX`, `CAA`, `HTTPS`/`SVCB` or the DNSSEC
+records of a signed zone) may be present in the zone, but they are not answered by custom DNS: a
+query for such a type gets the same response as a query for a type that is not defined for the name
+(an empty answer, or the query is forwarded upstream when `filterUnmappedTypes` is `false`).
+
 ### CNAME Resolution
 
 When a CNAME record is defined and a query matches that record, blocky will:
