@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"time"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -31,7 +32,7 @@ var _ = Describe("Chain of trust validation", func() {
 		logger, _ := log.NewMockEntry()
 
 		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
-		ctx = context.WithValue(ctx, queryBudgetKey{}, 10)
+		ctx = withQueryBudget(ctx, 10)
 	})
 
 	Describe("getCachedValidation", func() {
@@ -81,6 +82,16 @@ var _ = Describe("Chain of trust validation", func() {
 			cached, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(cached).Should(Equal(result))
+		})
+
+		It("should keep a Bogus result for at most bogusTTL", func() {
+			sut.setCachedValidation(ctx, "bogus.com.", ValidationResultBogus)
+			sut.setCachedValidation(ctx, "insecure.com.", ValidationResultInsecure)
+
+			_, bogusLeft := sut.validationCache.Get(validationCacheKey(ctx, "bogus.com."))
+			_, insecureLeft := sut.validationCache.Get(validationCacheKey(ctx, "insecure.com."))
+			Expect(bogusLeft).Should(BeNumerically("~", bogusTTL, time.Second))
+			Expect(insecureLeft).Should(BeNumerically(">", 59*time.Minute))
 		})
 
 		It("should overwrite existing cache entries", func() {
@@ -338,7 +349,9 @@ var _ = Describe("Chain of trust validation", func() {
 				[]*dns.DS{zsk.ToDS(dns.SHA256), ksk.ToDS(dns.SHA256)}, zone)
 			Expect(keys).Should(HaveLen(2))
 
-			Expect(sut.verifyDNSKEYRRset([]dns.RR{zsk, ksk, sig}, keys, zone)).Should(Succeed())
+			verified, err := sut.verifyDNSKEYRRset([]dns.RR{zsk, ksk, sig}, keys, zone)
+			Expect(err).Should(Succeed())
+			Expect(verified).Should(Equal(sig))
 		})
 
 		It("rejects an RRset whose only RRSIG is from a key without a DS", func() {
@@ -350,7 +363,7 @@ var _ = Describe("Chain of trust validation", func() {
 			keys, _ := sut.findAndValidateKSKs([]*dns.DNSKEY{dsKey, other}, []*dns.DS{dsKey.ToDS(dns.SHA256)}, zone)
 			Expect(keys).Should(HaveLen(1))
 
-			err := sut.verifyDNSKEYRRset([]dns.RR{dsKey, other, sig}, keys, zone)
+			_, err := sut.verifyDNSKEYRRset([]dns.RR{dsKey, other, sig}, keys, zone)
 			Expect(err).Should(MatchError(ContainSubstring("no RRSIG found")))
 		})
 
@@ -398,13 +411,14 @@ var _ = Describe("Chain of trust validation", func() {
 			It("succeeds when the genuine signature is within the cap", func() {
 				keys, answer := buildZone(3, 2)
 
-				Expect(sut.verifyDNSKEYRRset(answer, keys, zone)).Should(Succeed())
+				_, err := sut.verifyDNSKEYRRset(answer, keys, zone)
+				Expect(err).Should(Succeed())
 			})
 
 			It("bounds a zone with many DS-matched keys and no genuine signature", func() {
 				keys, answer := buildZone(100, -1)
 
-				err := sut.verifyDNSKEYRRset(answer, keys, zone)
+				_, err := sut.verifyDNSKEYRRset(answer, keys, zone)
 				Expect(err).Should(MatchError(ContainSubstring("giving up")))
 			})
 		})
@@ -583,7 +597,7 @@ var _ = Describe("Chain of trust validation", func() {
 			domain := "example.com."
 			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
-			result := sut.walkChainOfTrust(ctx, domain)
+			result, _ := sut.walkChainOfTrust(ctx, domain)
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
@@ -594,7 +608,7 @@ var _ = Describe("Chain of trust validation", func() {
 			// Set a low max depth
 			sut.maxChainDepth = 5
 
-			result := sut.walkChainOfTrust(ctx, deepDomain)
+			result, _ := sut.walkChainOfTrust(ctx, deepDomain)
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
@@ -602,7 +616,7 @@ var _ = Describe("Chain of trust validation", func() {
 			domain := "example.com"
 			sut.setCachedValidation(ctx, "example.com.", ValidationResultSecure)
 
-			result := sut.walkChainOfTrust(ctx, domain)
+			result, _ := sut.walkChainOfTrust(ctx, domain)
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
@@ -616,9 +630,9 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.walkChainOfTrust(ctx, ".")
-			// Will return Indeterminate because DNSKEY query succeeded but returned no keys
-			Expect(result).Should(Equal(ValidationResultIndeterminate))
+			result, _ := sut.walkChainOfTrust(ctx, ".")
+			// Bogus because the DNSKEY query was answered without the anchored root keys
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
 		It("should cache validation results", func() {
@@ -629,21 +643,165 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 
 			// First call
-			result1 := sut.walkChainOfTrust(ctx, domain)
+			result1, _ := sut.walkChainOfTrust(ctx, domain)
 
 			// Second call should use cache (not call upstream again)
-			result2 := sut.walkChainOfTrust(ctx, domain)
+			result2, _ := sut.walkChainOfTrust(ctx, domain)
 			Expect(result2).Should(Equal(result1))
+		})
+
+		It("should not re-query a validated chain", func() {
+			chain := newSignedChain()
+			queries := 0
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				queries++
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, keys := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(chain.childKey))
+			Expect(queries).Should(Equal(3), "DNSKEY of the anchor, then DS and DNSKEY of the child")
+
+			result, keys = v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(chain.childKey))
+			Expect(queries).Should(Equal(3))
+		})
+
+		It("should validate a sibling zone with the cached parent keys", func() {
+			chain := newSignedChain()
+			siblingKey, siblingPriv, _ := newSignedZoneKey("other." + chain.parent)
+			siblingKeySig := signRRset([]dns.RR{siblingKey}, dns.TypeDNSKEY, siblingKey, siblingPriv, siblingKey.Hdr.Name)
+			siblingDS := siblingKey.ToDS(dns.SHA256)
+			siblingDSSig := signRRset([]dns.RR{siblingDS}, dns.TypeDS, chain.parentKey, chain.parentPriv, chain.parent)
+
+			var queried []string
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				q := req.Req.Question[0]
+				queried = append(queried, dns.TypeToString[q.Qtype]+" "+q.Name)
+
+				switch {
+				case q.Name == siblingKey.Hdr.Name && q.Qtype == dns.TypeDS:
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{siblingDS, siblingDSSig}}}, nil
+				case q.Name == siblingKey.Hdr.Name && q.Qtype == dns.TypeDNSKEY:
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{siblingKey, siblingKeySig}}}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			queried = nil
+
+			result, _ = v.walkChainOfTrust(ctx, siblingKey.Hdr.Name)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(queried).Should(Equal([]string{"DS " + siblingKey.Hdr.Name, "DNSKEY " + siblingKey.Hdr.Name}))
+		})
+
+		It("should expire validated keys with their DNSKEY TTL", func() {
+			chain := newSignedChain()
+			chain.childKey.Hdr.Ttl = 1
+			chain.childKeySig = signRRset([]dns.RR{chain.childKey}, dns.TypeDNSKEY, chain.childKey, chain.childPriv, chain.child)
+			queries := 0
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				queries++
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(queries).Should(Equal(3))
+
+			time.Sleep(1100 * time.Millisecond)
+
+			result, _ = v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(queries).Should(Equal(5), "the child keys are fetched again, the anchor keys are still cached")
+		})
+
+		It("should recover from a truncated DNSKEY reply on the next walk", func() {
+			chain := newSignedChain()
+			truncate := true
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				if q := req.Req.Question[0]; q.Qtype == dns.TypeDNSKEY && q.Name == chain.parent && truncate {
+					truncate = false
+
+					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Truncated: true}}}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+
+			result, _ = v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should take the cache lifetime from the signature that verified the keys", func() {
+			chain := newSignedChain()
+			stale := *chain.childKeySig
+			stale.Expiration = uint32(time.Now().Add(-48 * time.Hour).Unix())
+			queries := 0
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				queries++
+
+				if q := req.Req.Question[0]; q.Qtype == dns.TypeDNSKEY && q.Name == chain.child {
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{chain.childKey, &stale, chain.childKeySig}}}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			for range 2 {
+				result, _ := v.walkChainOfTrust(ctx, chain.child)
+				Expect(result).Should(Equal(ValidationResultSecure))
+			}
+
+			Expect(queries).Should(Equal(3), "an extra expired RRSIG must not keep the keys out of the cache")
+		})
+
+		It("should expire validated keys with the signature over their DNSKEY RRset", func() {
+			chain := newSignedChain()
+			chain.childKeySig.Expiration = uint32(time.Now().Add(time.Second).Unix())
+			Expect(chain.childKeySig.Sign(chain.childPriv, []dns.RR{chain.childKey})).Should(Succeed())
+			queries := 0
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				queries++
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+
+			time.Sleep(1100 * time.Millisecond)
+
+			// The signature is now past its expiration but still inside the clock skew tolerance.
+			result, _ = v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(queries).Should(Equal(5), "the child keys are fetched again, the anchor keys are still cached")
 		})
 	})
 
-	Describe("verifyAgainstTrustAnchors", func() {
+	Describe("verifyDomainAgainstTrustAnchor for the root", func() {
 		It("should return Indeterminate when DNSKEY query fails", func() {
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				return nil, errors.New("query failed")
 			}
 
-			result := sut.verifyAgainstTrustAnchors(ctx)
+			result, _ := sut.verifyDomainAgainstTrustAnchor(ctx, ".")
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -664,7 +822,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := validator.verifyAgainstTrustAnchors(ctx)
+			result, _ := validator.verifyDomainAgainstTrustAnchor(ctx, ".")
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -689,7 +847,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.verifyAgainstTrustAnchors(ctx)
+			result, _ := sut.verifyDomainAgainstTrustAnchor(ctx, ".")
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
@@ -700,7 +858,7 @@ var _ = Describe("Chain of trust validation", func() {
 				return nil, errors.New("query failed")
 			}
 
-			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			result, _ := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -713,7 +871,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			result, _ := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -744,7 +902,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			result, _ := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
@@ -775,7 +933,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			result, _ := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
@@ -917,7 +1075,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			// Result will be Insecure or Bogus depending on NSEC validation
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
@@ -939,7 +1097,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec3},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
@@ -949,19 +1107,37 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 	})
 
 	Describe("validateDomainLevel", func() {
-		It("should return Insecure for domains without parent", func() {
-			result := sut.validateDomainLevel(ctx, ".")
-			Expect(result).Should(Equal(ValidationResultInsecure))
+		var chain *signedChain
+
+		BeforeEach(func() {
+			chain = newSignedChain()
 		})
 
-		It("should validate parent before child", func() {
+		It("should validate a zone whose DS and DNSKEY RRsets chain to the parent keys", func() {
+			mockUpstream.ResolveFn = chain.resolve
+
+			result, keys := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(chain.childKey))
+		})
+
+		It("should return Bogus when the DS RRset is not signed by the parent keys", func() {
+			otherKey, _, _ := newSignedZoneKey(chain.parent)
+			mockUpstream.ResolveFn = chain.resolve
+
+			result, keys := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{otherKey})
+			Expect(result).Should(Equal(ValidationResultBogus))
+			Expect(keys).Should(BeNil())
+		})
+
+		It("should not be Secure without DS records", func() {
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				// Return empty response for all queries
 				return &model.Response{
@@ -971,8 +1147,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.validateDomainLevel(ctx, "example.com.")
-			// Will fail due to missing DS/DNSKEY records
+			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
 
@@ -982,110 +1157,49 @@ var _ = Describe("Chain of trust validation", func() {
 				return nil, errors.New("query failed")
 			}
 
-			result := sut.validateDomainLevel(ctx, "example.com.")
+			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should return Indeterminate when DNSKEY query fails", func() {
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				// Return DS records successfully, but fail DNSKEY query
-				qtype := req.Req.Question[0].Qtype
-				if qtype == dns.TypeDS {
-					ds := &dns.DS{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeDS,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						KeyTag:     12345,
-						Algorithm:  8,
-						DigestType: 2,
-						Digest:     "abcdef",
-					}
-					rrsig := &dns.RRSIG{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeRRSIG,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						TypeCovered: dns.TypeDS,
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{ds, rrsig},
-						},
-					}, nil
+				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
+					return nil, errors.New("DNSKEY query failed")
 				}
-				// Fail DNSKEY query
-				return nil, errors.New("DNSKEY query failed")
+
+				return chain.resolve(ctx, req)
 			}
 
-			result := sut.validateDomainLevel(ctx, "example.com.")
+			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should return Indeterminate when the DNSKEY query is answered with an error RCODE", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
+					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}}}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+
+			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should return Bogus when DNSKEY doesn't match DS", func() {
+			otherKey, otherPriv, _ := newSignedZoneKey(chain.child)
+			otherKeySig := signRRset([]dns.RR{otherKey}, dns.TypeDNSKEY, otherKey, otherPriv, chain.child)
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				qtype := req.Req.Question[0].Qtype
-				if qtype == dns.TypeDS {
-					// Return valid DS record
-					ds := &dns.DS{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeDS,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						KeyTag:     12345,
-						Algorithm:  8,
-						DigestType: 2,
-						Digest:     "abcdef0123456789",
-					}
-					rrsig := &dns.RRSIG{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeRRSIG,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						TypeCovered: dns.TypeDS,
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{ds, rrsig},
-						},
-					}, nil
-				}
-				if qtype == dns.TypeDNSKEY {
-					// Return DNSKEY that doesn't match the DS
-					dnskey := &dns.DNSKEY{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeDNSKEY,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						Flags:     257, // KSK
-						Protocol:  3,
-						Algorithm: 8,
-						PublicKey: "differentkey",
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{dnskey},
-						},
-					}, nil
+				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{otherKey, otherKeySig}}}, nil
 				}
 
-				return &model.Response{Res: &dns.Msg{}}, nil
+				return chain.resolve(ctx, req)
 			}
 
-			result := sut.validateDomainLevel(ctx, "example.com.")
+			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
@@ -1110,7 +1224,7 @@ var _ = Describe("Chain of trust validation", func() {
 				// No RRSIG - should be Bogus
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
@@ -1130,9 +1244,9 @@ var _ = Describe("Chain of trust validation", func() {
 
 			// Clear any cached validation results
 			sut = NewValidator(ctx, trustStore, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
-			ctx = context.WithValue(ctx, queryBudgetKey{}, 10)
+			ctx = withQueryBudget(ctx, 10)
 
-			result := sut.validateDomainLevel(ctx, "sub.example.com.")
+			result, _ := sut.walkChainOfTrust(ctx, "sub.example.com.")
 			// Should propagate parent validation failure
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
@@ -1205,9 +1319,8 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			// This would need proper setup to reach the validateAnyDNSKEY failure path
-			// For now, test the error path
-			result := sut.validateDomainLevel(ctx, "example.com.")
+			// No parent keys: the DS RRset cannot be authenticated
+			result, _ := sut.validateDomainLevel(ctx, "example.com.", nil)
 			Expect(result).ShouldNot(Equal(ValidationResultIndeterminate))
 		})
 	})
@@ -1231,7 +1344,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{ds}, // DS in authority section instead of answer
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			// Will fail because no RRSIG
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
@@ -1239,98 +1352,6 @@ var _ = Describe("Chain of trust validation", func() {
 	})
 
 	Describe("validateDomainLevel - comprehensive coverage", func() {
-		It("should successfully validate domain when DS and DNSKEY match", func() {
-			// Create a real DNSKEY
-			dnskey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "example.com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.RSASHA256,
-				PublicKey: "AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5x" +
-					"QlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b5" +
-					"8Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws" +
-					"9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU=",
-			}
-
-			// Create matching DS record
-			ds := dnskey.ToDS(dns.SHA256)
-			Expect(ds).ShouldNot(BeNil())
-
-			parentKey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.RSASHA256,
-				PublicKey: "parentkey",
-			}
-
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				qname := req.Req.Question[0].Name
-				qtype := req.Req.Question[0].Qtype
-
-				if qtype == dns.TypeDS && qname == "example.com." {
-					// Return DS with RRSIG
-					rrsig := &dns.RRSIG{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeRRSIG,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						TypeCovered: dns.TypeDS,
-						Algorithm:   dns.RSASHA256,
-						SignerName:  "com.",
-						KeyTag:      parentKey.KeyTag(),
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{ds, rrsig},
-						},
-					}, nil
-				}
-
-				if qtype == dns.TypeDNSKEY && qname == "example.com." {
-					// Return matching DNSKEY
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{dnskey},
-						},
-					}, nil
-				}
-
-				if qtype == dns.TypeDNSKEY && qname == "com." {
-					// Return parent DNSKEY
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{parentKey},
-						},
-					}, nil
-				}
-
-				// Default empty response
-				return &model.Response{
-					Res: &dns.Msg{},
-				}, nil
-			}
-
-			// This will try to validate but will fail on parent validation
-			result := sut.validateDomainLevel(ctx, "example.com.")
-			// Will fail because parent validation will fail (recursive chain)
-			// We just want to test the code path executes
-			Expect(result).ShouldNot(BeNil())
-		})
-
 		It("should handle DS query returning empty response", func() {
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				// Return empty response for all queries
@@ -1342,7 +1363,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result := sut.validateDomainLevel(ctx, "test.example.com.")
+			result, _ := sut.validateDomainLevel(ctx, "test.example.com.", nil)
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 	})
@@ -1379,7 +1400,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			// Result depends on NSEC validation
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
@@ -1425,23 +1446,11 @@ var _ = Describe("Chain of trust validation", func() {
 				KeyTag:      parentDnskey.KeyTag(),
 			}
 
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{parentDnskey},
-						},
-					}, nil
-				}
-
-				return &model.Response{Res: &dns.Msg{}}, nil
-			}
-
 			response := &dns.Msg{
 				Answer: []dns.RR{ds, rrsig},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentDnskey}, response)
 			// Will fail crypto validation but tests the code path
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultIndeterminate))
@@ -1472,7 +1481,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
@@ -1510,7 +1519,7 @@ var _ = Describe("Chain of trust validation", func() {
 				return &model.Response{Res: &dns.Msg{}}, nil
 			}
 
-			result := sut.walkChainOfTrust(ctx, "test.com.")
+			result, _ := sut.walkChainOfTrust(ctx, "test.com.")
 			// Will attempt to verify trust anchor, but may fail on parent validation
 			// We're testing that the trust anchor code path is exercised
 			Expect(result).ShouldNot(BeNil())
@@ -1552,7 +1561,7 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 
 			// Try to validate child domain - should first verify trust anchor
-			result := sut.walkChainOfTrust(ctx, "sub.example.com.")
+			result, _ := sut.walkChainOfTrust(ctx, "sub.example.com.")
 			// Will attempt to validate sub.example.com after verifying example.com trust anchor
 			Expect(result).ShouldNot(BeNil())
 		})
