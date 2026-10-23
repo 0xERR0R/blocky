@@ -3,7 +3,6 @@ package dnssec
 // This file contains RRset and RRSIG signature validation logic per RFC 4035.
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -34,41 +33,35 @@ const (
 
 var errRRSIGVerificationFailed = errors.New("signature verification failed")
 
-// queryAndMatchDNSKEY queries for DNSKEY records and finds the one matching the key tag
-func (v *Validator) queryAndMatchDNSKEY(
-	ctx context.Context, signerName string, keyTag uint16, algorithm uint8,
-) (context.Context, *dns.DNSKEY, error) {
-	// Query for DNSKEY records
-	ctx, keys, err := v.queryDNSKEY(ctx, signerName)
-	if err != nil {
-		// queryDNSKEY tags a transient sub-query failure (unreachable upstream) with
-		// errDNSKEYUnavailable so it propagates as Indeterminate, not Bogus (issue #2120);
-		// a response that arrives but carries no DNSKEY is left untagged and stays a genuine
-		// failure (Bogus). %w preserves either classification for the errors.Is checks above.
-		return ctx, nil, fmt.Errorf("failed to query DNSKEY: %w", err)
-	}
+// verifyWithZoneKeys verifies rrset with one of sigs made by a key in keys, the validated DNSKEY
+// RRset of the signer zone. Like verifyRRSIGMatch it gives up after a few failed verifications
+// (KeyTrap, CVE-2023-50387).
+func (v *Validator) verifyWithZoneKeys(rrset []dns.RR, sigs []*dns.RRSIG, keys []*dns.DNSKEY) error {
+	const maxVerificationAttempts = 8
 
-	// Find the key that matches the RRSIG's key tag AND algorithm
-	v.logger.Debugf("Looking for DNSKEY with key tag %d and algorithm %d for signer %s", keyTag, algorithm, signerName)
-	matchingKey := findMatchingDNSKEY(keys, keyTag, algorithm)
-	if matchingKey == nil {
-		v.logger.Debugf("Available DNSKEYs: %d keys", len(keys))
-		for i, key := range keys {
-			v.logger.Debugf("  DNSKEY[%d]: flags=%d, protocol=%d, algorithm=%d, keytag=%d",
-				i, key.Flags, key.Protocol, key.Algorithm, key.KeyTag())
+	var errs []error
+
+	for _, sig := range sigs {
+		key := findMatchingDNSKEY(keys, sig.KeyTag, sig.Algorithm)
+		if key == nil {
+			continue
 		}
 
-		return ctx, nil, fmt.Errorf("no DNSKEY with key tag %d and algorithm %d found", keyTag, algorithm)
+		err := v.verifyRRSIG(rrset, sig, key, nil, "")
+		if err == nil {
+			return nil
+		}
+
+		if errs = append(errs, err); len(errs) == maxVerificationAttempts {
+			break
+		}
 	}
 
-	pkeyPrefix := matchingKey.PublicKey
-	if len(pkeyPrefix) > publicKeyPrefixLen {
-		pkeyPrefix = pkeyPrefix[:publicKeyPrefixLen]
+	if errs == nil {
+		return errors.New("no RRSIG made by a validated key")
 	}
-	v.logger.Debugf("Found DNSKEY: flags=%d, protocol=%d, algorithm=%d, keytag=%d, pubkey_prefix=%s...",
-		matchingKey.Flags, matchingKey.Protocol, matchingKey.Algorithm, matchingKey.KeyTag(), pkeyPrefix)
 
-	return ctx, matchingKey, nil
+	return errors.Join(errs...)
 }
 
 // getAlgorithmStrength returns a strength score for a DNSSEC algorithm
@@ -156,9 +149,7 @@ func findMatchingRRSIGs(sigs []*dns.RRSIG, ownerName string, rrType uint16) []*d
 }
 
 // findMatchingRRSIGsForType finds all RRSIGs that cover the given RRset type
-// Note: This function only matches by type, not owner name. Use findMatchingRRSIGs instead.
-//
-//nolint:unparam // rrType is always TypeA in tests, but function is kept for testing flexibility
+// Note: This function only matches by type, not owner name; signature verification checks it.
 func findMatchingRRSIGsForType(sigs []*dns.RRSIG, rrType uint16) []*dns.RRSIG {
 	var matchingRRSIGs []*dns.RRSIG
 	for _, sig := range sigs {
@@ -179,9 +170,12 @@ func validateSignerName(signerName, rrsetName string) bool {
 // findMatchingDNSKEY finds the DNSKEY that matches the given key tag
 // RFC 4034 §2.1.2: Protocol field MUST be 3
 func findMatchingDNSKEY(keys []*dns.DNSKEY, keyTag uint16, algorithm uint8) *dns.DNSKEY {
+	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
+
 	for _, key := range keys {
 		// RFC 4034 §2.1.2: The Protocol Field MUST have value 3
-		if key.Protocol != dnskeyProtocolValue {
+		// RFC 5011 §7: a revoked key only verifies the self-signature of its DNSKEY RRset
+		if key.Protocol != dnskeyProtocolValue || key.Flags&REVOKE != 0 {
 			continue
 		}
 		if key.KeyTag() == keyTag && key.Algorithm == algorithm {
