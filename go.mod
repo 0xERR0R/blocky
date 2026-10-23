@@ -1,6 +1,6 @@
 module github.com/0xERR0R/blocky
 
-go 1.26.2
+go 1.26.9
 
 require (
 	github.com/0xERR0R/expiration-cache v0.2.0
@@ -28,7 +28,7 @@ require (
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
-	github.com/pires/go-proxyproto v0.15.0
+	github.com/pires/go-proxyproto v0.16.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/quic-go/quic-go v0.64.0
 	github.com/ramr/go-reaper v0.3.1
