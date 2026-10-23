@@ -93,9 +93,22 @@ func (v *Validator) setCachedValidation(
 
 // walkChainOfTrust returns the security status of zone domain and, when it is Secure, the zone's
 // validated DNSKEY RRset. The walk starts at the closest trust anchor at or above domain and
-// validates each zone below it with the validated keys of the zone above. Every level is cached
+// validates each zone below it with the validated keys of the zone above. Every zone is cached
 // with its keys, so zones share their ancestors' work and a warm chain needs no upstream query.
+// A domain that is part of its parent zone has no keys of its own and is Bogus.
 func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) (ValidationResult, []*dns.DNSKEY) {
+	return v.walk(ctx, domain, true)
+}
+
+// walkToEnclosingZone is walkChainOfTrust for a name that may be part of its parent zone, like
+// co.jp inside jp. It returns the status and keys of the zone that holds the name's records.
+func (v *Validator) walkToEnclosingZone(ctx context.Context, name string) (ValidationResult, []*dns.DNSKEY) {
+	return v.walk(ctx, name, false)
+}
+
+// walk implements walkChainOfTrust and walkToEnclosingZone. mustBeZone makes a domain that is part
+// of its parent zone Bogus instead of returning the parent zone's status and keys.
+func (v *Validator) walk(ctx context.Context, domain string, mustBeZone bool) (ValidationResult, []*dns.DNSKEY) {
 	// Normalize the domain name
 	domain = dns.Fqdn(domain)
 
@@ -138,22 +151,45 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) (Valida
 		return ValidationResultIndeterminate, nil
 	}
 
+	return v.walkDown(ctx, zones[start:], mustBeZone)
+}
+
+// walkDown validates names, a trust-anchored zone followed by the names below it down to the name
+// being walked, each with the validated keys of the zone above it. A name that the zone above
+// proves to be part of that zone, like co.jp inside jp, keeps that zone's keys (RFC 4035 §5.2).
+// mustBeZone makes the walk Bogus when the last name is such a name.
+func (v *Validator) walkDown(
+	ctx context.Context, names []string, mustBeZone bool,
+) (ValidationResult, []*dns.DNSKEY) {
 	var (
 		result ValidationResult
 		keys   []*dns.DNSKEY
 	)
 
-	for i := start; i < len(zones); i++ {
-		if status := v.cachedZoneStatus(ctx, zones[i]); status != nil {
+	for i, name := range names {
+		zoneCut := true
+
+		switch status := v.cachedZoneStatus(ctx, name); {
+		case status != nil:
 			result, keys = status.result, status.keys
-		} else {
-			if i == start {
-				result, keys = v.verifyDomainAgainstTrustAnchor(ctx, zones[i])
-			} else {
-				result, keys = v.validateDomainLevel(ctx, zones[i], keys)
+		case i == 0:
+			result, keys = v.verifyDomainAgainstTrustAnchor(ctx, name)
+			v.setCachedValidation(ctx, name, result, keys...)
+		default:
+			if result, keys, zoneCut = v.validateDomainLevel(ctx, name, keys); zoneCut {
+				v.setCachedValidation(ctx, name, result, keys...)
+			}
+		}
+
+		if !zoneCut {
+			// Not cached: an entry would answer a later walk for name as if it were a zone.
+			if i == len(names)-1 && mustBeZone {
+				v.logger.Warnf("%s is not a zone, so it has no keys to sign with", name)
+
+				return ValidationResultBogus, nil
 			}
 
-			v.setCachedValidation(ctx, zones[i], result, keys...)
+			continue
 		}
 
 		if result != ValidationResultSecure {
@@ -168,9 +204,13 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) (Valida
 // validateDomainLevel validates one zone with the validated DNSKEY RRset of its parent zone:
 // the parent must sign the zone's DS RRset (or the proof that it has none), and the zone's
 // DNSKEY RRset must match a DS record and be signed by that key (RFC 4035 §5.2).
+//
+// zoneCut is false when the parent zone proves that domain is part of it and not a delegation.
+// The result is then Secure with parentKeys, the keys that sign the records at and below domain
+// up to the next zone cut.
 func (v *Validator) validateDomainLevel(
 	ctx context.Context, domain string, parentKeys []*dns.DNSKEY,
-) (ValidationResult, []*dns.DNSKEY) {
+) (result ValidationResult, keys []*dns.DNSKEY, zoneCut bool) {
 	v.logger.Debugf("Validating domain level: %s", domain)
 
 	// Query DS records for the child domain from the parent zone
@@ -179,20 +219,26 @@ func (v *Validator) validateDomainLevel(
 	if err != nil {
 		v.logger.Warnf("Failed to query DS for %s: %v", domain, err)
 
-		return ValidationResultIndeterminate, nil
+		return ValidationResultIndeterminate, nil, true
+	}
+
+	if v.provesNoZoneCut(domain, parentKeys, dsResponse) {
+		v.logger.Debugf("%s is part of its parent zone, not a zone cut", domain)
+
+		return ValidationResultSecure, parentKeys, false
 	}
 
 	// Extract and validate DS records (may be in answer or authority section)
 	dsRecords, result := v.extractAndValidateDSRecords(domain, parentKeys, dsResponse)
 	if result != ValidationResultSecure {
-		return result, nil
+		return result, nil, true
 	}
 
 	answer, keys, err := v.queryDNSKEY(ctx, domain)
 	if err != nil {
 		v.logger.Warnf("Failed to get DNSKEY for %s: %v", domain, err)
 
-		return dnskeyFailure(err), nil
+		return dnskeyFailure(err), nil, true
 	}
 
 	// Validate at least one DNSKEY against the DS records
@@ -201,7 +247,7 @@ func (v *Validator) validateDomainLevel(
 	if err != nil {
 		v.logger.Warnf("Failed to validate any DNSKEY against DS records for %s: %v", domain, err)
 
-		return ValidationResultBogus, nil
+		return ValidationResultBogus, nil, true
 	}
 
 	// CRITICAL: Now verify the DNSKEY RRset itself using the validated KSK
@@ -213,17 +259,106 @@ func (v *Validator) validateDomainLevel(
 			v.logger.Debugf("DS RRset of %s names only RSA keys with exponents above 2^31-1 - treating zone as Insecure",
 				domain)
 
-			return ValidationResultInsecure, nil
+			return ValidationResultInsecure, nil, true
 		}
 
 		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", domain, err)
 
-		return ValidationResultBogus, nil
+		return ValidationResultBogus, nil, true
 	}
 
 	v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
 
-	return ValidationResultSecure, keysUntilSignatureExpiry(keys, sig)
+	return ValidationResultSecure, keysUntilSignatureExpiry(keys, sig), true
+}
+
+// maxNoZoneCutSignatures caps the RRSIGs that one DS reply can make provesNoZoneCut verify, like
+// the other caps against KeyTrap (CVE-2023-50387) in this package.
+const maxNoZoneCutSignatures = 8
+
+// provesNoZoneCut reports whether dsResponse, the reply to a DS query for domain, holds an NSEC or
+// NSEC3 RRset signed with parentKeys that shows domain is part of the parent zone and not a
+// delegation. Unbound continues its chain walk on the same proof.
+func (v *Validator) provesNoZoneCut(domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg) bool {
+	if _, err := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns); err == nil {
+		return false
+	}
+
+	rrsets := groupRRsetsByNameAndType(dsResponse.Ns)
+	sigs := extractRRSIGs(dsResponse.Ns)
+	budget := maxNoZoneCutSignatures
+	tried := map[rrsetKey]bool{}
+
+	// Candidates are tried in reply order, so the outcome does not depend on map order.
+	for _, rr := range dsResponse.Ns {
+		key := rrsetKey{name: dns.Fqdn(rr.Header().Name), rrType: rr.Header().Rrtype}
+		if tried[key] || !v.showsNoZoneCut(rr, domain) {
+			continue
+		}
+
+		tried[key] = true
+
+		// A wildcard-expanded RRSIG still verifies after its owner is renamed onto this name, so it
+		// proves nothing about this name. Only a signature over the literal owner counts.
+		candidates := slices.DeleteFunc(findMatchingRRSIGs(sigs, key.name, key.rrType), func(sig *dns.RRSIG) bool {
+			return int(sig.Labels) != rrsigLabelsForOwner(key.name)
+		})
+
+		if v.verifyWithZoneKeys(rrsets[key], candidates, parentKeys, &budget) == nil {
+			return true
+		}
+
+		if budget == 0 {
+			return false
+		}
+	}
+
+	return false
+}
+
+// rrsigLabelsForOwner returns the RRSIG Labels value of a signature made over the literal name
+// owner: its label count, with a leading "*" label not counted (RFC 4034 §3.1.3). A smaller Labels
+// value marks a wildcard expansion of a shorter name, which proves nothing about owner itself.
+func rrsigLabelsForOwner(owner string) int {
+	n := dns.CountLabel(owner)
+	if strings.HasPrefix(owner, "*.") {
+		n--
+	}
+
+	return n
+}
+
+// showsNoZoneCut reports whether rr, an NSEC or NSEC3 record of the parent zone, shows that domain
+// is part of that zone: the record for domain lacks the NS, SOA and DS bits, the counterpart of
+// assertsInsecureDelegation, or an NSEC shows that domain is an empty non-terminal.
+func (v *Validator) showsNoZoneCut(rr dns.RR, domain string) bool {
+	domain = dns.CanonicalName(domain)
+
+	switch r := rr.(type) {
+	case *dns.NSEC:
+		if dns.CanonicalName(r.Hdr.Name) == domain {
+			return assertsNoZoneCut(r.TypeBitMap)
+		}
+
+		// An empty non-terminal has no NSEC of its own: the NSEC before it points below it.
+		next := dns.CanonicalName(r.NextDomain)
+
+		return next != domain && dns.IsSubDomain(domain, next) && canonicalNameCompare(r.Hdr.Name, domain) < 0
+	case *dns.NSEC3:
+		// The iteration limit bounds the hashing a response can force (RFC 5155 §10.3).
+		return r.Hash == dns.SHA1 && uint(r.Iterations) <= v.maxNSEC3Iterations && r.Match(domain) &&
+			assertsNoZoneCut(r.TypeBitMap)
+	}
+
+	return false
+}
+
+// assertsNoZoneCut reports whether an NSEC/NSEC3 type bitmap shows a name inside the zone: no NS bit
+// (no delegation), no SOA bit (no zone apex) and no DS bit (no DS RRset that the reply left out).
+func assertsNoZoneCut(typeBitMap []uint16) bool {
+	return !slices.Contains(typeBitMap, dns.TypeNS) &&
+		!slices.Contains(typeBitMap, dns.TypeSOA) &&
+		!slices.Contains(typeBitMap, dns.TypeDS)
 }
 
 // onlyUnsupportedKSKs reports whether every key that the DS RRset names is one of ksks, the keys
@@ -559,11 +694,11 @@ func (v *Validator) getParentDomain(domain string) string {
 }
 
 // validateDSRecordSignature validates a DS record RRSIG with the validated DNSKEY RRset of the
-// parent zone
+// zone that holds parentDomain, the zone that delegates domain
 func (v *Validator) validateDSRecordSignature(
 	ctx context.Context, domain, parentDomain string, dsRRset []dns.RR, dsRRSIG *dns.RRSIG,
 ) ValidationResult {
-	parentResult, parentKeys := v.walkChainOfTrust(ctx, parentDomain)
+	parentResult, parentKeys := v.walkToEnclosingZone(ctx, parentDomain)
 	if parentResult != ValidationResultSecure {
 		v.logger.Warnf("Parent zone %s of %s is %s, cannot validate its DS RRset",
 			parentDomain, domain, parentResult.String())
