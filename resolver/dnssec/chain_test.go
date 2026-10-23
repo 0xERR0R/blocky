@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -795,6 +797,190 @@ var _ = Describe("Chain of trust validation", func() {
 		})
 	})
 
+	Describe("walkChainOfTrust through names that are part of their parent zone (issue #2280)", func() {
+		var c *partOfParentChain
+
+		BeforeEach(func() {
+			c = newPartOfParentChain()
+			mockUpstream.ResolveFn = c.resolve
+		})
+
+		It("keeps the keys of jp. past co.jp., which an NSEC3 shows is part of jp.", func() {
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.ValidateResponse(ctx,
+				signedA("www.jprs.co.jp.", "192.0.2.1", c.childKey, c.childPriv, "jprs.co.jp."),
+				dns.Question{Name: "www.jprs.co.jp.", Qtype: dns.TypeA, Qclass: dns.ClassINET},
+			)).Should(Equal(ValidationResultSecure))
+			Expect(c.queries).Should(Equal([]string{"DNSKEY jp.", "DS co.jp.", "DS jprs.co.jp.", "DNSKEY jprs.co.jp."}),
+				"co.jp. has no DNSKEY RRset to fetch")
+
+			_, found := v.getCachedValidation(ctx, "co.jp.")
+			Expect(found).Should(BeFalse())
+		})
+
+		It("keeps the keys of jp. past co.jp. when an NSEC for co.jp. shows it", func() {
+			c.proveCoJP(&dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "co.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "jprs.co.jp.",
+				TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+			}, c.jpKey, c.jpPriv)
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, keys := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(c.childKey))
+		})
+
+		It("keeps the keys of jp. past co.jp. when an NSEC shows it is an empty non-terminal", func() {
+			c.proveCoJP(&dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "jprs.co.jp.",
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeSOA, dns.TypeRRSIG, dns.TypeNSEC, dns.TypeDNSKEY},
+			}, c.jpKey, c.jpPriv)
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		DescribeTable("does not walk past co.jp. without a valid proof that it is part of jp.",
+			func(prove func(c *partOfParentChain), expected ValidationResult) {
+				prove(c)
+				v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+				result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+				Expect(result).Should(Equal(expected))
+			},
+			Entry("NSEC3 not signed by jp.", func(c *partOfParentChain) {
+				otherKey, otherPriv, _ := newSignedZoneKey("jp.")
+				c.proveCoJP(coJPNSEC3(0, dns.TypeTXT, dns.TypeRRSIG), otherKey, otherPriv)
+			}, ValidationResultBogus),
+			Entry("NSEC3 with the NS bit, an insecure delegation", func(c *partOfParentChain) {
+				c.proveCoJP(coJPNSEC3(0, dns.TypeNS, dns.TypeRRSIG), c.jpKey, c.jpPriv)
+			}, ValidationResultInsecure),
+			Entry("NSEC3 with the DS bit", func(c *partOfParentChain) {
+				c.proveCoJP(coJPNSEC3(0, dns.TypeTXT, dns.TypeDS, dns.TypeRRSIG), c.jpKey, c.jpPriv)
+			}, ValidationResultBogus),
+			Entry("NSEC3 with the SOA bit", func(c *partOfParentChain) {
+				c.proveCoJP(coJPNSEC3(0, dns.TypeSOA, dns.TypeTXT, dns.TypeRRSIG), c.jpKey, c.jpPriv)
+			}, ValidationResultBogus),
+			Entry("NSEC3 above the iteration limit", func(c *partOfParentChain) {
+				c.proveCoJP(coJPNSEC3(200, dns.TypeTXT, dns.TypeRRSIG), c.jpKey, c.jpPriv)
+			}, ValidationResultBogus),
+			Entry("NSEC of *.jp. renamed to co.jp.", func(c *partOfParentChain) {
+				nsec := &dns.NSEC{
+					Hdr:        dns.RR_Header{Name: "*.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+					NextDomain: "a.jp.",
+					TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+				}
+				sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, c.jpKey, c.jpPriv, "jp.")
+				nsec.Hdr.Name, sig.Hdr.Name = "co.jp.", "co.jp."
+				c.answers["DS co.jp."] = &dns.Msg{Ns: []dns.RR{nsec, sig}}
+			}, ValidationResultBogus),
+			Entry("NSEC that covers co.jp. without pointing below it", func(c *partOfParentChain) {
+				c.proveCoJP(&dns.NSEC{
+					Hdr:        dns.RR_Header{Name: "cn.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+					NextDomain: "cp.jp.",
+					TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC},
+				}, c.jpKey, c.jpPriv)
+			}, ValidationResultBogus),
+		)
+
+		It("verifies at most maxNoZoneCutSignatures signatures from one DS reply", func() {
+			otherKey, otherPriv, _ := newSignedZoneKey("jp.")
+			genuine := c.answers["DS co.jp."].Ns
+
+			// forged returns n NSEC records that point below co.jp., each with an RRSIG that names the
+			// key of jp. but fails verification with it.
+			forged := func(n int) []dns.RR {
+				rrs := make([]dns.RR, 0, 2*n)
+
+				for i := range n {
+					nsec := &dns.NSEC{
+						Hdr:        dns.RR_Header{Name: fmt.Sprintf("a%d.jp.", i), Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+						NextDomain: "x.co.jp.",
+						TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+					}
+					sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, otherKey, otherPriv, "jp.")
+					sig.KeyTag = c.jpKey.KeyTag()
+					rrs = append(rrs, nsec, sig)
+				}
+
+				return rrs
+			}
+
+			for n, expected := range map[int]ValidationResult{
+				maxNoZoneCutSignatures - 1: ValidationResultSecure,
+				maxNoZoneCutSignatures:     ValidationResultBogus,
+			} {
+				c.answers["DS co.jp."] = &dns.Msg{Ns: append(forged(n), genuine...)}
+				v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+				result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+				Expect(result).Should(Equal(expected), "%d forged proofs before the genuine one", n)
+			}
+		})
+
+		It("accepts a literal wildcard NSEC that points below co.jp.", func() {
+			// A zone may publish *.jp. as the name just before the first name under the empty
+			// non-terminal co.jp. Its RRSIG is over the literal *.jp. owner, so it still counts.
+			c.proveCoJP(&dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "*.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "jprs.co.jp.",
+				TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+			}, c.jpKey, c.jpPriv)
+			Expect(c.answers["DS co.jp."].Ns[1].(*dns.RRSIG).Labels).Should(Equal(uint8(1)))
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("does not accept a wildcard NSEC renamed onto co.jp. as proof it is part of jp.", func() {
+			// The RRSIG over *.jp. still verifies after the owner is rewritten to co.jp., because
+			// miekg/dns reconstructs the *.jp. owner from the RRSIG label count. Taken as proof that
+			// co.jp. is in jp., it would skip the real co.jp. delegation.
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "*.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "a.jp.",
+				TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+			}
+			sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, c.jpKey, c.jpPriv, "jp.")
+			Expect(sig.Labels).Should(Equal(uint8(1)), "the RRSIG is over the wildcard owner")
+			nsec.Hdr.Name, sig.Hdr.Name = "co.jp.", "co.jp."
+
+			jpKeys := []*dns.DNSKEY{c.jpKey}
+			Expect(sut.provesNoZoneCut("co.jp.", jpKeys, &dns.Msg{Ns: []dns.RR{nsec, sig}})).Should(BeFalse())
+			Expect(sut.provesNoZoneCut("co.jp.", jpKeys, c.answers["DS co.jp."])).Should(BeTrue(),
+				"the genuine co.jp. proof is still accepted")
+		})
+
+		It("checks the DS RRset of jprs.co.jp. with the keys of jp., the zone that holds co.jp.", func() {
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+			ds := c.answers["DS jprs.co.jp."].Answer
+
+			Expect(v.validateDSRecordSignature(ctx, "jprs.co.jp.", "co.jp.", ds[:1], ds[1].(*dns.RRSIG))).
+				Should(Equal(ValidationResultSecure))
+
+			result, _ := v.walkChainOfTrust(ctx, "co.jp.")
+			Expect(result).Should(Equal(ValidationResultBogus), "co.jp. is still no signer")
+		})
+
+		It("rejects co.jp. as a signer without caching it, so zones below it still validate", func() {
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, "co.jp.")
+			Expect(result).Should(Equal(ValidationResultBogus))
+
+			_, found := v.getCachedValidation(ctx, "co.jp.")
+			Expect(found).Should(BeFalse())
+
+			result, _ = v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+	})
+
 	Describe("verifyDomainAgainstTrustAnchor for the root", func() {
 		It("should return Indeterminate when DNSKEY query fails", func() {
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
@@ -1123,7 +1309,7 @@ var _ = Describe("Chain of trust validation", func() {
 		It("should validate a zone whose DS and DNSKEY RRsets chain to the parent keys", func() {
 			mockUpstream.ResolveFn = chain.resolve
 
-			result, keys := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			result, keys, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultSecure))
 			Expect(keys).Should(ConsistOf(chain.childKey))
 		})
@@ -1132,7 +1318,7 @@ var _ = Describe("Chain of trust validation", func() {
 			otherKey, _, _ := newSignedZoneKey(chain.parent)
 			mockUpstream.ResolveFn = chain.resolve
 
-			result, keys := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{otherKey})
+			result, keys, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{otherKey})
 			Expect(result).Should(Equal(ValidationResultBogus))
 			Expect(keys).Should(BeNil())
 		})
@@ -1147,7 +1333,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			result, _, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
 
@@ -1157,7 +1343,7 @@ var _ = Describe("Chain of trust validation", func() {
 				return nil, errors.New("query failed")
 			}
 
-			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			result, _, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -1171,7 +1357,7 @@ var _ = Describe("Chain of trust validation", func() {
 				return chain.resolve(ctx, req)
 			}
 
-			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			result, _, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -1184,7 +1370,7 @@ var _ = Describe("Chain of trust validation", func() {
 				return chain.resolve(ctx, req)
 			}
 
-			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			result, _, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
@@ -1199,7 +1385,7 @@ var _ = Describe("Chain of trust validation", func() {
 				return chain.resolve(ctx, req)
 			}
 
-			result, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
+			result, _, _ := sut.validateDomainLevel(ctx, chain.child, []*dns.DNSKEY{chain.parentKey})
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
@@ -1320,7 +1506,7 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 
 			// No parent keys: the DS RRset cannot be authenticated
-			result, _ := sut.validateDomainLevel(ctx, "example.com.", nil)
+			result, _, _ := sut.validateDomainLevel(ctx, "example.com.", nil)
 			Expect(result).ShouldNot(Equal(ValidationResultIndeterminate))
 		})
 	})
@@ -1363,7 +1549,7 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
-			result, _ := sut.validateDomainLevel(ctx, "test.example.com.", nil)
+			result, _, _ := sut.validateDomainLevel(ctx, "test.example.com.", nil)
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 	})
@@ -1567,3 +1753,74 @@ var _ = Describe("Chain of trust validation", func() {
 		})
 	})
 })
+
+// partOfParentChain is the layout of issue #2280: jp. is a trust anchor, co.jp. is a name in the
+// jp. zone with a TXT record, and jp. delegates the signed zone jprs.co.jp. directly. answers maps
+// "TYPE name" to the reply the upstream sends, and queries records what it was asked.
+type partOfParentChain struct {
+	anchors           *TrustAnchorStore
+	jpKey, childKey   *dns.DNSKEY
+	jpPriv, childPriv *ecdsa.PrivateKey
+	answers           map[string]*dns.Msg
+	queries           []string
+}
+
+func newPartOfParentChain() *partOfParentChain {
+	c := &partOfParentChain{answers: map[string]*dns.Msg{}}
+
+	var anchor string
+	c.jpKey, c.jpPriv, anchor = newSignedZoneKey("jp.")
+	c.childKey, c.childPriv, _ = newSignedZoneKey("jprs.co.jp.")
+
+	var err error
+	c.anchors, err = NewTrustAnchorStore([]string{anchor})
+	Expect(err).Should(Succeed())
+
+	ds := c.childKey.ToDS(dns.SHA256)
+	c.answers["DNSKEY jp."] = &dns.Msg{Answer: []dns.RR{
+		c.jpKey, signRRset([]dns.RR{c.jpKey}, dns.TypeDNSKEY, c.jpKey, c.jpPriv, "jp."),
+	}}
+	c.answers["DS jprs.co.jp."] = &dns.Msg{Answer: []dns.RR{
+		ds, signRRset([]dns.RR{ds}, dns.TypeDS, c.jpKey, c.jpPriv, "jp."),
+	}}
+	c.answers["DNSKEY jprs.co.jp."] = &dns.Msg{Answer: []dns.RR{
+		c.childKey, signRRset([]dns.RR{c.childKey}, dns.TypeDNSKEY, c.childKey, c.childPriv, "jprs.co.jp."),
+	}}
+	c.proveCoJP(coJPNSEC3(0, dns.TypeTXT, dns.TypeRRSIG), c.jpKey, c.jpPriv)
+
+	return c
+}
+
+// proveCoJP makes rr, signed with key, the denial in the reply to the DS query for co.jp.
+func (c *partOfParentChain) proveCoJP(rr dns.RR, key *dns.DNSKEY, priv *ecdsa.PrivateKey) {
+	c.answers["DS co.jp."] = &dns.Msg{Ns: []dns.RR{rr, signRRset([]dns.RR{rr}, rr.Header().Rrtype, key, priv, "jp.")}}
+}
+
+func (c *partOfParentChain) resolve(_ context.Context, req *model.Request) (*model.Response, error) {
+	q := req.Req.Question[0]
+	query := dns.TypeToString[q.Qtype] + " " + q.Name
+	c.queries = append(c.queries, query)
+
+	if msg, ok := c.answers[query]; ok {
+		return &model.Response{Res: msg}, nil
+	}
+
+	return &model.Response{Res: &dns.Msg{}}, nil
+}
+
+// coJPNSEC3 returns the NSEC3 record of the jp. zone for co.jp., hashed with iterations, with types.
+func coJPNSEC3(iterations uint16, types ...uint16) *dns.NSEC3 {
+	return &dns.NSEC3{
+		Hdr: dns.RR_Header{
+			Name:   strings.ToLower(dns.HashName("co.jp.", dns.SHA1, iterations, "")) + ".jp.",
+			Rrtype: dns.TypeNSEC3,
+			Class:  dns.ClassINET,
+			Ttl:    300,
+		},
+		Hash:       dns.SHA1,
+		Iterations: iterations,
+		HashLength: 20,
+		NextDomain: dns.HashName("next.co.jp.", dns.SHA1, iterations, ""),
+		TypeBitMap: types,
+	}
+}
