@@ -283,6 +283,12 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("client matches multiple groups")))
 			})
+			It("Should pick the same group every time for a client that matches several", func() {
+				for range 20 {
+					Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "0.0.0.0", "name-matches1"))).
+						Should(BeDNSRecord("example.com.", A, groups["name-matches*"]))
+				}
+			})
 		})
 	})
 })

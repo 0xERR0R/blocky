@@ -27,7 +27,7 @@ var _ = Describe("NSEC validation", func() {
 		logger, _ := log.NewMockEntry()
 
 		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
-		ctx = context.WithValue(ctx, queryBudgetKey{}, 10)
+		ctx = withQueryBudget(ctx, 10)
 	})
 
 	Describe("extractNSECRecords", func() {

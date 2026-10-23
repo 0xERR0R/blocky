@@ -3,6 +3,7 @@ package dnssec
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -34,20 +35,20 @@ var _ = Describe("Query functions", func() {
 
 	Describe("consumeQueryBudget", func() {
 		It("should succeed with budget remaining", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 5)
+			ctx := withQueryBudget(context.Background(), 5)
 			err := sut.consumeQueryBudget(ctx)
 			Expect(err).Should(Succeed())
 		})
 
 		It("should fail when budget is exhausted", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 0)
+			ctx := withQueryBudget(context.Background(), 0)
 			err := sut.consumeQueryBudget(ctx)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("budget exhausted"))
 		})
 
 		It("should fail when budget is negative", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, -1)
+			ctx := withQueryBudget(context.Background(), -1)
 			err := sut.consumeQueryBudget(ctx)
 			Expect(err).Should(HaveOccurred())
 		})
@@ -60,42 +61,20 @@ var _ = Describe("Query functions", func() {
 		})
 	})
 
-	Describe("decrementQueryBudget", func() {
-		It("should decrement budget by 1", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 5)
-			newCtx := sut.decrementQueryBudget(ctx)
+	Describe("withQueryBudget", func() {
+		It("should share one budget with every derived context", func() {
+			ctx := withQueryBudget(context.Background(), 2)
+			derived := WithClientContext(ctx, nil, nil, "", "view")
 
-			budget := newCtx.Value(queryBudgetKey{}).(int)
-			Expect(budget).Should(Equal(4))
-		})
-
-		It("should handle budget of 1", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 1)
-			newCtx := sut.decrementQueryBudget(ctx)
-
-			budget := newCtx.Value(queryBudgetKey{}).(int)
-			Expect(budget).Should(Equal(0))
-		})
-
-		It("should return original context if budget not initialized", func() {
-			ctx := context.Background()
-			newCtx := sut.decrementQueryBudget(ctx)
-
-			Expect(newCtx).Should(Equal(ctx))
-		})
-
-		It("should allow negative budget (no validation)", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 0)
-			newCtx := sut.decrementQueryBudget(ctx)
-
-			budget := newCtx.Value(queryBudgetKey{}).(int)
-			Expect(budget).Should(Equal(-1))
+			Expect(sut.consumeQueryBudget(ctx)).Should(Succeed())
+			Expect(sut.consumeQueryBudget(derived)).Should(Succeed())
+			Expect(sut.consumeQueryBudget(ctx)).Should(MatchError(ContainSubstring("budget exhausted")))
 		})
 	})
 
 	Describe("queryRecords", func() {
 		It("should query upstream with DNSSEC enabled", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			expectedResponse := &dns.Msg{
 				Answer: []dns.RR{
@@ -125,17 +104,16 @@ var _ = Describe("Query functions", func() {
 				return &model.Response{Res: expectedResponse}, nil
 			}
 
-			newCtx, response, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
+			response, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
 			Expect(err).Should(Succeed())
 			Expect(response).Should(Equal(expectedResponse))
 
 			// Verify budget was decremented
-			budget := newCtx.Value(queryBudgetKey{}).(int)
-			Expect(budget).Should(Equal(9))
+			Expect(ctx.Value(queryBudgetKey{}).(*atomic.Int64).Load()).Should(Equal(int64(9)))
 		})
 
 		It("should normalize domain names with FQDN", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				Expect(req.Req.Question[0].Name).Should(Equal("example.com."))
@@ -143,32 +121,46 @@ var _ = Describe("Query functions", func() {
 				return &model.Response{Res: &dns.Msg{}}, nil
 			}
 
-			_, _, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
+			_, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
 			Expect(err).Should(Succeed())
 		})
 
 		It("should fail when budget is exhausted", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 0)
+			ctx := withQueryBudget(context.Background(), 0)
 
-			_, _, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
+			_, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("budget exhausted"))
 		})
 
+		It("should treat a truncated reply as a failed query", func() {
+			ctx := withQueryBudget(context.Background(), 10)
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Truncated: true}}}, nil
+			}
+
+			_, err := sut.queryRecords(ctx, "example.com", dns.TypeDS)
+			Expect(err).Should(MatchError(ContainSubstring("truncated")))
+
+			_, _, err = sut.queryDNSKEY(ctx, "example.com")
+			Expect(err).Should(MatchError(errDNSKEYUnavailable))
+		})
+
 		It("should handle upstream query errors", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				return nil, errors.New("network error")
 			}
 
-			_, _, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
+			_, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("upstream query failed"))
 		})
 
 		It("should query different record types", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			testCases := []uint16{
 				dns.TypeA,
@@ -187,13 +179,13 @@ var _ = Describe("Query functions", func() {
 					return &model.Response{Res: &dns.Msg{}}, nil
 				}
 
-				_, _, err := sut.queryRecords(ctx, "example.com", qtype)
+				_, err := sut.queryRecords(ctx, "example.com", qtype)
 				Expect(err).Should(Succeed())
 			}
 		})
 
 		It("should use UDP protocol", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				Expect(req.Protocol).Should(Equal(model.RequestProtocolUDP))
@@ -201,14 +193,14 @@ var _ = Describe("Query functions", func() {
 				return &model.Response{Res: &dns.Msg{}}, nil
 			}
 
-			_, _, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
+			_, err := sut.queryRecords(ctx, "example.com", dns.TypeA)
 			Expect(err).Should(Succeed())
 		})
 	})
 
 	Describe("queryDNSKEY", func() {
 		It("should query and extract DNSKEY records", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			dnskey := &dns.DNSKEY{
 				Hdr: dns.RR_Header{
@@ -233,18 +225,38 @@ var _ = Describe("Query functions", func() {
 				}, nil
 			}
 
-			newCtx, keys, err := sut.queryDNSKEY(ctx, "example.com")
+			answer, keys, err := sut.queryDNSKEY(ctx, "example.com")
 			Expect(err).Should(Succeed())
+			Expect(answer).Should(Equal([]dns.RR{dnskey}))
 			Expect(keys).Should(HaveLen(1))
 			Expect(keys[0]).Should(Equal(dnskey))
+		})
 
-			// Verify budget was decremented
-			budget := newCtx.Value(queryBudgetKey{}).(int)
-			Expect(budget).Should(Equal(9))
+		It("should treat SERVFAIL as unavailable keys", func() {
+			ctx := withQueryBudget(context.Background(), 10)
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}}}, nil
+			}
+
+			_, _, err := sut.queryDNSKEY(ctx, "example.com")
+			Expect(err).Should(MatchError(errDNSKEYUnavailable))
+		})
+
+		It("should not treat NXDOMAIN as unavailable keys", func() {
+			ctx := withQueryBudget(context.Background(), 10)
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError}}}, nil
+			}
+
+			_, _, err := sut.queryDNSKEY(ctx, "example.com")
+			Expect(err).Should(HaveOccurred())
+			Expect(err).ShouldNot(MatchError(errDNSKEYUnavailable))
 		})
 
 		It("should handle no DNSKEY records in response", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				return &model.Response{
@@ -270,18 +282,18 @@ var _ = Describe("Query functions", func() {
 		})
 
 		It("should handle upstream errors", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				return nil, errors.New("query failed")
 			}
 
 			_, _, err := sut.queryDNSKEY(ctx, "example.com")
-			Expect(err).Should(HaveOccurred())
+			Expect(err).Should(MatchError(errDNSKEYUnavailable))
 		})
 
 		It("should extract multiple DNSKEY records", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+			ctx := withQueryBudget(context.Background(), 10)
 
 			dnskey1 := &dns.DNSKEY{
 				Hdr: dns.RR_Header{
@@ -323,7 +335,7 @@ var _ = Describe("Query functions", func() {
 		})
 
 		It("should handle budget exhaustion", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 0)
+			ctx := withQueryBudget(context.Background(), 0)
 
 			_, _, err := sut.queryDNSKEY(ctx, "example.com")
 			Expect(err).Should(HaveOccurred())
