@@ -368,6 +368,18 @@ rateLimit:
     - 192.168.0.0/16
     - 127.0.0.1
 
+# optional: force DNS name compression of responses. By default, responses that fit the client's
+# buffer and 512 bytes uncompressed are sent uncompressed. Some embedded clients discard such
+# responses; compression can be forced for them.
+responseCompression:
+  # compress every response (behaviour before v0.32.0). default: false
+  always: false
+  # compress responses to these clients: IPs, CIDRs or client names (wildcards supported).
+  # default: [] (none)
+  clients:
+    - 192.168.178.10
+    - smart-scale*
+
 # optional: return NXDOMAIN for queries that are not FQDNs.
 fqdnOnly:
   # default: false
