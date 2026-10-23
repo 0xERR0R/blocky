@@ -16,16 +16,27 @@ import (
 	"github.com/0xERR0R/blocky/lists/parsers"
 )
 
-// Golden-master tests: they build the grouped cache from list files through the
-// production parse -> classify -> build code paths and compare a canonical dump
-// of its contents against a checked-in reference. Any change to parsing or cache
-// construction that alters which entries end up in the cache (or how they are
-// normalized) changes the dump and fails these tests.
+// Golden-master tests: they parse list files with the production parser, build
+// the grouped cache through the production chain and compare a canonical dump
+// against a checked-in reference. The exact and wildcard caches only keep
+// hashes, so they cannot be enumerated; their part of the dump is what the chain
+// routed to them, recorded by a decorator around their real factories. The
+// reference therefore pins the parser and the chain's routing; the caches
+// themselves are checked by positive membership with the expected rule and by
+// ElementCount. Negative behavior is covered by the oracle tests in
+// wildcard_cache_test.go.
 //
 // Regenerate the references after an intentional behaviour change with:
 //
 //	go test ./cache/stringcache/ -run TestGolden -update-golden -count=1
 var updateGolden = flag.Bool("update-golden", false, "regenerate golden-master references")
+
+// edgeCaseParseErrors is the number of lines of edge_cases.txt that the production
+// parser rejects (and lists.NewListCache skips with a warning): the "[Adblock Plus
+// 2.0]" header, the 64-character label and the invalid IDNA or malformed wildcard
+// lines, which the fixture includes on purpose. Rejected lines are not part of the
+// dump, so their number is pinned here.
+const edgeCaseParseErrors = 8
 
 // TestGolden_EdgeCases pins the full cache contents for a small, curated fixture
 // that exercises every supported list format and many edge cases. The reference
@@ -34,7 +45,10 @@ func TestGolden_EdgeCases(t *testing.T) {
 	fixture := filepath.Join("testdata", "golden", "edge_cases.txt")
 	golden := filepath.Join("testdata", "golden", "edge_cases.golden")
 
-	got := canonicalCacheDump(t, fixture)
+	got, parseErrs := canonicalCacheDump(t, fixture)
+	if parseErrs != edgeCaseParseErrors {
+		t.Errorf("parser rejected %d lines of %s, want %d", parseErrs, fixture, edgeCaseParseErrors)
+	}
 
 	if *updateGolden {
 		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
@@ -67,7 +81,10 @@ func TestGolden_BigLists(t *testing.T) {
 	plain := filepath.Join("..", "..", "helpertest", "data", "oisd-big-plain.txt")
 	wildcard := filepath.Join("..", "..", "helpertest", "data", "oisd-big-wildcard.txt")
 
-	got := canonicalCacheDump(t, plain, wildcard)
+	got, parseErrs := canonicalCacheDump(t, plain, wildcard)
+	if parseErrs != 0 {
+		t.Errorf("parser rejected %d lines of the oisd lists, want none", parseErrs)
+	}
 
 	sum := sha256.Sum256([]byte(got))
 	gotHash := hex.EncodeToString(sum[:])
@@ -84,27 +101,34 @@ func TestGolden_BigLists(t *testing.T) {
 
 	if gotHash != wantHash {
 		actual := filepath.Join("testdata", "golden", "big_lists.actual")
-		_ = os.WriteFile(actual, []byte(got), 0o644)
+		if err := os.WriteFile(actual, []byte(got), 0o644); err != nil {
+			t.Errorf("write actual dump: %v", err)
+		}
 
-		t.Fatalf("big-list cache dump changed:\n  got  %s\n  want %s\n(wrote actual dump to %s for inspection)",
+		t.Fatalf("big-list cache dump changed:\n  got  %s\n  want %s\n(actual dump for inspection: %s)",
 			gotHash, wantHash, actual)
 	}
 }
 
 // canonicalCacheDump builds the grouped cache from the given list files using the
-// same chain construction, classification and build as lists.NewListCache, then
-// returns a deterministic, order-independent dump of its contents.
-func canonicalCacheDump(t *testing.T, files ...string) string {
+// same chain construction and build as lists.NewListCache, then returns a
+// deterministic, order-independent dump of its contents and the number of parse
+// errors the production parser reported.
+//
+// The dump lists regexes as compiled and, for exact and wildcard entries, what
+// the chain routed to those caches (see recordingFactory); the chain is then
+// asserted to find every one of those entries.
+func canonicalCacheDump(t *testing.T, files ...string) (dump string, parseErrs int) {
 	t.Helper()
 
-	hosts := parseListFiles(t, files)
+	hosts, parseErrs := parseListFiles(t, files)
 
 	const group = "default"
 
 	// Same chain as lists.NewListCache: regex, then wildcard, then string.
 	regexC := NewInMemoryGroupedRegexCache()
-	wildC := NewInMemoryGroupedWildcardCache()
-	strC := NewInMemoryGroupedStringCache()
+	wildC, wildRec := newRecordingGroupedCache(newWildcardCacheFactory)
+	strC, strRec := newRecordingGroupedCache(newStringCacheFactory)
 
 	chain := NewChainedGroupedCache(regexC, wildC, strC)
 
@@ -116,72 +140,140 @@ func canonicalCacheDump(t *testing.T, files ...string) string {
 
 	factory.Finish()
 
+	strSet := make(map[string]struct{})
+	for _, e := range strRec.accepted {
+		strSet[strings.ToLower(e)] = struct{}{}
+	}
+
+	wildSet := make(map[string]struct{})
+	for _, e := range wildRec.accepted {
+		wildSet[normalizeWildcard(e)] = struct{}{}
+	}
+
 	var lines []string
 
-	// String cache: enumerate the real built stringMap.
-	if sc, ok := (*strC.caches.Load())[group]; ok && sc != nil {
-		for _, e := range enumerateStringMap(sc.(stringMap)) {
-			lines = append(lines, "string\t"+e)
-		}
+	for e := range strSet {
+		lines = append(lines, "string\t"+e)
 	}
 
 	// Regex cache: dump each compiled regex's source.
+	regexCount := 0
+
 	if rc, ok := (*regexC.caches.Load())[group]; ok && rc != nil {
 		for _, re := range rc.(regexCache) {
 			lines = append(lines, "regex\t"+re.String())
+			regexCount++
 		}
-	}
-
-	// Wildcard cache: the trie is not enumerable, so reconstruct the normalized
-	// keys it was fed, mirroring production classification (regex wins over
-	// wildcard) and the wildcard factory's validity check.
-	wildSet := make(map[string]struct{})
-
-	for _, h := range hosts {
-		if strings.HasPrefix(h, "/") && strings.HasSuffix(h, "/") {
-			continue // regex
-		}
-
-		if !strings.HasPrefix(h, "*.") || strings.Count(h, "*") != 1 {
-			continue // not a (valid) wildcard
-		}
-
-		wildSet[normalizeWildcard(h)] = struct{}{}
 	}
 
 	for w := range wildSet {
 		lines = append(lines, "wildcard\t"+w)
 	}
 
+	assertChainMatchesEntries(t, chain, group, strSet, wildSet)
+
+	if got, want := chain.ElementCount(group), regexCount+len(wildRec.accepted)+len(strSet); got != want {
+		t.Errorf("ElementCount(%q) = %d, want %d (regex + accepted wildcards + unique strings)", group, got, want)
+	}
+
 	sort.Strings(lines)
 
-	return strings.Join(lines, "\n") + "\n"
+	return strings.Join(lines, "\n") + "\n", parseErrs
 }
 
-// enumerateStringMap returns every entry stored in a stringMap. Each bucket is a
-// concatenation of equal-length entries, so it is split into fixed-width chunks.
-func enumerateStringMap(m stringMap) []string {
-	var out []string
+// recordingFactory decorates a cacheFactory and records every entry it accepted
+// into its cache, as opposed to entries it declined (so that the next cache of
+// the chain gets them) or swallowed as invalid. Accepted entries are told apart
+// by the factory's count() going up, which is how production counts them.
+type recordingFactory struct {
+	cacheFactory
 
-	for k, v := range m {
-		if k <= 0 {
-			continue
-		}
+	accepted []string
+}
 
-		for i := 0; i+k <= len(v); i += k {
-			out = append(out, v[i:i+k])
+func (r *recordingFactory) addEntry(entry string) bool {
+	before := r.count()
+
+	ok := r.cacheFactory.addEntry(entry)
+	if ok && r.count() > before {
+		r.accepted = append(r.accepted, entry)
+	}
+
+	return ok
+}
+
+// newRecordingGroupedCache returns a grouped cache backed by the given real
+// factory, and the recorder wrapped around the factory it creates on Refresh.
+func newRecordingGroupedCache(inner stringCacheFactoryFn) (*InMemoryGroupedCache, *recordingFactory) {
+	rec := &recordingFactory{}
+
+	cache := newInMemoryGroupedCache(func() cacheFactory {
+		rec.cacheFactory = inner()
+
+		return rec
+	})
+
+	return cache, rec
+}
+
+// assertChainMatchesEntries checks that every exact and wildcard entry is found
+// by the chain, reported under its own rule, or under the broader rule that
+// shadows it: an exact entry wins over wildcards, and the shortest wildcard
+// suffix wins over longer ones.
+func assertChainMatchesEntries(t *testing.T, chain *ChainedGroupedCache, group string,
+	strSet, wildSet map[string]struct{},
+) {
+	t.Helper()
+
+	check := func(entry, wantRule string) {
+		t.Helper()
+
+		if got := chain.Contains(entry, []string{group})[group]; got != wantRule {
+			t.Errorf("Contains(%q) matched rule %q, want %q", entry, got, wantRule)
 		}
 	}
 
-	return out
+	for e := range strSet {
+		check(e, e)
+	}
+
+	// The wildcard cache ignores empty labels, so compare against collapsed rules.
+	rules := make(map[string]struct{}, len(wildSet))
+	for w := range wildSet {
+		rules[collapseDots(w)] = struct{}{}
+	}
+
+	for w := range wildSet {
+		collapsed := collapseDots(w)
+		if collapsed == "" {
+			continue // "*." alone matches nothing
+		}
+
+		if _, exact := strSet[w]; exact {
+			check(w, w)
+
+			continue
+		}
+
+		want := collapsed
+
+		for suffix := collapsed; suffix != ""; {
+			if _, ok := rules[suffix]; ok {
+				want = suffix
+			}
+
+			_, suffix, _ = strings.Cut(suffix, ".")
+		}
+
+		check(w, "*."+want)
+	}
 }
 
 // parseListFiles parses each file with the production parser and applies the same
-// IP normalization as lists.parseFile, yielding the host stream that reaches the cache.
-func parseListFiles(t *testing.T, files []string) []string {
+// IP normalization as lists.parseFile, yielding the host stream that reaches the cache
+// and the number of lines the parser rejected (and production skips with a warning).
+func parseListFiles(t *testing.T, files []string) (hosts []string, parseErrs int) {
 	t.Helper()
-
-	var hosts []string
 
 	for _, path := range files {
 		f, err := os.Open(path)
@@ -190,7 +282,7 @@ func parseListFiles(t *testing.T, files []string) []string {
 		}
 
 		p := parsers.AllowErrors(parsers.Hosts(f), parsers.NoErrorLimit)
-		p.OnErr(func(error) {})
+		p.OnErr(func(error) { parseErrs++ })
 
 		err = parsers.ForEach[*parsers.HostsIterator](context.Background(), p,
 			func(entry *parsers.HostsIterator) error {
@@ -214,7 +306,7 @@ func parseListFiles(t *testing.T, files []string) []string {
 		}
 	}
 
-	return hosts
+	return hosts, parseErrs
 }
 
 // firstDiff returns a short description of the first line that differs between

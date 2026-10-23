@@ -1,6 +1,9 @@
 package stringcache
 
 import (
+	"strings"
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -73,6 +76,80 @@ var _ = Describe("Caches", func() {
 			})
 		})
 
+		DescribeTable("exact matching",
+			func(entries []string, query, wantRule string) {
+				factory := newStringCacheFactory()
+				for _, entry := range entries {
+					Expect(factory.addEntry(entry)).To(BeTrue(), entry)
+				}
+
+				rule, ok := factory.create().findMatch(query)
+
+				Expect(ok).To(Equal(wantRule != ""), query)
+				Expect(rule).To(Equal(wantRule), query)
+			},
+			Entry("empty query", []string{"a.com"}, "", ""),
+			Entry("trailing dot query", []string{"example.com"}, "example.com.", ""),
+			Entry("trailing dot entry", []string{"example.com."}, "example.com", ""),
+			Entry("prefix of an entry", []string{"example.com"}, "example.co", ""),
+			Entry("suffix of an entry", []string{"example.com"}, "xample.com", ""),
+			Entry("parent domain", []string{"www.example.com"}, "example.com", ""),
+			Entry("long entry", []string{strings.Repeat("a", 300) + ".com"},
+				strings.Repeat("a", 300)+".com", strings.Repeat("a", 300)+".com"),
+			Entry("unicode entry and query in different case", []string{"Bücher.example"},
+				"BÜCHER.EXAMPLE", "bücher.example"),
+			Entry("IPv4", []string{"192.168.1.1"}, "192.168.1.1", "192.168.1.1"),
+			Entry("IPv6", []string{"2001:db8::1"}, "2001:DB8::1", "2001:db8::1"),
+		)
+
+		It("keeps misses allocation-free, including uppercase and empty queries", func() {
+			factory := newStringCacheFactory()
+			Expect(factory.addEntry("listed.example")).Should(BeTrue())
+
+			cache := factory.create()
+
+			for _, query := range []string{"UNLISTED.EXAMPLE", "Listed.Example.Invalid", ""} {
+				_, ok := cache.findMatch(query)
+				Expect(ok).To(BeFalse(), query)
+				Expect(testing.AllocsPerRun(100, func() { cache.findMatch(query) })).To(BeZero(), query)
+			}
+		})
+
+		It("creates the same cache again when asked twice", func() {
+			factory := newStringCacheFactory()
+			Expect(factory.addEntry("b.com")).Should(BeTrue())
+			Expect(factory.addEntry("a.com")).Should(BeTrue())
+
+			first := factory.create()
+			second := factory.create()
+
+			Expect(second).NotTo(BeNil())
+			Expect(second.elementCount()).Should(Equal(first.elementCount()))
+
+			rule, ok := second.findMatch("A.com")
+			Expect(ok).Should(BeTrue())
+			Expect(rule).Should(Equal("a.com"))
+		})
+
+		It("keeps an earlier cache unchanged when entries are added after create", func() {
+			factory := newStringCacheFactory()
+			Expect(factory.addEntry("a.com")).Should(BeTrue())
+
+			before := factory.create()
+
+			Expect(factory.addEntry("b.com")).Should(BeTrue())
+
+			after := factory.create()
+
+			Expect(before.elementCount()).Should(Equal(1))
+			_, ok := before.findMatch("b.com")
+			Expect(ok).Should(BeFalse())
+
+			Expect(after.elementCount()).Should(Equal(2))
+			_, ok = after.findMatch("b.com")
+			Expect(ok).Should(BeTrue())
+		})
+
 		When("entries are added unsorted with duplicates", func() {
 			var entries []string
 
@@ -97,11 +174,6 @@ var _ = Describe("Caches", func() {
 					Expect(ok).Should(BeTrue(), e)
 					Expect(rule).Should(Equal(e), e)
 				}
-			})
-
-			It("counts every insertion but stores only unique entries", func() {
-				Expect(factory.count()).Should(Equal(5))
-				Expect(cache.elementCount()).Should(Equal(3))
 			})
 		})
 	})
@@ -270,3 +342,54 @@ var _ = Describe("Caches", func() {
 		})
 	})
 })
+
+func FuzzStringCacheMatchesMapOracle(f *testing.F) {
+	f.Add("example.com", "Other.COM", "EXAMPLE.com")
+	f.Add("", "a", "")
+	f.Add("Bücher.example", "İSTANBUL.example", "BÜCHER.EXAMPLE")
+	f.Add("*.example.com", "/regex/", "/REGEX/")
+	f.Add("example.com.", "a..b", "A..B")
+	f.Add("\xff", "A\xffB", "a\xffb")
+
+	f.Fuzz(func(t *testing.T, entryA, entryB, query string) {
+		factory := newStringCacheFactory()
+		oracle := make(map[string]struct{})
+
+		for _, entry := range []string{entryA, entryB} {
+			if !factory.addEntry(entry) {
+				t.Fatalf("addEntry(%q) = false, want true", entry)
+			}
+
+			if entry != "" {
+				oracle[strings.ToLower(entry)] = struct{}{}
+			}
+		}
+
+		cache := factory.create()
+		if cache == nil {
+			return
+		}
+
+		gotRule, gotOK := cache.findMatch(query)
+
+		wantRule := strings.ToLower(query)
+		_, wantOK := oracle[wantRule]
+
+		if query == "" {
+			wantOK = false
+		}
+
+		if !wantOK {
+			wantRule = ""
+		}
+
+		if gotOK != wantOK || gotRule != wantRule {
+			t.Fatalf("entries %q, query %q: got (%q, %v), want (%q, %v)",
+				[]string{entryA, entryB}, query, gotRule, gotOK, wantRule, wantOK)
+		}
+
+		if got := cache.elementCount(); got != len(oracle) {
+			t.Fatalf("entries %q: elementCount() = %d, want %d", []string{entryA, entryB}, got, len(oracle))
+		}
+	})
+}

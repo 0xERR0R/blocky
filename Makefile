@@ -32,7 +32,7 @@ GINKGO_PROCS?=
 # -fuzz` only fuzzes one target in one package per invocation, so `make fuzz`
 # loops over every Fuzz* target in FUZZ_PKGS, time-boxing each at FUZZ_TIME.
 FUZZ_TIME?=30s
-FUZZ_PKGS?=./config ./util ./lists/parsers
+FUZZ_PKGS?=./config ./util ./lists/parsers ./cache/stringcache
 
 # Parallelism for e2e tests. e2e specs are dominated by container startup and
 # health-check waits rather than CPU, so oversubscribing beyond the core count
