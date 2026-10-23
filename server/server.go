@@ -330,10 +330,11 @@ func newTCPListeners(
 	ctx context.Context, proto string, addresses config.ListenConfig, proxyProtocol bool,
 ) ([]net.Listener, error) {
 	listeners := make([]net.Listener, 0, len(addresses))
-	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		listener, err := lc.Listen(ctx, networkTCP, address)
+		// retry the bind: the interface owning the address may not be up yet at
+		// boot (see bind_retry.go)
+		listener, err := listenTCPRetry(ctx, address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}
@@ -681,10 +682,11 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	for _, srv := range s.dnsServers {
 		go func() {
 			// When a listener/packet connection was pre-created (freeBind), serve it via
-			// ActivateAndServe; otherwise let miekg/dns create the socket via ListenAndServe.
-			serve := srv.ListenAndServe
-			if srv.Listener != nil || srv.PacketConn != nil {
-				serve = srv.ActivateAndServe
+			// ActivateAndServe; otherwise let miekg/dns create the socket via ListenAndServe,
+			// retrying the bind while the interface is not up yet (see bind_retry.go).
+			serve := srv.ActivateAndServe
+			if srv.Listener == nil && srv.PacketConn == nil {
+				serve = func() error { return retryServe(srv) }
 			}
 
 			if err := serve(); err != nil {
