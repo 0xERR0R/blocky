@@ -106,6 +106,14 @@ var _ = Describe("Serve command", func() {
 
 	When("Serve command is called without config", func() {
 		It("should fail to start and report error", func() {
+			// startServer takes the config path from the environment, so none may be set
+			for _, name := range []string{configFileEnvVar, configFileEnvVarOld} {
+				if val, ok := os.LookupEnv(name); ok {
+					Expect(os.Unsetenv(name)).Should(Succeed())
+					DeferCleanup(os.Setenv, name, val)
+				}
+			}
+
 			errChan := make(chan error)
 			By("start server", func() {
 				go func() {

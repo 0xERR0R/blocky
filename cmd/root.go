@@ -11,8 +11,6 @@ import (
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spf13/cobra"
 )
 
@@ -86,11 +84,7 @@ func initConfigPreRun(cmd *cobra.Command, args []string) error {
 
 func initConfig() error {
 	_, err := loadConfig(false, func(cfg *config.Config) {
-		// a command answers in the terminal, so it never logs to syslog
-		logCfg := cfg.Log
-		if logCfg.Target == log.TargetTypeSyslog {
-			logCfg.Target = log.TargetTypeStdout
-		}
+		logCfg := commandLogConfig(cfg)
 
 		log.Configure(&logCfg)
 	})
@@ -101,32 +95,39 @@ func initConfig() error {
 	return nil
 }
 
+// commandLogConfig returns the log settings a command logs with. A command answers in
+// the terminal, so it never logs to syslog.
+func commandLogConfig(cfg *config.Config) log.Config {
+	logCfg := cfg.Log
+	if logCfg.Target == log.TargetTypeSyslog {
+		logCfg.Target = log.TargetTypeStdout
+	}
+
+	return logCfg
+}
+
 // loadConfig loads the config, sets up logging with configure, then logs what loading
 // the config logged, so that follows the config's log settings too. If the config
 // can't be used, that is logged as logging was set up before.
 func loadConfig(mandatory bool, configure func(*config.Config)) (*config.Config, error) {
 	resolveConfigPath()
 
-	logger, loaded := test.NewNullLogger()
-	logger.SetLevel(logrus.TraceLevel)
+	loaded := log.NewBuffer()
 
-	cfg, err := config.LoadConfigWithLogger(logrus.NewEntry(logger), configPath, mandatory)
+	// on return, so after configure, and also if loading the config panics
+	defer func() { loaded.Replay(log.Log()) }()
+
+	cfg, err := config.LoadConfigWithLogger(loaded.Entry(), configPath, mandatory)
 	if err == nil {
 		// reject a listen address the commands can't parse
 		err = setListenAddresses(cfg.Ports)
 	}
 
-	if err == nil {
-		configure(cfg)
-	}
-
-	for _, entry := range loaded.AllEntries() {
-		log.Log().WithFields(entry.Data).WithTime(entry.Time).Log(entry.Level, entry.Message)
-	}
-
 	if err != nil {
 		return nil, err
 	}
+
+	configure(cfg)
 
 	return cfg, nil
 }
