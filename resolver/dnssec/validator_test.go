@@ -2832,6 +2832,58 @@ var _ = Describe("DNSSECValidator", func() {
 			// Should NOT error - this is not a wildcard expansion
 			Expect(err).ShouldNot(HaveOccurred())
 		})
+
+		When("the wildcard answers the target of a CNAME from another zone", func() {
+			var (
+				rrsig            *dns.RRSIG
+				rrsetName, qname string
+			)
+
+			BeforeEach(func() {
+				// www.example.org. CNAME target.example.com., synthesized from *.example.com.
+				rrsig = &dns.RRSIG{SignerName: "example.com.", Labels: 2}
+				rrsetName = "target.example.com."
+				qname = "www.example.org."
+			})
+
+			It("should accept an NSEC proof for the CNAME target", func() {
+				nsec := &dns.NSEC{
+					Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET},
+					NextDomain: "z.example.com.",
+				}
+
+				err := sut.validateWildcardExpansion(rrsetName, rrsig, []dns.RR{nsec}, qname)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+
+			It("should reject an NSEC proof that only covers the original query name", func() {
+				nsec := &dns.NSEC{
+					Hdr:        dns.RR_Header{Name: "example.org.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET},
+					NextDomain: "zzz.example.org.",
+				}
+
+				err := sut.validateWildcardExpansion(rrsetName, rrsig, []dns.RR{nsec}, qname)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("target.example.com."))
+			})
+
+			It("should accept an NSEC3 proof for the CNAME target", func() {
+				nextHash, err := sut.computeNSEC3Hash("next.example.com.", dns.SHA1, "", 0)
+				Expect(err).ShouldNot(HaveOccurred())
+				qnameHash, err := sut.computeNSEC3Hash(qname, dns.SHA1, "", 0)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// The wraparound interval (qnameHash, nextHash) strictly covers the target hash but not qnameHash.
+				nsec3 := &dns.NSEC3{
+					Hdr:        dns.RR_Header{Name: qnameHash + ".example.com.", Rrtype: dns.TypeNSEC3, Class: dns.ClassINET},
+					Hash:       dns.SHA1,
+					NextDomain: nextHash,
+				}
+
+				err = sut.validateWildcardExpansion(rrsetName, rrsig, []dns.RR{nsec3}, qname)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
 	})
 
 	Describe("validateNegativeResponse", func() {
