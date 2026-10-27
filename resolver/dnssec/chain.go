@@ -209,6 +209,13 @@ func (v *Validator) validateDomainLevel(
 	// This allows us to trust ALL keys in the set (including ZSKs with different algorithms)
 	sig, err := v.verifyDNSKEYRRset(answer, validatedKSKs, domain)
 	if err != nil {
+		if onlyUnsupportedKSKs(validatedKSKs, dsRecords) {
+			v.logger.Debugf("DS RRset of %s names only RSA keys with exponents above 2^31-1 - treating zone as Insecure",
+				domain)
+
+			return ValidationResultInsecure, nil
+		}
+
 		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", domain, err)
 
 		return ValidationResultBogus, nil
@@ -217,6 +224,22 @@ func (v *Validator) validateDomainLevel(
 	v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
 
 	return ValidationResultSecure, keysUntilSignatureExpiry(keys, sig)
+}
+
+// onlyUnsupportedKSKs reports whether every key that the DS RRset names is one of ksks, the keys
+// that matched it, and has an RSA exponent that Go cannot verify with. Like a DS RRset of
+// unsupported algorithms only, this leaves no supported path to the zone (RFC 4035 §5.2). A DS
+// record whose key is missing from the DNSKEY reply may name a supported key stripped from it.
+func onlyUnsupportedKSKs(ksks []*dns.DNSKEY, dsRecords []*dns.DS) bool {
+	for _, ds := range dsRecords {
+		if !slices.ContainsFunc(ksks, func(key *dns.DNSKEY) bool {
+			return key.KeyTag() == ds.KeyTag && key.Algorithm == ds.Algorithm
+		}) {
+			return false
+		}
+	}
+
+	return !slices.ContainsFunc(ksks, func(key *dns.DNSKEY) bool { return !hasUnsupportedRSAExponent(key) })
 }
 
 // keysUntilSignatureExpiry returns copies of keys whose TTLs do not exceed the TTL, the original

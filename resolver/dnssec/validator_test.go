@@ -3,6 +3,7 @@ package dnssec
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/base64"
 	"errors"
 	"net"
 	"time"
@@ -897,6 +898,52 @@ var _ = Describe("DNSSECValidator", func() {
 				v := NewValidator(ctx, chain.anchors, logger, mockUpstream, 1, 10, 150, 30, 3600)
 
 				Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(ValidationResultBogus))
+			}
+		})
+
+		It("treats a zone whose DS RRset names only RSA keys with unsupported exponents as Insecure", func() {
+			chain := newSignedChain()
+
+			// An RFC 3110 key with the exponent 2^32+1, above the 2^31-1 that Go supports
+			bigKey := &dns.DNSKEY{
+				Hdr:       dns.RR_Header{Name: chain.child, Rrtype: dns.TypeDNSKEY, Class: dns.ClassINET, Ttl: 3600},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: base64.StdEncoding.EncodeToString(append([]byte{5, 1, 0, 0, 0, 1}, make([]byte, 128)...)),
+			}
+			Expect(hasUnsupportedRSAExponent(bigKey)).Should(BeTrue())
+
+			// Go cannot sign with bigKey, so the RRSIGs that name it carry an ECDSA signature.
+			bigKeySig := signRRset([]dns.RR{bigKey}, dns.TypeDNSKEY, chain.childKey, chain.childPriv, chain.child)
+			bigKeySig.Algorithm, bigKeySig.KeyTag = bigKey.Algorithm, bigKey.KeyTag()
+			question := dns.Question{Name: "www." + chain.child, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			response := signedA(question.Name, "192.0.2.1", chain.childKey, chain.childPriv, chain.child)
+			answerSig := response.Answer[1].(*dns.RRSIG)
+			answerSig.Algorithm, answerSig.KeyTag = bigKey.Algorithm, bigKey.KeyTag()
+
+			for _, c := range []struct {
+				ds       []dns.RR
+				expected ValidationResult
+			}{
+				{[]dns.RR{bigKey.ToDS(dns.SHA256)}, ValidationResultInsecure},
+				// A DS record whose key is missing from the DNSKEY reply may name a supported key.
+				{[]dns.RR{bigKey.ToDS(dns.SHA256), chain.ds}, ValidationResultBogus},
+			} {
+				dsReply := &dns.Msg{Answer: append(c.ds, signRRset(c.ds, dns.TypeDS, chain.parentKey, chain.parentPriv, chain.parent))}
+				mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+					switch q := req.Req.Question[0]; {
+					case q.Qtype == dns.TypeDS && q.Name == chain.child:
+						return &model.Response{Res: dsReply}, nil
+					case q.Qtype == dns.TypeDNSKEY && q.Name == chain.child:
+						return &model.Response{Res: &dns.Msg{Answer: []dns.RR{bigKey, bigKeySig}}}, nil
+					}
+
+					return chain.resolve(ctx, req)
+				}
+				v := NewValidator(ctx, chain.anchors, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+				Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(c.expected), "%d DS records", len(c.ds))
 			}
 		})
 	})
