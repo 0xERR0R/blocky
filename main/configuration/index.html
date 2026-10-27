@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -29,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -4318,6 +4318,11 @@ Please be aware that by enabling this your resolution will break unless every qu
 - <code>$INCLUDE</code> - includes another zone file relative to the blocky executable
 - <code>$GENERATE</code> - generates a range of records</p>
 <p>For records defined using the <code>zone</code> parameter, the <code>customTTL</code> parameter is unused. Instead, the <abbr title="Time-To-Live">TTL</abbr> is defined in the zone directly.</p>
+<p>custom <abbr title="Domain Name System">DNS</abbr> answers queries for <code>A</code>, <code>AAAA</code>, <code>CNAME</code>, <code>TXT</code> and <code>SRV</code> records. Other record types
+that are valid in a zone file (for example <code>SOA</code>, <code>NS</code>, <code>MX</code>, <code>CAA</code>, <code>HTTPS</code>/<code>SVCB</code> or the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>
+records of a signed zone) may be present in the zone, but they are not answered by custom <abbr title="Domain Name System">DNS</abbr>: a
+query for such a type gets the same response as a query for a type that is not defined for the name
+(an empty answer, or the query is forwarded upstream when <code>filterUnmappedTypes</code> is <code>false</code>).</p>
 <h3 id="cname-resolution"><abbr title="Canonical Name">CNAME</abbr> Resolution</h3>
 <p>When a <abbr title="Canonical Name">CNAME</abbr> record is defined and a query matches that record, blocky will:
 1. Return the <abbr title="Canonical Name">CNAME</abbr> record in the answer
@@ -6234,10 +6239,10 @@ For example if blocking has a limit set to 8 and hosts file's is 4, there could 
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.instant.progress", "navigation.tracking", "navigation.top", "toc.follow", "content.code.copy", "content.code.annotate", "content.tooltips", "content.action.edit", "search.suggest", "search.highlight", "search.share"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.instant.progress", "navigation.tracking", "navigation.top", "toc.follow", "content.code.copy", "content.code.annotate", "content.tooltips", "content.action.edit", "search.suggest", "search.highlight", "search.share"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
