@@ -669,7 +669,17 @@ func (v *Validator) validateDSAbsenceProof(domain string, dsResponse *dns.Msg, h
 	}
 
 	// Validate NSEC3 proof of DS absence (NODATA proof)
-	return v.validateNSEC3DenialOfExistence(dsResponse, dsQuestion)
+	result := v.validateNSEC3DenialOfExistence(dsResponse, dsQuestion)
+
+	// A name that does not exist is no delegation and has no keys to sign with. Only an Opt-Out
+	// span (Insecure) may hold an unsigned delegation that the denial does not show (RFC 5155 §6).
+	if dsResponse.Rcode == dns.RcodeNameError && result == ValidationResultSecure {
+		v.logger.Warnf("NSEC3 proof shows that %s does not exist - not an unsigned delegation", domain)
+
+		return ValidationResultBogus
+	}
+
+	return result
 }
 
 // nsecProvesInsecureDelegation reports whether an NSEC RR matching domain asserts an insecure

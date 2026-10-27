@@ -863,6 +863,42 @@ var _ = Describe("DNSSECValidator", func() {
 				signedA(question.Name, "192.0.2.66", forgedKey, forgedPriv, chain.child), question,
 			)).Should(Equal(ValidationResultBogus))
 		})
+
+		It("does not take a proof that a name does not exist for an insecure delegation", func() {
+			chain := newSignedChain()
+			const ghost = "ghost.example."
+
+			// The NSEC3 of the apex of example. whose next hash is its own covers every other hash: it
+			// proves that ghost.example. and *.example. do not exist.
+			apexHash := dns.HashName(chain.parent, dns.SHA1, 0, "")
+			nsec3 := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: apexHash + "." + chain.parent, Rrtype: dns.TypeNSEC3, Class: dns.ClassINET, Ttl: 300},
+				Hash:       dns.SHA1,
+				HashLength: 20,
+				NextDomain: apexHash,
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeSOA, dns.TypeRRSIG, dns.TypeDNSKEY, dns.TypeNSEC3PARAM},
+			}
+			nxdomain := &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
+				Ns:     []dns.RR{nsec3, signRRset([]dns.RR{nsec3}, dns.TypeNSEC3, chain.parentKey, chain.parentPriv, chain.parent)},
+			}
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				if q := req.Req.Question[0]; q.Qtype == dns.TypeDS && q.Name == ghost {
+					return &model.Response{Res: nxdomain}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+			forgedKey, forgedPriv, _ := newSignedZoneKey(ghost)
+			signed := signedA(ghost, "192.0.2.66", forgedKey, forgedPriv, ghost)
+			question := dns.Question{Name: ghost, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+
+			for _, response := range []*dns.Msg{signed, {Answer: signed.Answer[:1]}} {
+				v := NewValidator(ctx, chain.anchors, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+				Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(ValidationResultBogus))
+			}
+		})
 	})
 
 	Describe("NewValidator", func() {
