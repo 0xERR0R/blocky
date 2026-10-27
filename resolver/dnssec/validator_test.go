@@ -2868,16 +2868,16 @@ var _ = Describe("DNSSECValidator", func() {
 			})
 
 			It("should accept an NSEC3 proof for the CNAME target", func() {
-				targetHash, err := sut.computeNSEC3Hash(rrsetName, dns.SHA1, "", 0)
+				nextHash, err := sut.computeNSEC3Hash("next.example.com.", dns.SHA1, "", 0)
 				Expect(err).ShouldNot(HaveOccurred())
 				qnameHash, err := sut.computeNSEC3Hash(qname, dns.SHA1, "", 0)
 				Expect(err).ShouldNot(HaveOccurred())
 
-				// (qnameHash, targetHash] covers the target but not qname, in either hash order.
+				// The wraparound interval (qnameHash, nextHash) strictly covers the target hash but not qnameHash.
 				nsec3 := &dns.NSEC3{
 					Hdr:        dns.RR_Header{Name: qnameHash + ".example.com.", Rrtype: dns.TypeNSEC3, Class: dns.ClassINET},
 					Hash:       dns.SHA1,
-					NextDomain: targetHash,
+					NextDomain: nextHash,
 				}
 
 				err = sut.validateWildcardExpansion(rrsetName, rrsig, []dns.RR{nsec3}, qname)
