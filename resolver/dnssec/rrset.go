@@ -31,29 +31,37 @@ const (
 	bitsPerByte          = 8          // Number of bits in a byte
 )
 
+// maxZoneKeyVerifications is the verification budget of verifyWithZoneKeys for one RRset, or for
+// all RRsets of one reply (KeyTrap, CVE-2023-50387).
+const maxZoneKeyVerifications = 8
+
 var errRRSIGVerificationFailed = errors.New("signature verification failed")
 
 // verifyWithZoneKeys verifies rrset with one of sigs made by a key in keys, the validated DNSKEY
-// RRset of the signer zone. Like verifyRRSIGMatch it gives up after a few failed verifications
-// (KeyTrap, CVE-2023-50387).
-func (v *Validator) verifyWithZoneKeys(rrset []dns.RR, sigs []*dns.RRSIG, keys []*dns.DNSKEY) error {
-	const maxVerificationAttempts = 8
-
+// RRset of the signer zone. Key tags are not unique, so a signature is tried with every key that
+// has its key tag and algorithm (RFC 4035 §5.3.1). Each verification spends one of *budget, and
+// verifyWithZoneKeys fails once none is left (KeyTrap, CVE-2023-50387).
+func (v *Validator) verifyWithZoneKeys(rrset []dns.RR, sigs []*dns.RRSIG, keys []*dns.DNSKEY, budget *int) error {
 	var errs []error
 
 	for _, sig := range sigs {
-		key := findMatchingDNSKEY(keys, sig.KeyTag, sig.Algorithm)
-		if key == nil {
-			continue
-		}
+		for _, key := range keys {
+			if !keyMatches(key, sig.KeyTag, sig.Algorithm) {
+				continue
+			}
 
-		err := v.verifyRRSIG(rrset, sig, key, nil, "")
-		if err == nil {
-			return nil
-		}
+			if *budget <= 0 {
+				return errors.Join(append(errs, errors.New("no signature verifications left"))...)
+			}
 
-		if errs = append(errs, err); len(errs) == maxVerificationAttempts {
-			break
+			*budget--
+
+			err := v.verifyRRSIG(rrset, sig, key, nil, "")
+			if err == nil {
+				return nil
+			}
+
+			errs = append(errs, err)
 		}
 	}
 
@@ -168,22 +176,24 @@ func validateSignerName(signerName, rrsetName string) bool {
 }
 
 // findMatchingDNSKEY finds the DNSKEY that matches the given key tag
-// RFC 4034 §2.1.2: Protocol field MUST be 3
 func findMatchingDNSKEY(keys []*dns.DNSKEY, keyTag uint16, algorithm uint8) *dns.DNSKEY {
-	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
-
 	for _, key := range keys {
-		// RFC 4034 §2.1.2: The Protocol Field MUST have value 3
-		// RFC 5011 §7: a revoked key only verifies the self-signature of its DNSKEY RRset
-		if key.Protocol != dnskeyProtocolValue || key.Flags&REVOKE != 0 {
-			continue
-		}
-		if key.KeyTag() == keyTag && key.Algorithm == algorithm {
+		if keyMatches(key, keyTag, algorithm) {
 			return key
 		}
 	}
 
 	return nil
+}
+
+// keyMatches reports whether key has the given key tag and algorithm and may verify signatures
+// RFC 4034 §2.1.2: Protocol field MUST be 3
+func keyMatches(key *dns.DNSKEY, keyTag uint16, algorithm uint8) bool {
+	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
+
+	// RFC 5011 §7: a revoked key only verifies the self-signature of its DNSKEY RRset
+	return key.Protocol == dnskeyProtocolValue && key.Flags&REVOKE == 0 &&
+		key.KeyTag() == keyTag && key.Algorithm == algorithm
 }
 
 // hasUnsupportedRSAExponent checks if an RSA DNSKEY has an exponent that exceeds Go crypto's limits

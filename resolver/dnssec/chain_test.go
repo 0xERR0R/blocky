@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -1110,6 +1111,33 @@ var _ = Describe("Chain of trust validation", func() {
 			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+	})
+
+	Describe("verifyDenialSignatures", func() {
+		It("should check all denial RRsets of a reply with one verification budget", func() {
+			key, priv, _ := newSignedZoneKey("example.")
+			keys := []*dns.DNSKEY{key}
+
+			// denials returns n NSEC RRsets, each signed by key
+			denials := func(n int) []dns.RR {
+				rrs := make([]dns.RR, 0, 2*n)
+
+				for i := range n {
+					nsec := &dns.NSEC{
+						Hdr:        dns.RR_Header{Name: fmt.Sprintf("a%d.example.", i), Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+						NextDomain: fmt.Sprintf("b%d.example.", i),
+						TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC},
+					}
+					rrs = append(rrs, nsec, signRRset([]dns.RR{nsec}, dns.TypeNSEC, key, priv, "example."))
+				}
+
+				return rrs
+			}
+
+			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications), keys)).Should(Succeed())
+			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications+1), keys)).
+				Should(MatchError(ContainSubstring("no signature verifications left")))
 		})
 	})
 

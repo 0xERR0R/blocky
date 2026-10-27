@@ -548,7 +548,8 @@ func (v *Validator) validateDSRecordSignature(
 		return parentResult
 	}
 
-	if err := v.verifyWithZoneKeys(dsRRset, []*dns.RRSIG{dsRRSIG}, parentKeys); err != nil {
+	budget := maxZoneKeyVerifications
+	if err := v.verifyWithZoneKeys(dsRRset, []*dns.RRSIG{dsRRSIG}, parentKeys, &budget); err != nil {
 		v.logger.Warnf("DS RRSIG verification failed for %s: %v", domain, err)
 
 		return ValidationResultBogus
@@ -573,7 +574,8 @@ func (v *Validator) extractAndValidateDSRecords(
 	}
 
 	sigs := findMatchingRRSIGsForType(extractRRSIGs(slices.Concat(dsResponse.Answer, dsResponse.Ns)), dns.TypeDS)
-	if err := v.verifyWithZoneKeys(convertDSToRRset(dsRecords), sigs, parentKeys); err != nil {
+	budget := maxZoneKeyVerifications
+	if err := v.verifyWithZoneKeys(convertDSToRRset(dsRecords), sigs, parentKeys, &budget); err != nil {
 		v.logger.Warnf("DS RRset for %s is not signed by its parent zone: %v", domain, err)
 
 		return nil, ValidationResultBogus
@@ -623,16 +625,19 @@ func (v *Validator) handleDSAbsence(
 	return nil, ValidationResultBogus
 }
 
-// verifyDenialSignatures checks that every NSEC and NSEC3 RRset in rrs is signed by one of keys
+// verifyDenialSignatures checks that every NSEC and NSEC3 RRset in rrs is signed by one of keys.
+// The RRsets share one verification budget, so more RRsets in a reply buy no more verifications.
 func (v *Validator) verifyDenialSignatures(rrs []dns.RR, keys []*dns.DNSKEY) error {
 	sigs := extractRRSIGs(rrs)
+	budget := maxZoneKeyVerifications
 
 	for key, rrset := range groupRRsetsByNameAndType(rrs) {
 		if key.rrType != dns.TypeNSEC && key.rrType != dns.TypeNSEC3 {
 			continue
 		}
 
-		if err := v.verifyWithZoneKeys(rrset, findMatchingRRSIGs(sigs, key.name, key.rrType), keys); err != nil {
+		err := v.verifyWithZoneKeys(rrset, findMatchingRRSIGs(sigs, key.name, key.rrType), keys, &budget)
+		if err != nil {
 			return fmt.Errorf("%s %s: %w", key.name, dns.TypeToString[key.rrType], err)
 		}
 	}

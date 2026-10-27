@@ -2,6 +2,7 @@ package dnssec
 
 import (
 	"crypto/ecdsa"
+	"encoding/base64"
 	"strings"
 	"time"
 
@@ -466,9 +467,10 @@ var _ = Describe("RRset validation functions", func() {
 
 	Describe("verifyWithZoneKeys", func() {
 		var (
-			key   *dns.DNSKEY
-			priv  *ecdsa.PrivateKey
-			rrset []dns.RR
+			key    *dns.DNSKEY
+			priv   *ecdsa.PrivateKey
+			rrset  []dns.RR
+			budget int
 		)
 
 		BeforeEach(func() {
@@ -477,21 +479,46 @@ var _ = Describe("RRset validation functions", func() {
 				Hdr: dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
 				A:   []byte{192, 0, 2, 1},
 			}}
+			budget = maxZoneKeyVerifications
 		})
 
 		It("should verify an RRset signed by one of the keys", func() {
 			otherKey, _, _ := newSignedZoneKey("example.com.")
 			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
 
-			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{otherKey, key})).Should(Succeed())
+			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{otherKey, key}, &budget)).
+				Should(Succeed())
 		})
 
 		It("should reject a signature made by a key outside the set", func() {
 			otherKey, _, _ := newSignedZoneKey("example.com.")
+			for otherKey.KeyTag() == key.KeyTag() {
+				otherKey, _, _ = newSignedZoneKey("example.com.")
+			}
 			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
 
-			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{otherKey})).
+			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{otherKey}, &budget)).
 				Should(MatchError(ContainSubstring("no RRSIG made by a validated key")))
+		})
+
+		It("should try every key that has the key tag of the signature", func() {
+			// Swapping two public key bytes an even distance apart keeps the key tag checksum
+			// (RFC 4034 Appendix B) and breaks the key.
+			pub, err := base64.StdEncoding.DecodeString(key.PublicKey)
+			Expect(err).Should(Succeed())
+			i := 0
+			for pub[i] == pub[i+2] {
+				i++
+			}
+			pub[i], pub[i+2] = pub[i+2], pub[i]
+			sameTag := *key
+			sameTag.PublicKey = base64.StdEncoding.EncodeToString(pub)
+			Expect(sameTag.KeyTag()).Should(Equal(key.KeyTag()))
+			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
+
+			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{&sameTag, key}, &budget)).
+				Should(Succeed())
+			Expect(budget).Should(Equal(maxZoneKeyVerifications-2), "both keys were tried")
 		})
 
 		It("should stop after a bounded number of failed verifications", func() {
@@ -503,9 +530,9 @@ var _ = Describe("RRset validation functions", func() {
 				sigs[i] = sig
 			}
 
-			err := sut.verifyWithZoneKeys(rrset, sigs, []*dns.DNSKEY{key})
+			err := sut.verifyWithZoneKeys(rrset, sigs, []*dns.DNSKEY{key}, &budget)
 			Expect(err).Should(MatchError(ContainSubstring("signature verification failed")))
-			Expect(strings.Count(err.Error(), "signature verification failed")).Should(Equal(8))
+			Expect(strings.Count(err.Error(), "signature verification failed")).Should(Equal(maxZoneKeyVerifications))
 		})
 	})
 })
