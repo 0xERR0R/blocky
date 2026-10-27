@@ -5,6 +5,7 @@ package dnssec
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,6 +31,8 @@ const (
 	extendedExpLenOffset = 3          // Offset for extended exponent length format
 	bitsPerByte          = 8          // Number of bits in a byte
 )
+
+var errRRSIGVerificationFailed = errors.New("signature verification failed")
 
 // queryAndMatchDNSKEY queries for DNSKEY records and finds the one matching the key tag
 func (v *Validator) queryAndMatchDNSKEY(
@@ -334,8 +337,6 @@ func (v *Validator) verifyRRSIG(
 	}
 
 	// Use miekg/dns to verify the signature (expensive crypto operation)
-	// By using the same 'now' timestamp captured above, we avoid TOCTOU issues
-	// even if this verification takes significant time
 	if err := rrsig.Verify(key, rrset); err != nil {
 		// Debug: log RRset details on failure
 		v.logger.Debugf("Signature verification failed for RRset with %d records:", len(rrset))
@@ -344,7 +345,7 @@ func (v *Validator) verifyRRSIG(
 		}
 		v.logger.Debugf("  RRSIG: %s", rrsig.String())
 
-		return fmt.Errorf("signature verification failed: %w", err)
+		return fmt.Errorf("%w: %w", errRRSIGVerificationFailed, err)
 	}
 
 	return nil

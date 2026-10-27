@@ -41,6 +41,13 @@ var _ = Describe("CustomDNSResolver", func() {
 
 		zoneHdr := dns.RR_Header{Ttl: zoneTTL}
 
+		newRR := func(s string) dns.RR {
+			rr, err := dns.NewRR(s)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			return rr
+		}
+
 		cfg = config.CustomDNS{
 			Mapping: config.CustomDNSMapping{
 				"custom.domain": {&dns.A{A: net.ParseIP("192.168.143.123")}},
@@ -61,6 +68,22 @@ var _ = Describe("CustomDNSResolver", func() {
 					"srv.":             {&dns.SRV{Priority: 0, Weight: 5, Port: 12345, Target: "service", Hdr: zoneHdr}},
 					"txt.":             {&dns.TXT{Txt: []string{"space", "separated", "value"}, Hdr: zoneHdr}},
 					"mx.domain.":       {&dns.MX{Mx: "mx.domain", Hdr: zoneHdr}},
+					// A name that carries a supported record next to a type custom DNS
+					// cannot answer from (see issue #2288).
+					"unsupported.mixed.": {
+						newRR("unsupported.mixed. 3600 IN A 5.6.7.8"),
+						newRR(`unsupported.mixed. 3600 IN HTTPS 1 . alpn="h2,h3" ipv4hint=5.6.7.8`),
+					},
+					// A regular zone apex, which normally carries SOA and NS records.
+					"apex.zone.": {
+						newRR("apex.zone. 3600 IN SOA ns1.apex.zone. hostmaster.apex.zone. 1 7200 3600 1209600 3600"),
+						newRR("apex.zone. 3600 IN NS ns1.apex.zone."),
+						newRR("apex.zone. 3600 IN A 9.9.9.9"),
+					},
+					"ns.zone.": {
+						newRR("ns.zone. 3600 IN NS ns1.ns.zone."),
+						newRR("ns.zone. 3600 IN A 10.0.0.1"),
+					},
 				},
 			},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
@@ -435,13 +458,61 @@ var _ = Describe("CustomDNSResolver", func() {
 						))
 			})
 		})
-		When("An unsupported DNS query type is queried from the resolver but found in the config mapping ", func() {
-			It("an error should be returned", func() {
+		When("An unsupported DNS record type is defined in the config", func() {
+			It("returns NODATA for a query of that type", func() {
 				By("MX query", func() {
-					_, err := sut.Resolve(ctx, newRequest("mx.domain", MX))
-					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("unsupported customDNS RR type *dns.MX"))
+					Expect(sut.Resolve(ctx, newRequest("mx.domain", MX))).
+						Should(
+							SatisfyAll(
+								WithTransform(ToAnswer, BeEmpty()),
+								HaveResponseType(ResponseTypeCUSTOMDNS),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
+			})
+		})
+		When("A zone entry has a record type custom DNS cannot answer from", func() {
+			It("answers the query type that is defined for the name", func() {
+				Expect(sut.Resolve(ctx, newRequest("unsupported.mixed.", A))).
+					Should(
+						SatisfyAll(
+							WithTransform(ToAnswer, SatisfyAll(
+								HaveLen(1),
+								ContainElements(BeDNSRecord("unsupported.mixed.", A, "5.6.7.8")),
+							)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+			It("answers the zone apex although the zone carries SOA and NS records", func() {
+				Expect(sut.Resolve(ctx, newRequest("apex.zone.", A))).
+					Should(
+						SatisfyAll(
+							WithTransform(ToAnswer, SatisfyAll(
+								HaveLen(1),
+								ContainElements(BeDNSRecord("apex.zone.", A, "9.9.9.9")),
+							)),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+			It("returns NODATA for an unmapped query type instead of an error", func() {
+				Expect(sut.Resolve(ctx, newRequest("ns.zone.", TXT))).
+					Should(
+						SatisfyAll(
+							WithTransform(ToAnswer, BeEmpty()),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+			It("returns NODATA when that unsupported type itself is requested", func() {
+				Expect(sut.Resolve(ctx, newRequest("unsupported.mixed.", HTTPS))).
+					Should(
+						SatisfyAll(
+							WithTransform(ToAnswer, BeEmpty()),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 		When("Reverse DNS request is received", func() {

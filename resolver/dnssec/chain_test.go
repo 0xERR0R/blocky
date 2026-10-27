@@ -2,6 +2,7 @@ package dnssec
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 
 	"github.com/0xERR0R/blocky/log"
@@ -158,6 +159,20 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(err.Error()).Should(ContainSubstring("algorithm mismatch"))
 		})
 
+		It("should fail when key tag mismatch", func() {
+			dnskey := &dns.DNSKEY{
+				Algorithm: dns.RSASHA256,
+			}
+			ds := &dns.DS{
+				Algorithm: dns.RSASHA256,
+				KeyTag:    12345,
+			}
+
+			err := sut.validateDNSKEY(dnskey, ds)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("keytag mismatch"))
+		})
+
 		It("should fail when digest mismatch", func() {
 			dnskey := &dns.DNSKEY{
 				Hdr: dns.RR_Header{
@@ -175,7 +190,7 @@ var _ = Describe("Chain of trust validation", func() {
 					Name:   "example.com.",
 					Rrtype: dns.TypeDS,
 				},
-				KeyTag:     12345,
+				KeyTag:     dnskey.KeyTag(),
 				Algorithm:  dns.RSASHA256,
 				DigestType: dns.SHA256,
 				Digest:     "wrongdigest",
@@ -192,6 +207,7 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 			ds := &dns.DS{
 				Algorithm:  dns.RSASHA256,
+				KeyTag:     dnskey.KeyTag(),
 				DigestType: 99, // Unsupported
 			}
 
@@ -305,6 +321,92 @@ var _ = Describe("Chain of trust validation", func() {
 
 			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{key}, []*dns.DS{}, "example.com.")
 			Expect(result).Should(BeFalse())
+		})
+	})
+
+	Describe("verifyDNSKEYRRset with multiple DS-matched keys", func() {
+		const zone = "example.com."
+
+		It("accepts an RRset signed only by the second DS-matched key", func() {
+			zsk, _, _ := newSignedZoneKey(zone)
+			zsk.Flags = 256 // ZSK that also has a DS at the parent (like ilva.dk)
+			ksk, kskPriv, _ := newSignedZoneKey(zone)
+
+			sig := signRRset([]dns.RR{zsk, ksk}, dns.TypeDNSKEY, ksk, kskPriv, zone)
+
+			keys, _ := sut.findAndValidateKSKs([]*dns.DNSKEY{zsk, ksk},
+				[]*dns.DS{zsk.ToDS(dns.SHA256), ksk.ToDS(dns.SHA256)}, zone)
+			Expect(keys).Should(HaveLen(2))
+
+			Expect(sut.verifyDNSKEYRRset([]dns.RR{zsk, ksk, sig}, keys, zone)).Should(Succeed())
+		})
+
+		It("rejects an RRset whose only RRSIG is from a key without a DS", func() {
+			dsKey, _, _ := newSignedZoneKey(zone)
+			other, otherPriv, _ := newSignedZoneKey(zone)
+
+			sig := signRRset([]dns.RR{dsKey, other}, dns.TypeDNSKEY, other, otherPriv, zone)
+
+			keys, _ := sut.findAndValidateKSKs([]*dns.DNSKEY{dsKey, other}, []*dns.DS{dsKey.ToDS(dns.SHA256)}, zone)
+			Expect(keys).Should(HaveLen(1))
+
+			err := sut.verifyDNSKEYRRset([]dns.RR{dsKey, other, sig}, keys, zone)
+			Expect(err).Should(MatchError(ContainSubstring("no RRSIG found")))
+		})
+
+		Describe("verification attempt cap (KeyTrap, CVE-2023-50387)", func() {
+			// buildZone returns n DS-matched keys with distinct key tags and an answer section in which
+			// every key has an RRSIG over the DNSKEY RRset. Only the RRSIG at index validIdx is genuine;
+			// the others are signed over a different RRset, so each costs a failed verification.
+			buildZone := func(n, validIdx int) ([]*dns.DNSKEY, []dns.RR) {
+				keys := make([]*dns.DNSKEY, 0, n)
+				privs := make([]*ecdsa.PrivateKey, 0, n)
+				tags := map[uint16]bool{}
+
+				for len(keys) < n {
+					key, priv, _ := newSignedZoneKey(zone)
+					// Skip tag collisions (one matching RRSIG per key) and tag 0, which RRSIG.Sign rejects
+					if key.KeyTag() == 0 || tags[key.KeyTag()] {
+						continue
+					}
+
+					tags[key.KeyTag()] = true
+					keys = append(keys, key)
+					privs = append(privs, priv)
+				}
+
+				rrset := make([]dns.RR, 0, n)
+				for _, key := range keys {
+					rrset = append(rrset, key)
+				}
+
+				answer := append([]dns.RR{}, rrset...)
+
+				for i, key := range keys {
+					signed := rrset
+					if i != validIdx {
+						signed = []dns.RR{key}
+					}
+
+					sig := signRRset(signed, dns.TypeDNSKEY, key, privs[i], zone)
+					answer = append(answer, sig)
+				}
+
+				return keys, answer
+			}
+
+			It("succeeds when the genuine signature is within the cap", func() {
+				keys, answer := buildZone(3, 2)
+
+				Expect(sut.verifyDNSKEYRRset(answer, keys, zone)).Should(Succeed())
+			})
+
+			It("bounds a zone with many DS-matched keys and no genuine signature", func() {
+				keys, answer := buildZone(100, -1)
+
+				err := sut.verifyDNSKEYRRset(answer, keys, zone)
+				Expect(err).Should(MatchError(ContainSubstring("giving up")))
+			})
 		})
 	})
 
