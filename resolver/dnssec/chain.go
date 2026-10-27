@@ -222,14 +222,17 @@ func (v *Validator) validateDomainLevel(
 		return ValidationResultIndeterminate, nil, true
 	}
 
-	if v.provesNoZoneCut(domain, parentKeys, dsResponse) {
+	// Every signature check on this reply draws from one budget (KeyTrap, CVE-2023-50387)
+	budget := maxZoneKeyVerifications
+
+	if v.provesNoZoneCut(domain, parentKeys, dsResponse, &budget) {
 		v.logger.Debugf("%s is part of its parent zone, not a zone cut", domain)
 
 		return ValidationResultSecure, parentKeys, false
 	}
 
 	// Extract and validate DS records (may be in answer or authority section)
-	dsRecords, result := v.extractAndValidateDSRecords(domain, parentKeys, dsResponse)
+	dsRecords, result := v.extractAndValidateDSRecords(domain, parentKeys, dsResponse, &budget)
 	if result != ValidationResultSecure {
 		return result, nil, true
 	}
@@ -272,21 +275,17 @@ func (v *Validator) validateDomainLevel(
 	return ValidationResultSecure, keysUntilSignatureExpiry(keys, sig), true
 }
 
-// maxNoZoneCutSignatures caps the RRSIGs that one DS reply can make provesNoZoneCut verify, like
-// the other caps against KeyTrap (CVE-2023-50387) in this package.
-const maxNoZoneCutSignatures = 8
-
 // provesNoZoneCut reports whether dsResponse, the reply to a DS query for domain, holds an NSEC or
 // NSEC3 RRset signed with parentKeys that shows domain is part of the parent zone and not a
-// delegation. Unbound continues its chain walk on the same proof.
-func (v *Validator) provesNoZoneCut(domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg) bool {
+// delegation. Unbound continues its chain walk on the same proof. Its signature checks spend
+// *budget, the verification budget of the reply.
+func (v *Validator) provesNoZoneCut(domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg, budget *int) bool {
 	if _, err := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns); err == nil {
 		return false
 	}
 
 	rrsets := groupRRsetsByNameAndType(dsResponse.Ns)
 	sigs := extractRRSIGs(dsResponse.Ns)
-	budget := maxNoZoneCutSignatures
 	tried := map[rrsetKey]bool{}
 
 	// Candidates are tried in reply order, so the outcome does not depend on map order.
@@ -304,11 +303,11 @@ func (v *Validator) provesNoZoneCut(domain string, parentKeys []*dns.DNSKEY, dsR
 			return int(sig.Labels) != rrsigLabelsForOwner(key.name)
 		})
 
-		if v.verifyWithZoneKeys(rrsets[key], candidates, parentKeys, &budget) == nil {
+		if v.verifyWithZoneKeys(rrsets[key], candidates, parentKeys, budget) == nil {
 			return true
 		}
 
-		if budget == 0 {
+		if *budget <= 0 {
 			return false
 		}
 	}
@@ -719,21 +718,21 @@ func (v *Validator) validateDSRecordSignature(
 }
 
 // extractAndValidateDSRecords extracts DS records from a response and validates their RRSIG
-// with the validated keys of the parent zone
+// with the validated keys of the parent zone. Its signature checks spend *budget, the verification
+// budget of dsResponse.
 // Per RFC 4035 §5.2: "The DS RRset MUST be signed by the parent zone's DNSKEY"
 func (v *Validator) extractAndValidateDSRecords(
-	domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg,
+	domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg, budget *int,
 ) ([]*dns.DS, ValidationResult) {
 	// Extract DS records (may be in answer or authority section)
 	dsRecords, err := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns)
 	if err != nil {
 		// No DS records found - check for authenticated denial of existence
-		return v.handleDSAbsence(domain, parentKeys, dsResponse)
+		return v.handleDSAbsence(domain, parentKeys, dsResponse, budget)
 	}
 
 	sigs := findMatchingRRSIGsForType(extractRRSIGs(slices.Concat(dsResponse.Answer, dsResponse.Ns)), dns.TypeDS)
-	budget := maxZoneKeyVerifications
-	if err := v.verifyWithZoneKeys(convertDSToRRset(dsRecords), sigs, parentKeys, &budget); err != nil {
+	if err := v.verifyWithZoneKeys(convertDSToRRset(dsRecords), sigs, parentKeys, budget); err != nil {
 		v.logger.Warnf("DS RRset for %s is not signed by its parent zone: %v", domain, err)
 
 		return nil, ValidationResultBogus
@@ -747,7 +746,7 @@ func (v *Validator) extractAndValidateDSRecords(
 // 1. Unsigned delegation (Insecure) - proven by NSEC/NSEC3 signed by the parent zone
 // 2. Missing proof (Indeterminate) - no DS and no NSEC/NSEC3
 func (v *Validator) handleDSAbsence(
-	domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg,
+	domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg, budget *int,
 ) ([]*dns.DS, ValidationResult) {
 	// Check for NSEC/NSEC3 records proving DS doesn't exist
 	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
@@ -761,7 +760,7 @@ func (v *Validator) handleDSAbsence(
 	}
 
 	// A denial proves nothing unless the parent zone signed it
-	if err := v.verifyDenialSignatures(dsResponse.Ns, parentKeys); err != nil {
+	if err := v.verifyDenialSignatures(dsResponse.Ns, parentKeys, budget); err != nil {
 		v.logger.Warnf("NSEC/NSEC3 proof of DS absence for %s is not signed by its parent zone: %v", domain, err)
 
 		return nil, ValidationResultBogus
@@ -784,17 +783,17 @@ func (v *Validator) handleDSAbsence(
 }
 
 // verifyDenialSignatures checks that every NSEC and NSEC3 RRset in rrs is signed by one of keys.
-// The RRsets share one verification budget, so more RRsets in a reply buy no more verifications.
-func (v *Validator) verifyDenialSignatures(rrs []dns.RR, keys []*dns.DNSKEY) error {
+// All checks spend *budget, the verification budget of the reply, so more RRsets in a reply buy no
+// more verifications.
+func (v *Validator) verifyDenialSignatures(rrs []dns.RR, keys []*dns.DNSKEY, budget *int) error {
 	sigs := extractRRSIGs(rrs)
-	budget := maxZoneKeyVerifications
 
 	for key, rrset := range groupRRsetsByNameAndType(rrs) {
 		if key.rrType != dns.TypeNSEC && key.rrType != dns.TypeNSEC3 {
 			continue
 		}
 
-		err := v.verifyWithZoneKeys(rrset, findMatchingRRSIGs(sigs, key.name, key.rrType), keys, &budget)
+		err := v.verifyWithZoneKeys(rrset, findMatchingRRSIGs(sigs, key.name, key.rrType), keys, budget)
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", key.name, dns.TypeToString[key.rrType], err)
 		}

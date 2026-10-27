@@ -21,10 +21,12 @@ var _ = Describe("Chain of trust validation", func() {
 		trustStore   *TrustAnchorStore
 		mockUpstream *mockResolver
 		ctx          context.Context
+		budget       int
 	)
 
 	BeforeEach(func(specCtx SpecContext) {
 		ctx = specCtx
+		budget = maxZoneKeyVerifications
 
 		var err error
 		trustStore, err = NewTrustAnchorStore(nil)
@@ -887,7 +889,7 @@ var _ = Describe("Chain of trust validation", func() {
 			}, ValidationResultBogus),
 		)
 
-		It("verifies at most maxNoZoneCutSignatures signatures from one DS reply", func() {
+		It("verifies at most maxZoneKeyVerifications signatures from one DS reply", func() {
 			otherKey, otherPriv, _ := newSignedZoneKey("jp.")
 			genuine := c.answers["DS co.jp."].Ns
 
@@ -911,14 +913,54 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 
 			for n, expected := range map[int]ValidationResult{
-				maxNoZoneCutSignatures - 1: ValidationResultSecure,
-				maxNoZoneCutSignatures:     ValidationResultBogus,
+				maxZoneKeyVerifications - 1: ValidationResultSecure,
+				maxZoneKeyVerifications:     ValidationResultBogus,
 			} {
 				c.answers["DS co.jp."] = &dns.Msg{Ns: append(forged(n), genuine...)}
 				v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
 
 				result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
 				Expect(result).Should(Equal(expected), "%d forged proofs before the genuine one", n)
+			}
+		})
+
+		It("spends one budget on the zone cut proof and the DS denial of a reply", func() {
+			// forged returns an NSEC that points below co.jp. with two RRSIGs: one over its literal owner
+			// that fails, which provesNoZoneCut checks, and one over *.jp. that verifies, which only the
+			// DS denial check accepts.
+			forged := func(i int) []dns.RR {
+				nsec := &dns.NSEC{
+					Hdr:        dns.RR_Header{Name: "*.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+					NextDomain: "x.co.jp.",
+					TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+				}
+				wildcardSig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, c.jpKey, c.jpPriv, "jp.")
+				nsec.Hdr.Name = fmt.Sprintf("a%d.jp.", i)
+				wildcardSig.Hdr.Name = nsec.Hdr.Name
+				literalSig := *wildcardSig
+				literalSig.Labels = 2
+
+				return []dns.RR{nsec, &literalSig, wildcardSig}
+			}
+			c.proveCoJP(&dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "co.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "jprs.co.jp.",
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC}, // an insecure delegation
+			}, c.jpKey, c.jpPriv)
+			genuine := c.answers["DS co.jp."].Ns
+
+			// n forged NSECs cost n verifications in provesNoZoneCut and 2n+1 in the DS denial check.
+			for n, expected := range map[int]ValidationResult{2: ValidationResultInsecure, 3: ValidationResultBogus} {
+				var ns []dns.RR
+				for i := range n {
+					ns = append(ns, forged(i)...)
+				}
+
+				c.answers["DS co.jp."] = &dns.Msg{Ns: append(ns, genuine...)}
+				v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+				result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+				Expect(result).Should(Equal(expected), "%d forged NSECs", n)
 			}
 		})
 
@@ -951,8 +993,8 @@ var _ = Describe("Chain of trust validation", func() {
 			nsec.Hdr.Name, sig.Hdr.Name = "co.jp.", "co.jp."
 
 			jpKeys := []*dns.DNSKEY{c.jpKey}
-			Expect(sut.provesNoZoneCut("co.jp.", jpKeys, &dns.Msg{Ns: []dns.RR{nsec, sig}})).Should(BeFalse())
-			Expect(sut.provesNoZoneCut("co.jp.", jpKeys, c.answers["DS co.jp."])).Should(BeTrue(),
+			Expect(sut.provesNoZoneCut("co.jp.", jpKeys, &dns.Msg{Ns: []dns.RR{nsec, sig}}, &budget)).Should(BeFalse())
+			Expect(sut.provesNoZoneCut("co.jp.", jpKeys, c.answers["DS co.jp."], &budget)).Should(BeTrue(),
 				"the genuine co.jp. proof is still accepted")
 		})
 
@@ -1261,7 +1303,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
 			// Result will be Insecure or Bogus depending on NSEC validation
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
@@ -1283,7 +1325,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec3},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
@@ -1293,7 +1335,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
@@ -1320,8 +1362,10 @@ var _ = Describe("Chain of trust validation", func() {
 				return rrs
 			}
 
-			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications), keys)).Should(Succeed())
-			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications+1), keys)).
+			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications), keys, &budget)).Should(Succeed())
+
+			budget = maxZoneKeyVerifications
+			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications+1), keys, &budget)).
 				Should(MatchError(ContainSubstring("no signature verifications left")))
 		})
 	})
@@ -1437,7 +1481,7 @@ var _ = Describe("Chain of trust validation", func() {
 				// No RRSIG - should be Bogus
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
@@ -1557,7 +1601,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{ds}, // DS in authority section instead of answer
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			// Will fail because no RRSIG
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
@@ -1613,7 +1657,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
 			// Result depends on NSEC validation
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
@@ -1663,7 +1707,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Answer: []dns.RR{ds, rrsig},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentDnskey}, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentDnskey}, response, &budget)
 			// Will fail crypto validation but tests the code path
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultIndeterminate))
@@ -1694,7 +1738,7 @@ var _ = Describe("Chain of trust validation", func() {
 				Ns: []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})

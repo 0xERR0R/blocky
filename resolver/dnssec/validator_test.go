@@ -263,10 +263,12 @@ var _ = Describe("DNSSECValidator", func() {
 		mockUpstream *mockResolver
 		logger       *logrus.Entry
 		ctx          context.Context
+		budget       int
 	)
 
 	BeforeEach(func(specCtx SpecContext) {
 		ctx = specCtx
+		budget = maxZoneKeyVerifications
 
 		// Create trust anchor store with default root anchors
 		var err error
@@ -2613,7 +2615,7 @@ var _ = Describe("DNSSECValidator", func() {
 				Ns:     []dns.RR{nsec, signRRset([]dns.RR{nsec}, dns.TypeNSEC, parentKey, parentPriv, "com.")},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentKey}, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentKey}, response, &budget)
 
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultInsecure))
@@ -2633,7 +2635,7 @@ var _ = Describe("DNSSECValidator", func() {
 				{nsec, signRRset([]dns.RR{nsec}, dns.TypeNSEC, otherKey, otherPriv, "com.")},
 			} {
 				dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentKey},
-					&dns.Msg{Ns: ns})
+					&dns.Msg{Ns: ns}, &budget)
 
 				Expect(dsRecords).Should(BeNil())
 				Expect(result).Should(Equal(ValidationResultBogus))
@@ -2667,7 +2669,7 @@ var _ = Describe("DNSSECValidator", func() {
 				Ns:     []dns.RR{nsec3, signRRset([]dns.RR{nsec3}, dns.TypeNSEC3, parentKey, parentPriv, "com.")},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentKey}, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", []*dns.DNSKEY{parentKey}, response, &budget)
 
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultInsecure))
@@ -2691,7 +2693,7 @@ var _ = Describe("DNSSECValidator", func() {
 				Ns:     []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultBogus))
@@ -2715,7 +2717,7 @@ var _ = Describe("DNSSECValidator", func() {
 				Ns:     []dns.RR{nsec},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultBogus))
@@ -2727,7 +2729,7 @@ var _ = Describe("DNSSECValidator", func() {
 				Ns:     []dns.RR{}, // No NSEC/NSEC3 proof
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
@@ -2757,7 +2759,7 @@ var _ = Describe("DNSSECValidator", func() {
 				Ns:     []dns.RR{nsec3},
 			}
 
-			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response)
+			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 
 			Expect(dsRecords).Should(BeNil())
 			Expect(result).Should(Equal(ValidationResultBogus))
