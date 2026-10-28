@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 )
@@ -19,11 +20,15 @@ func NewHealthcheckCommand() *cobra.Command {
 		Use:   "healthcheck",
 		Short: "performs healthcheck",
 		// Load the configuration like every other subcommand, so the defaults below can
-		// follow `ports.dns`. A missing or unreadable config must not break the
-		// healthcheck: it then keeps working with the flag defaults, exactly as before.
+		// follow `ports.dns`. A missing or unusable config must not break the
+		// healthcheck: it then keeps working with the flag defaults, exactly as before,
+		// and logs why it can't use the config.
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			_ = args
-			_ = initConfig()
+
+			if err := initConfig(); err != nil {
+				log.Log().Warnf("using the flag defaults: %v", err)
+			}
 
 			return nil
 		},

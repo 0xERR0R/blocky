@@ -213,7 +213,13 @@ func (r *CustomDNSResolver) processDNSEntry(
 		return r.processCNAME(ctx, logger, request, *v, resolvedCnames, question, v.Header().Ttl)
 	}
 
-	return nil, fmt.Errorf("unsupported customDNS RR type %T", entry)
+	// A zone can legitimately contain record types blocky does not serve (SOA, NS,
+	// MX, HTTPS, RRSIG, ...). They are simply not answered here: failing the whole
+	// query would also break the supported records defined for the same name.
+	logger.WithField("rr_type", fmt.Sprintf("%T", entry)).
+		Debug("ignoring custom DNS entry with unsupported type")
+
+	return nil, nil
 }
 
 // Resolve uses internal mapping to resolve the query
