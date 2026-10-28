@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"bytes"
-	"maps"
 	"net"
 	"strconv"
 	"strings"
@@ -174,23 +173,3 @@ var _ = Describe("Serve command logging to syslog", func() {
 		Entry("as the serve command", []string{newServeCommand().Name()}),
 	)
 })
-
-// keepGlobals sets the global logger and the command settings back as they are now once
-// the spec ends
-func keepGlobals() {
-	logger := log.Log()
-	level, formatter, out, hooks := logger.GetLevel(), logger.Formatter, logger.Out, maps.Clone(logger.Hooks)
-	path, host, port, dHost, dPort := configPath, apiHost, apiPort, dnsHost, dnsPort
-
-	DeferCleanup(func() {
-		// closes a syslog output the spec left
-		log.Configure(log.DefaultConfig())
-
-		logger.SetLevel(level)
-		logger.SetFormatter(formatter)
-		logger.SetOutput(out)
-		logger.ReplaceHooks(hooks)
-
-		configPath, apiHost, apiPort, dnsHost, dnsPort = path, host, port, dHost, dPort
-	})
-}
