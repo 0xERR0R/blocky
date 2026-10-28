@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 )
 
 var _ = Describe("Validate command", func() {
@@ -32,6 +35,34 @@ var _ = Describe("Validate command", func() {
 			c.SetArgs([]string{"validate", "--config", cfgFile.Path})
 
 			Expect(c.Execute()).Should(Succeed())
+		})
+	})
+
+	When("Validate is called with a configuration file that only logs errors", func() {
+		It("should still report the configuration's warnings", func() {
+			keepGlobals()
+			hook := test.NewLocal(log.Log())
+
+			cfgFile := tmpDir.CreateStringFile("config.yaml",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - 1.1.1.1",
+				"caching:",
+				"  minTime: 5",
+				"log:",
+				"  level: error")
+
+			c := NewRootCommand()
+			c.SetArgs([]string{"validate", "--config", cfgFile.Path})
+
+			Expect(c.Execute()).Should(Succeed())
+
+			Expect(hook.AllEntries()).Should(ContainElement(SatisfyAll(
+				HaveField("Level", logrus.WarnLevel),
+				HaveField("Message", ContainSubstring("duration without a unit")),
+			)))
+			Expect(hook.LastEntry().Message).Should(Equal("Configuration is valid"))
 		})
 	})
 
