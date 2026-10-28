@@ -356,9 +356,10 @@ func (r *httpUpstreamClient) callExternal(
 	}
 
 	defer func() {
-		// Drain body before closing to allow connection reuse
+		// Drain body before closing to allow connection reuse, but no further than a DNS
+		// message could be: a larger body is not worth reading to keep the connection
 		// See: https://pkg.go.dev/net/http#Response.Body
-		_, _ = io.Copy(io.Discard, httpResponse.Body)
+		_, _ = io.CopyN(io.Discard, httpResponse.Body, dns.MaxMsgSize)
 		util.LogOnError(ctx, "can't close response body ", httpResponse.Body.Close())
 	}()
 
@@ -372,9 +373,15 @@ func (r *httpUpstreamClient) callExternal(
 			dnsContentType, contentType)
 	}
 
-	body, err := io.ReadAll(httpResponse.Body)
+	// A DNS message is at most dns.MaxMsgSize bytes; read one more to detect a larger body
+	// instead of buffering whatever the upstream sends
+	body, err := io.ReadAll(io.LimitReader(httpResponse.Body, dns.MaxMsgSize+1))
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't read response body:  %w", err)
+	}
+
+	if len(body) > dns.MaxMsgSize {
+		return nil, 0, fmt.Errorf("response body is larger than %d bytes", dns.MaxMsgSize)
 	}
 
 	response := dns.Msg{}

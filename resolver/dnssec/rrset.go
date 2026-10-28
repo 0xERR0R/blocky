@@ -3,8 +3,8 @@ package dnssec
 // This file contains RRset and RRSIG signature validation logic per RFC 4035.
 
 import (
-	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,41 +31,45 @@ const (
 	bitsPerByte          = 8          // Number of bits in a byte
 )
 
-// queryAndMatchDNSKEY queries for DNSKEY records and finds the one matching the key tag
-func (v *Validator) queryAndMatchDNSKEY(
-	ctx context.Context, signerName string, keyTag uint16, algorithm uint8,
-) (context.Context, *dns.DNSKEY, error) {
-	// Query for DNSKEY records
-	ctx, keys, err := v.queryDNSKEY(ctx, signerName)
-	if err != nil {
-		// queryDNSKEY tags a transient sub-query failure (unreachable upstream) with
-		// errDNSKEYUnavailable so it propagates as Indeterminate, not Bogus (issue #2120);
-		// a response that arrives but carries no DNSKEY is left untagged and stays a genuine
-		// failure (Bogus). %w preserves either classification for the errors.Is checks above.
-		return ctx, nil, fmt.Errorf("failed to query DNSKEY: %w", err)
-	}
+// maxZoneKeyVerifications is the verification budget of verifyWithZoneKeys for one RRset, or for
+// all RRsets of one reply (KeyTrap, CVE-2023-50387).
+const maxZoneKeyVerifications = 8
 
-	// Find the key that matches the RRSIG's key tag AND algorithm
-	v.logger.Debugf("Looking for DNSKEY with key tag %d and algorithm %d for signer %s", keyTag, algorithm, signerName)
-	matchingKey := findMatchingDNSKEY(keys, keyTag, algorithm)
-	if matchingKey == nil {
-		v.logger.Debugf("Available DNSKEYs: %d keys", len(keys))
-		for i, key := range keys {
-			v.logger.Debugf("  DNSKEY[%d]: flags=%d, protocol=%d, algorithm=%d, keytag=%d",
-				i, key.Flags, key.Protocol, key.Algorithm, key.KeyTag())
+var errRRSIGVerificationFailed = errors.New("signature verification failed")
+
+// verifyWithZoneKeys verifies rrset with one of sigs made by a key in keys, the validated DNSKEY
+// RRset of the signer zone. Key tags are not unique, so a signature is tried with every key that
+// has its key tag and algorithm (RFC 4035 §5.3.1). Each verification spends one of *budget, and
+// verifyWithZoneKeys fails once none is left (KeyTrap, CVE-2023-50387).
+func (v *Validator) verifyWithZoneKeys(rrset []dns.RR, sigs []*dns.RRSIG, keys []*dns.DNSKEY, budget *int) error {
+	var errs []error
+
+	for _, sig := range sigs {
+		for _, key := range keys {
+			if !keyMatches(key, sig.KeyTag, sig.Algorithm) {
+				continue
+			}
+
+			if *budget <= 0 {
+				return errors.Join(append(errs, errors.New("no signature verifications left"))...)
+			}
+
+			*budget--
+
+			err := v.verifyRRSIG(rrset, sig, key, nil, "")
+			if err == nil {
+				return nil
+			}
+
+			errs = append(errs, err)
 		}
-
-		return ctx, nil, fmt.Errorf("no DNSKEY with key tag %d and algorithm %d found", keyTag, algorithm)
 	}
 
-	pkeyPrefix := matchingKey.PublicKey
-	if len(pkeyPrefix) > publicKeyPrefixLen {
-		pkeyPrefix = pkeyPrefix[:publicKeyPrefixLen]
+	if errs == nil {
+		return errors.New("no RRSIG made by a validated key")
 	}
-	v.logger.Debugf("Found DNSKEY: flags=%d, protocol=%d, algorithm=%d, keytag=%d, pubkey_prefix=%s...",
-		matchingKey.Flags, matchingKey.Protocol, matchingKey.Algorithm, matchingKey.KeyTag(), pkeyPrefix)
 
-	return ctx, matchingKey, nil
+	return errors.Join(errs...)
 }
 
 // getAlgorithmStrength returns a strength score for a DNSSEC algorithm
@@ -153,9 +157,7 @@ func findMatchingRRSIGs(sigs []*dns.RRSIG, ownerName string, rrType uint16) []*d
 }
 
 // findMatchingRRSIGsForType finds all RRSIGs that cover the given RRset type
-// Note: This function only matches by type, not owner name. Use findMatchingRRSIGs instead.
-//
-//nolint:unparam // rrType is always TypeA in tests, but function is kept for testing flexibility
+// Note: This function only matches by type, not owner name; signature verification checks it.
 func findMatchingRRSIGsForType(sigs []*dns.RRSIG, rrType uint16) []*dns.RRSIG {
 	var matchingRRSIGs []*dns.RRSIG
 	for _, sig := range sigs {
@@ -174,19 +176,24 @@ func validateSignerName(signerName, rrsetName string) bool {
 }
 
 // findMatchingDNSKEY finds the DNSKEY that matches the given key tag
-// RFC 4034 §2.1.2: Protocol field MUST be 3
 func findMatchingDNSKEY(keys []*dns.DNSKEY, keyTag uint16, algorithm uint8) *dns.DNSKEY {
 	for _, key := range keys {
-		// RFC 4034 §2.1.2: The Protocol Field MUST have value 3
-		if key.Protocol != dnskeyProtocolValue {
-			continue
-		}
-		if key.KeyTag() == keyTag && key.Algorithm == algorithm {
+		if keyMatches(key, keyTag, algorithm) {
 			return key
 		}
 	}
 
 	return nil
+}
+
+// keyMatches reports whether key has the given key tag and algorithm and may verify signatures
+// RFC 4034 §2.1.2: Protocol field MUST be 3
+func keyMatches(key *dns.DNSKEY, keyTag uint16, algorithm uint8) bool {
+	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
+
+	// RFC 5011 §7: a revoked key only verifies the self-signature of its DNSKEY RRset
+	return key.Protocol == dnskeyProtocolValue && key.Flags&REVOKE == 0 &&
+		key.KeyTag() == keyTag && key.Algorithm == algorithm
 }
 
 // hasUnsupportedRSAExponent checks if an RSA DNSKEY has an exponent that exceeds Go crypto's limits
@@ -334,8 +341,6 @@ func (v *Validator) verifyRRSIG(
 	}
 
 	// Use miekg/dns to verify the signature (expensive crypto operation)
-	// By using the same 'now' timestamp captured above, we avoid TOCTOU issues
-	// even if this verification takes significant time
 	if err := rrsig.Verify(key, rrset); err != nil {
 		// Debug: log RRset details on failure
 		v.logger.Debugf("Signature verification failed for RRset with %d records:", len(rrset))
@@ -344,7 +349,7 @@ func (v *Validator) verifyRRSIG(
 		}
 		v.logger.Debugf("  RRSIG: %s", rrsig.String())
 
-		return fmt.Errorf("signature verification failed: %w", err)
+		return fmt.Errorf("%w: %w", errRRSIGVerificationFailed, err)
 	}
 
 	return nil
