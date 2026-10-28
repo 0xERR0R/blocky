@@ -2,8 +2,6 @@ package stringcache
 
 import (
 	"regexp"
-	"slices"
-	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -24,12 +22,6 @@ type cacheFactory interface {
 	count() int
 }
 
-type stringMap map[int]string
-
-func normalizeEntry(entry string) string {
-	return strings.ToLower(entry)
-}
-
 // logMatch runs on every hit, so it skips the logrus entry and argument
 // allocations unless debug logging is on.
 func logMatch(prefix, kind, rule, searchString string) {
@@ -38,108 +30,69 @@ func logMatch(prefix, kind, rule, searchString string) {
 	}
 }
 
-func (cache stringMap) elementCount() int {
-	count := 0
-
-	for k, v := range cache {
-		count += len(v) / k
-	}
-
-	return count
+// hashCache matches exact, case-insensitive strings. It stores only their
+// hashes; the matched rule is the lowercased search string.
+type hashCache struct {
+	seed uint64
+	set  hashSet
 }
 
-func (cache stringMap) findMatch(searchString string) (string, bool) {
-	normalized := normalizeEntry(searchString)
-	searchLen := len(normalized)
+func (c hashCache) elementCount() int {
+	return c.set.len()
+}
 
-	if searchLen == 0 {
+func (c hashCache) findMatch(searchString string) (string, bool) {
+	if searchString == "" || !c.set.contains(hashFold(c.seed, searchString)) {
 		return "", false
 	}
 
-	bucket := cache[searchLen]
-	searchBucketLen := len(bucket) / searchLen
-	idx := sort.Search(searchBucketLen, func(i int) bool {
-		return bucket[i*searchLen:i*searchLen+searchLen] >= normalized
-	})
+	rule := strings.ToLower(searchString)
+	logMatch("string_map", "block rule", rule, searchString)
 
-	if idx < searchBucketLen {
-		blockRule := bucket[idx*searchLen : idx*searchLen+searchLen]
-		if blockRule == normalized {
-			logMatch("string_map", "block rule", blockRule, searchString)
-
-			return blockRule, true
-		}
-	}
-
-	return "", false
+	return rule, true
 }
 
 type stringCacheFactory struct {
-	// temporary map which holds slices of entries grouped by string length.
-	// Entries are appended as they arrive; each bucket is sorted and
-	// deduplicated once, when the cache is created.
-	tmp map[int][]string
-	cnt int
+	entries  hashedEntries
+	accepted int
 }
 
 func newStringCacheFactory() cacheFactory {
-	return &stringCacheFactory{
-		tmp: make(map[int][]string),
-	}
+	return &stringCacheFactory{entries: newHashedEntries()}
 }
 
-func (s *stringCacheFactory) count() int {
-	return s.cnt
+// count returns the number of accepted entries, including duplicates.
+func (f *stringCacheFactory) count() int {
+	return f.accepted
 }
 
-func (s *stringCacheFactory) insertString(entry string) {
-	normalized := normalizeEntry(entry)
-	entryLen := len(normalized)
-
-	// Append and defer sorting/deduplication to create(): inserting in sorted
-	// order here would shift the whole bucket on every entry, making cache
-	// construction O(n^2) for a list of n entries.
-	s.tmp[entryLen] = append(s.tmp[entryLen], normalized)
-}
-
-func (s *stringCacheFactory) addEntry(entry string) bool {
+func (f *stringCacheFactory) addEntry(entry string) bool {
 	if len(entry) == 0 {
 		return true // invalid but handled
 	}
 
-	s.cnt++
-	s.insertString(entry)
+	f.entries.add(hashFold(f.entries.seed, entry))
+	f.accepted++
 
 	return true
 }
 
-func (s *stringCacheFactory) create() stringCache {
-	if len(s.tmp) == 0 {
+func (f *stringCacheFactory) create() stringCache {
+	if f.accepted == 0 {
 		return nil
 	}
 
-	cache := make(stringMap, len(s.tmp))
-
-	for k, v := range s.tmp {
-		// contains() binary-searches the concatenated bucket, so it must be
-		// sorted; duplicates are dropped to keep elementCount() and memory use
-		// equivalent to inserting one entry at a time.
-		slices.Sort(v)
-		v = slices.Compact(v)
-		cache[k] = strings.Join(v, "")
-	}
-
-	return cache
+	return hashCache{seed: f.entries.seed, set: f.entries.build()}
 }
 
 type regexCache []*regexp.Regexp
 
-func (cache regexCache) elementCount() int {
-	return len(cache)
+func (c regexCache) elementCount() int {
+	return len(c)
 }
 
-func (cache regexCache) findMatch(searchString string) (string, bool) {
-	for _, regex := range cache {
+func (c regexCache) findMatch(searchString string) (string, bool) {
+	for _, regex := range c {
 		if regex.MatchString(searchString) {
 			logMatch("regex_cache", "regex", regex.String(), searchString)
 
@@ -156,7 +109,7 @@ type regexCacheFactory struct {
 	cache regexCache
 }
 
-func (r *regexCacheFactory) addEntry(entry string) bool {
+func (f *regexCacheFactory) addEntry(entry string) bool {
 	// A regex entry is delimited by a leading and a trailing slash (/regex/), so
 	// it needs at least those two characters. Without the length guard a lone
 	// "/" satisfies both HasPrefix and HasSuffix and then panics below, where the
@@ -175,21 +128,21 @@ func (r *regexCacheFactory) addEntry(entry string) bool {
 		return true // invalid but handled
 	}
 
-	r.cache = append(r.cache, compile)
+	f.cache = append(f.cache, compile)
 
 	return true
 }
 
-func (r *regexCacheFactory) count() int {
-	return len(r.cache)
+func (f *regexCacheFactory) count() int {
+	return len(f.cache)
 }
 
-func (r *regexCacheFactory) create() stringCache {
-	if len(r.cache) == 0 {
+func (f *regexCacheFactory) create() stringCache {
+	if len(f.cache) == 0 {
 		return nil
 	}
 
-	return r.cache
+	return f.cache
 }
 
 func newRegexCacheFactory() cacheFactory {
