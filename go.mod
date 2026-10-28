@@ -9,7 +9,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/breml/rootcerts v0.3.7
+	github.com/breml/rootcerts v0.3.8
 	github.com/creasty/defaults v1.11.0
 	github.com/dnstap/golang-dnstap v0.4.0
 	github.com/glebarez/sqlite v1.11.0
@@ -25,7 +25,7 @@ require (
 	github.com/mattn/go-colorable v0.1.16
 	github.com/miekg/dns v1.1.73
 	github.com/moby/moby/api v1.56.1
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/oapi-codegen/runtime v1.8.0
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/pires/go-proxyproto v0.16.0

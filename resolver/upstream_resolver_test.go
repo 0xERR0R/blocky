@@ -543,6 +543,20 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					ContainSubstring("http return content type should be 'application/dns-message', but was 'text'"))
 			})
 		})
+		When("Configured DoH resolver returns a body larger than a DNS message", func() {
+			BeforeEach(func() {
+				modifyHTTPRespFn = func(w http.ResponseWriter) {
+					_, err := w.Write(make([]byte, dns.MaxMsgSize+1))
+					Expect(err).Should(Succeed())
+				}
+			})
+			It("should return error", func() {
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring(
+					fmt.Sprintf("response body is larger than %d bytes", dns.MaxMsgSize)))
+			})
+		})
 		When("Configured DoH resolver closes the connection mid-body", func() {
 			BeforeEach(func() {
 				modifyHTTPRespFn = func(w http.ResponseWriter) {
