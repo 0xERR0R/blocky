@@ -75,6 +75,8 @@ conditional:
   mapping:
     fritz.box: 192.168.178.1
     lan.net: 192.168.178.1,192.168.178.2
+    # forward an entire TLD (e.g. all *.xyz) to a specific resolver
+    # xyz: 1.1.1.1
 
 # optional: use allow/denylists to block queries (for example ads, trackers, adult pages etc.)
 blocking:
