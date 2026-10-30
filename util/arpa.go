@@ -18,12 +18,14 @@ const (
 
 var ErrInvalidArpaAddrLen = errors.New("arpa hostname is not of expected length")
 
+// ParseIPFromArpaAddr parses the IP address out of an in-addr.arpa. or ip6.arpa. name.
+// DNS names are case insensitive, so the arpa domain is matched regardless of case.
 func ParseIPFromArpaAddr(arpa string) (net.IP, error) {
-	if strings.HasSuffix(arpa, IPv4PtrSuffix) {
+	if hasSuffixFold(arpa, IPv4PtrSuffix) {
 		return parseIPv4FromArpaAddr(arpa)
 	}
 
-	if strings.HasSuffix(arpa, IPv6PtrSuffix) {
+	if hasSuffixFold(arpa, IPv6PtrSuffix) {
 		return parseIPv6FromArpaAddr(arpa)
 	}
 
@@ -33,7 +35,7 @@ func ParseIPFromArpaAddr(arpa string) (net.IP, error) {
 func parseIPv4FromArpaAddr(arpa string) (net.IP, error) {
 	const base10 = 10
 
-	revAddr := strings.TrimSuffix(arpa, IPv4PtrSuffix)
+	revAddr := arpa[:len(arpa)-len(IPv4PtrSuffix)]
 
 	parts := strings.Split(revAddr, ".")
 	if len(parts) != net.IPv4len {
@@ -61,7 +63,7 @@ func parseIPv6FromArpaAddr(arpa string) (net.IP, error) {
 		nibbleBits = byteBits / 2
 	)
 
-	revAddr := strings.TrimSuffix(arpa, IPv6PtrSuffix)
+	revAddr := arpa[:len(arpa)-len(IPv6PtrSuffix)]
 
 	parts := strings.Split(revAddr, ".")
 	if len(parts) != ipv6Bytes {
@@ -107,4 +109,9 @@ func parseArpaNibble(part, arpa string) (uint64, error) {
 	}
 
 	return nibble, nil
+}
+
+// hasSuffixFold reports whether s ends with suffix, ignoring ASCII case.
+func hasSuffixFold(s, suffix string) bool {
+	return len(s) >= len(suffix) && strings.EqualFold(s[len(s)-len(suffix):], suffix)
 }
