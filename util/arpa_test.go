@@ -2,6 +2,8 @@ package util
 
 import (
 	"net"
+	"slices"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -11,6 +13,12 @@ var _ = Describe("ParseIPFromArpaAddr", func() {
 	Describe("IPv4", func() {
 		It("parses an IP correctly", func() {
 			ip, err := ParseIPFromArpaAddr("4.3.2.1.in-addr.arpa.")
+			Expect(err).Should(Succeed())
+			Expect(ip).Should(Equal(net.ParseIP("1.2.3.4")))
+		})
+
+		It("matches the arpa domain case insensitively", func() {
+			ip, err := ParseIPFromArpaAddr("4.3.2.1.IN-ADDR.ARPA.")
 			Expect(err).Should(Succeed())
 			Expect(ip).Should(Equal(net.ParseIP("1.2.3.4")))
 		})
@@ -58,6 +66,12 @@ var _ = Describe("ParseIPFromArpaAddr", func() {
 			Expect(ip).Should(Equal(net.ParseIP("2002:7f00:1::1")))
 		})
 
+		It("matches the arpa domain and hex digits case insensitively", func() {
+			ip, err := ParseIPFromArpaAddr("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.F.7.2.0.0.2.IP6.ARPA.")
+			Expect(err).Should(Succeed())
+			Expect(ip).Should(Equal(net.ParseIP("2002:7f00:1::1")))
+		})
+
 		It("requires the arpa domain", func() {
 			_, err := ParseIPFromArpaAddr("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.f.7.2.0.0.2.ip6.arpa.fail.")
 			Expect(err).Should(HaveOccurred())
@@ -77,6 +91,20 @@ var _ = Describe("ParseIPFromArpaAddr", func() {
 		It("requires all MSB parts to be hex numbers", func() {
 			_, err := ParseIPFromArpaAddr("1.g.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.f.7.2.0.0.2.ip6.arpa.")
 			Expect(err).Should(HaveOccurred())
+		})
+
+		It("requires every part to be a single hex digit", func() {
+			const nibbles = 2 * net.IPv6len
+
+			for _, bad := range []string{"10", "f1", "01", "ff"} {
+				for pos := range nibbles {
+					parts := slices.Repeat([]string{"0"}, nibbles)
+					parts[pos] = bad
+
+					_, err := ParseIPFromArpaAddr(strings.Join(parts, ".") + IPv6PtrSuffix)
+					Expect(err).Should(HaveOccurred(), "%s at %d", bad, pos)
+				}
+			}
 		})
 
 		It("requires all parts to be present", func() {

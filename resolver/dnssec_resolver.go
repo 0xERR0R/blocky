@@ -8,6 +8,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/resolver/dnssec"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,6 +23,9 @@ type DNSSECResolver struct {
 	typed
 
 	validator *dnssec.Validator
+	// upstreams picks the upstream group of a client when there are several; validation
+	// results are cached per group
+	upstreams *UpstreamTreeResolver
 }
 
 // NewDNSSECResolver creates a new DNSSEC resolver instance
@@ -31,6 +35,9 @@ func NewDNSSECResolver(ctx context.Context, cfg config.DNSSEC, upstream Resolver
 		configurable: withConfig(&cfg),
 		typed:        withType("dnssec"),
 	}
+	// NewUpstreamTreeResolver returns the group resolver itself when only one group exists, so
+	// any other upstream means a single view
+	r.upstreams, _ = upstream.(*UpstreamTreeResolver)
 
 	// Only initialize validator if DNSSEC is enabled
 	if cfg.IsEnabled() {
@@ -119,7 +126,8 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 
 		// Preserve the originating client's identity so DS/DNSKEY sub-queries issued
 		// during validation resolve from the same upstream view as the answer.
-		validationCtx := dnssec.WithClientContext(ctx, request.ClientIP, request.ClientNames, request.RequestClientID)
+		validationCtx := dnssec.WithClientContext(ctx, request.ClientIP, request.ClientNames,
+			request.RequestClientID, r.upstreamGroup(logger, request))
 		result := r.validator.ValidateResponse(validationCtx, response.Res, request.Req.Question[0])
 
 		logger.Debugf("DNSSEC validation result for %s: %s",
@@ -149,6 +157,15 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 	}
 
 	return response, nil
+}
+
+// upstreamGroup returns the upstream group that answers the DNSSEC sub-queries of a request
+func (r *DNSSECResolver) upstreamGroup(logger *logrus.Entry, request *model.Request) string {
+	if r.upstreams == nil {
+		return ""
+	}
+
+	return r.upstreams.upstreamGroupByClient(logger, request)
 }
 
 // createServFailResponseDNSSEC creates a SERVFAIL response for a DNSSEC validation failure.

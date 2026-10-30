@@ -18,12 +18,14 @@ const (
 
 var ErrInvalidArpaAddrLen = errors.New("arpa hostname is not of expected length")
 
+// ParseIPFromArpaAddr parses the IP address out of an in-addr.arpa. or ip6.arpa. name.
+// DNS names are case insensitive, so the arpa domain is matched regardless of case.
 func ParseIPFromArpaAddr(arpa string) (net.IP, error) {
-	if strings.HasSuffix(arpa, IPv4PtrSuffix) {
+	if hasSuffixFold(arpa, IPv4PtrSuffix) {
 		return parseIPv4FromArpaAddr(arpa)
 	}
 
-	if strings.HasSuffix(arpa, IPv6PtrSuffix) {
+	if hasSuffixFold(arpa, IPv6PtrSuffix) {
 		return parseIPv6FromArpaAddr(arpa)
 	}
 
@@ -33,7 +35,7 @@ func ParseIPFromArpaAddr(arpa string) (net.IP, error) {
 func parseIPv4FromArpaAddr(arpa string) (net.IP, error) {
 	const base10 = 10
 
-	revAddr := strings.TrimSuffix(arpa, IPv4PtrSuffix)
+	revAddr := arpa[:len(arpa)-len(IPv4PtrSuffix)]
 
 	parts := strings.Split(revAddr, ".")
 	if len(parts) != net.IPv4len {
@@ -57,12 +59,11 @@ func parseIPv4FromArpaAddr(arpa string) (net.IP, error) {
 
 func parseIPv6FromArpaAddr(arpa string) (net.IP, error) {
 	const (
-		base16     = 16
 		ipv6Bytes  = 2 * net.IPv6len
 		nibbleBits = byteBits / 2
 	)
 
-	revAddr := strings.TrimSuffix(arpa, IPv6PtrSuffix)
+	revAddr := arpa[:len(arpa)-len(IPv6PtrSuffix)]
 
 	parts := strings.Split(revAddr, ".")
 	if len(parts) != ipv6Bytes {
@@ -73,14 +74,14 @@ func parseIPv6FromArpaAddr(arpa string) (net.IP, error) {
 
 	// Parse and add each byte, in reverse, to the buffer
 	for i := len(parts) - 1; i >= 0; i -= 2 {
-		msNibble, err := strconv.ParseUint(parts[i], base16, byteBits)
+		msNibble, err := parseArpaNibble(parts[i], arpa)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse IPv6 nibble '%s' in arpa address '%s': %w", parts[i], arpa, err)
+			return nil, err
 		}
 
-		lsNibble, err := strconv.ParseUint(parts[i-1], base16, byteBits)
+		lsNibble, err := parseArpaNibble(parts[i-1], arpa)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse IPv6 nibble '%s' in arpa address '%s': %w", parts[i-1], arpa, err)
+			return nil, err
 		}
 
 		part := msNibble<<nibbleBits | lsNibble
@@ -89,4 +90,28 @@ func parseIPv6FromArpaAddr(arpa string) (net.IP, error) {
 	}
 
 	return net.IP(buf), nil
+}
+
+// parseArpaNibble parses a single hexadecimal digit label of an ip6.arpa name.
+func parseArpaNibble(part, arpa string) (uint64, error) {
+	const (
+		base16     = 16
+		nibbleBits = byteBits / 2
+	)
+
+	if len(part) != 1 {
+		return 0, fmt.Errorf("invalid IPv6 nibble '%s' in arpa address '%s': must be a single hex digit", part, arpa)
+	}
+
+	nibble, err := strconv.ParseUint(part, base16, nibbleBits)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse IPv6 nibble '%s' in arpa address '%s': %w", part, arpa, err)
+	}
+
+	return nibble, nil
+}
+
+// hasSuffixFold reports whether s ends with suffix, ignoring ASCII case.
+func hasSuffixFold(s, suffix string) bool {
+	return len(s) >= len(suffix) && strings.EqualFold(s[len(s)-len(suffix):], suffix)
 }
