@@ -22,11 +22,21 @@ func (timeoutError) Timeout() bool   { return true }
 func (timeoutError) Temporary() bool { return false }
 
 // countingConn wraps a net.Conn and counts how often it is closed, so tests can
-// assert that the pool closes connections it discards (no leaks).
+// assert that the pool closes connections it discards (no leaks). A non-nil
+// writeErr fails every write.
 type countingConn struct {
 	net.Conn
 
 	closeCount atomic.Int32
+	writeErr   error
+}
+
+func (c *countingConn) Write(b []byte) (int, error) {
+	if c.writeErr != nil {
+		return 0, c.writeErr
+	}
+
+	return c.Conn.Write(b)
 }
 
 func (c *countingConn) Close() error {
@@ -243,6 +253,28 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		Expect(sut.take(time.Now().Add(2*time.Minute), time.Minute)).Should(BeFalse())
 	})
 
+	It("closes the connection when a write fails, failing the query with an error that can be retried", func() {
+		client.writeErr = errors.New("broken pipe")
+
+		r := <-send(ctx, util.NewMsgWithQuestion("a.example.", A))
+		Expect(r.err).Should(MatchError(errConnClosed))
+		Expect(r.err).Should(MatchError(ContainSubstring("broken pipe")))
+		Expect(shouldRedial(ctx, r.err)).Should(BeTrue())
+		Expect(client.closes()).Should(Equal(1))
+	})
+
+	It("fails new queries on a closed connection with the reason it closed", func() {
+		sut.close(errors.New("gone"))
+
+		// A query sees the close while it takes a slot or when it registers; select
+		// picks between ready cases at random, so repeat to reach both.
+		for range 20 {
+			_, _, err := sut.exchange(ctx, util.NewMsgWithQuestion("a.example.", A), time.Now)
+			Expect(err).Should(MatchError(errConnClosed))
+			Expect(err).Should(MatchError(ContainSubstring("gone")))
+		}
+	})
+
 	It("closes the connection on a frame too short to hold a header", func() {
 		_, err := server.Write([]byte{1, 2, 3, 4, 5})
 		Expect(err).Should(Succeed())
@@ -414,6 +446,30 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 
 		Expect(questionOf(<-second)).Should(Equal("b.example."))
 		Expect(questionOf(<-third)).Should(Equal("c.example."))
+	})
+})
+
+var _ = Describe("connPool", Label("connPool"), func() {
+	It("stops a query waiting for a dial when its context ends, and leaves the dial to the others", func() {
+		// The kernel completes the TCP handshake without Accept, and nothing ever
+		// answers the TLS one, so the dial hangs until its timeout.
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).Should(Succeed())
+		DeferCleanup(listener.Close)
+
+		pool := newConnPool(&dns.Client{Net: "tcp-tls"}, 2, time.Minute, time.Second)
+
+		shortCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		DeferCleanup(cancel)
+
+		start := time.Now()
+		_, _, err = pool.exchange(shortCtx, util.NewMsgWithQuestion("a.example.", A), listener.Addr().String())
+		Expect(err).Should(MatchError(context.DeadlineExceeded))
+		Expect(time.Since(start)).Should(BeNumerically("<", 500*time.Millisecond))
+
+		pool.mu.Lock()
+		defer pool.mu.Unlock()
+		Expect(pool.dials).Should(HaveLen(1))
 	})
 })
 
