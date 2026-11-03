@@ -1167,6 +1167,39 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			Expect(sut.upstreamClient.(*dnsUpstreamClient).pool.stats().dialed).Should(Equal(int64(1)))
 		})
 
+		It("opens another connection only when every connection to the address is full", func() {
+			mock := NewMockDoTUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.122").
+				WithReplyDelay(func(*dns.Msg) time.Duration { return time.Second })
+
+			upstreams := defaultUpstreamsConfig
+			upstreams.Timeout = config.Duration(3 * time.Second)
+			sut := newDoTResolverWith(mock.Start(), upstreams)
+			pool := sut.upstreamClient.(*dnsUpstreamClient).pool
+			pool.maxInFlight = 2
+
+			const queries = 5
+
+			errs := make(chan error, queries)
+
+			for range queries {
+				go func() {
+					defer GinkgoRecover()
+
+					_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+					errs <- err
+				}()
+			}
+
+			for range queries {
+				Expect(<-errs).Should(Succeed())
+			}
+
+			// Replies take a second, so all five are in flight at once: two per connection.
+			Expect(mock.GetConnCount()).Should(Equal(3))
+			Expect(pool.stats().dialed).Should(Equal(int64(3)))
+		})
+
 		It("transparently recovers when the upstream closed a pooled connection", func() {
 			// The server drops the connection after each query, so every query
 			// after the first finds the previous connection closed.

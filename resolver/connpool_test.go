@@ -79,8 +79,11 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		})
 	})
 
-	// send runs a query in the background and delivers its result on the channel.
+	// send reserves a slot, as connPool does, then runs the query in the
+	// background and delivers its result on the channel.
 	send := func(ctx context.Context, msg *dns.Msg) <-chan result {
+		Expect(sut.reserve(time.Now())).Should(BeTrue(), "no free slot")
+
 		ch := make(chan result, 1)
 
 		go func() {
@@ -116,7 +119,7 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 	// connection is sut.
 	viaPool := func(msg *dns.Msg) (*connPool, <-chan error) {
 		pool := newConnPool(new(dns.Client), 2, time.Minute, time.Second)
-		pool.conns["upstream"] = sut
+		pool.conns["upstream"] = []*muxConn{sut}
 
 		errs := make(chan error, 1)
 
@@ -235,6 +238,7 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 
 		for range 200 {
 			shortCtx, cancel := context.WithTimeout(ctx, 20*time.Microsecond)
+			Expect(sut.reserve(time.Now())).Should(BeTrue())
 			_, _, _ = sut.exchange(shortCtx, util.NewMsgWithQuestion("a.example.", A), time.Now)
 			cancel()
 
@@ -250,7 +254,7 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		cancel()
 		Expect((<-cancelled).err).Should(MatchError(context.Canceled))
 
-		Expect(sut.take(time.Now().Add(2*time.Minute), time.Minute)).Should(BeFalse())
+		Expect(sut.usable(time.Now().Add(2*time.Minute), time.Minute)).Should(BeFalse())
 	})
 
 	It("closes the connection when a write fails, failing the query with an error that can be retried", func() {
@@ -266,13 +270,10 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 	It("fails new queries on a closed connection with the reason it closed", func() {
 		sut.close(errors.New("gone"))
 
-		// A query sees the close while it takes a slot or when it registers; select
-		// picks between ready cases at random, so repeat to reach both.
-		for range 20 {
-			_, _, err := sut.exchange(ctx, util.NewMsgWithQuestion("a.example.", A), time.Now)
-			Expect(err).Should(MatchError(errConnClosed))
-			Expect(err).Should(MatchError(ContainSubstring("gone")))
-		}
+		r := <-send(ctx, util.NewMsgWithQuestion("a.example.", A))
+		Expect(r.err).Should(MatchError(errConnClosed))
+		Expect(r.err).Should(MatchError(ContainSubstring("gone")))
+		Expect(sut.usable(time.Now(), time.Minute)).Should(BeFalse())
 	})
 
 	It("closes the connection on a frame too short to hold a header", func() {
@@ -413,43 +414,56 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		Expect((<-pending).err).Should(MatchError(context.DeadlineExceeded))
 	})
 
-	It("holds queries beyond the in-flight limit until a slot frees", func() {
+	It("reserves no more slots than its in-flight limit, and frees one when a query completes", func() {
 		first := send(ctx, util.NewMsgWithQuestion("a.example.", A))
 		firstQuery := read()
-		second := send(ctx, util.NewMsgWithQuestion("b.example.", A))
-		secondQuery := read()
 
-		third := send(ctx, util.NewMsgWithQuestion("c.example.", A))
-
-		written := make(chan *dns.Msg, 1)
-
-		go func() {
-			defer GinkgoRecover()
-
-			msg, err := server.ReadMsg()
-			if err == nil {
-				written <- msg
-			}
-		}()
-
-		// The limit is 2, so the third query must not be written yet.
-		Consistently(written, 200*time.Millisecond).ShouldNot(Receive())
+		// The limit is 2: one more slot, then none.
+		Expect(sut.reserve(time.Now())).Should(BeTrue())
+		Expect(sut.reserve(time.Now())).Should(BeFalse())
 
 		answer(firstQuery)
 		Expect(questionOf(<-first)).Should(Equal("a.example."))
-
-		var thirdQuery *dns.Msg
-
-		Eventually(written).Should(Receive(&thirdQuery))
-		answer(thirdQuery)
-		answer(secondQuery)
-
-		Expect(questionOf(<-second)).Should(Equal("b.example."))
-		Expect(questionOf(<-third)).Should(Equal("c.example."))
+		Expect(sut.reserve(time.Now())).Should(BeTrue())
 	})
 })
 
 var _ = Describe("connPool", Label("connPool"), func() {
+	newPipeConn := func() *muxConn {
+		near, far := net.Pipe()
+		conn := newMuxConn(&dns.Conn{Conn: near}, 2, time.Second, time.Now)
+
+		DeferCleanup(func() {
+			conn.close(net.ErrClosed)
+			_ = far.Close()
+		})
+
+		return conn
+	}
+
+	It("reserves a slot on the oldest connection with room, and drops closed ones", func() {
+		pool := newConnPool(new(dns.Client), 2, time.Minute, time.Second)
+		closed, oldest, newer := newPipeConn(), newPipeConn(), newPipeConn()
+		closed.close(net.ErrClosed)
+		pool.conns["upstream"] = []*muxConn{closed, oldest, newer}
+
+		pool.mu.Lock()
+		defer pool.mu.Unlock()
+
+		conn, stale := pool.pick("upstream")
+		Expect(conn).Should(BeIdenticalTo(oldest))
+		Expect(stale).Should(Equal([]*muxConn{closed}))
+
+		for _, want := range []*muxConn{oldest, newer, newer} {
+			got, _ := pool.pick("upstream")
+			Expect(got).Should(BeIdenticalTo(want))
+		}
+
+		conn, _ = pool.pick("upstream")
+		Expect(conn).Should(BeNil(), "every connection is full")
+		Expect(pool.conns["upstream"]).Should(Equal([]*muxConn{oldest, newer}))
+	})
+
 	It("stops a query waiting for a dial when its context ends, and leaves the dial to the others", func() {
 		// The kernel completes the TCP handshake without Accept, and nothing ever
 		// answers the TLS one, so the dial hangs until its timeout.

@@ -30,14 +30,21 @@ var (
 // replaced to get a fresh ID space.
 const connPoolMaxAbandoned = 1024
 
-// connPool pipelines DoT queries over one connection per upstream address
-// (RFC 7858 §3.3, RFC 7766 §6.2.1.1), and keeps it to one connection per
-// address as RFC 7766 §6.2.2 recommends.
+// connPool pipelines a single upstream client's DoT queries (RFC 7858 §3.3,
+// RFC 7766 §6.2.1.1) over a per-address set of persistent connections.
 //
-// A query takes one of maxInFlight slots on the connection, so a burst waits for
-// a slot instead of dialing; this also bounds an address's throughput to about
-// maxInFlight per reply latency. Concurrent queries for an address with no live
-// connection share one dial.
+// Safety properties:
+//   - A connection carries up to maxInFlight queries, and another connection
+//     to the address is opened only when every one is full. At ordinary load an
+//     address has one connection, as RFC 7766 §6.2.2 recommends; under heavy
+//     load the set grows with the queries in flight, not with every query.
+//   - An address has at most one dial in progress, shared by every query
+//     waiting for a connection, so a burst can't turn into a connection storm.
+//   - Queries go to the oldest connection with room, so surplus connections
+//     idle out once load drops; idleTTL bounds how long a connection may sit
+//     idle before a query replaces it.
+//   - exchange retries once on a fresh connection when a query's connection
+//     closed under it (a server-closed connection can't be detected up front).
 type connPool struct {
 	client      *dns.Client
 	maxInFlight int
@@ -51,7 +58,7 @@ type connPool struct {
 	now func() time.Time
 
 	mu    sync.Mutex
-	conns map[string]*muxConn
+	conns map[string][]*muxConn
 	dials map[string]*dialCall
 
 	dialed  atomic.Int64
@@ -67,7 +74,6 @@ type connPoolStats struct {
 // dialCall is one in-progress dial, shared by every query waiting on it.
 type dialCall struct {
 	done chan struct{}
-	conn *muxConn
 	err  error
 }
 
@@ -78,7 +84,7 @@ func newConnPool(client *dns.Client, maxInFlight int, idleTTL, timeout time.Dura
 		idleTTL:     idleTTL,
 		timeout:     timeout,
 		now:         time.Now,
-		conns:       make(map[string]*muxConn),
+		conns:       make(map[string][]*muxConn),
 		dials:       make(map[string]*dialCall),
 	}
 }
@@ -90,12 +96,17 @@ func (p *connPool) stats() connPoolStats {
 	}
 }
 
-// openCount returns the number of connections the pool holds open.
+// openCount returns the number of connections the pool holds.
 func (p *connPool) openCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	return len(p.conns)
+	n := 0
+	for _, conns := range p.conns {
+		n += len(conns)
+	}
+
+	return n
 }
 
 // exchange sends msg to addr over the address's shared connection. A query that
@@ -119,46 +130,81 @@ func (p *connPool) exchange(
 	}
 }
 
-// get returns the address's connection, dialing one if it has none, its
-// connection is closed, or it sat idle longer than idleTTL.
+// get returns a connection to addr with a slot reserved for one query. When no
+// connection has a free slot, it waits for the address's dial, starting one if
+// none is in progress, and tries again.
 func (p *connPool) get(ctx context.Context, addr string) (*muxConn, error) {
-	var stale *muxConn
+	for {
+		p.mu.Lock()
 
-	p.mu.Lock()
+		conn, stale := p.pick(addr)
 
-	if conn, ok := p.conns[addr]; ok {
-		if conn.take(p.now(), p.idleTTL) {
-			p.mu.Unlock()
+		var call *dialCall
 
+		if conn == nil {
+			call = p.dials[addr]
+			if call == nil {
+				call = &dialCall{done: make(chan struct{})}
+				p.dials[addr] = call
+
+				// Not the caller's cancellation: other queries wait on this dial too.
+				go p.dial(context.WithoutCancel(ctx), addr, call)
+			}
+		}
+
+		p.mu.Unlock()
+
+		// Close outside the lock: tls.Conn.Close writes close_notify and can block.
+		for _, c := range stale {
+			c.close(net.ErrClosed)
+		}
+
+		if conn != nil {
 			return conn, nil
 		}
 
+		select {
+		case <-call.done:
+			if call.err != nil {
+				return nil, call.err
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+// pick reserves a slot on the oldest of addr's connections that has one free,
+// and drops the connections that closed or sat idle longer than idleTTL. The
+// caller holds p.mu.
+func (p *connPool) pick(addr string) (conn *muxConn, stale []*muxConn) {
+	now := p.now()
+	all := p.conns[addr]
+	kept := all[:0]
+
+	for _, c := range all {
+		if !c.usable(now, p.idleTTL) {
+			stale = append(stale, c)
+
+			continue
+		}
+
+		kept = append(kept, c)
+
+		if conn == nil && c.reserve(now) {
+			conn = c
+		}
+	}
+
+	clear(all[len(kept):])
+
+	if len(kept) == 0 {
 		delete(p.conns, addr)
-		stale = conn
+	} else {
+		p.conns[addr] = kept
 	}
 
-	call, ok := p.dials[addr]
-	if !ok {
-		call = &dialCall{done: make(chan struct{})}
-		p.dials[addr] = call
-
-		// Not the caller's cancellation: other queries wait on this dial too.
-		go p.dial(context.WithoutCancel(ctx), addr, call)
-	}
-
-	p.mu.Unlock()
-
-	// Close outside the lock: tls.Conn.Close writes close_notify and can block.
-	if stale != nil {
-		stale.close(net.ErrClosed)
-	}
-
-	select {
-	case <-call.done:
-		return call.conn, call.err
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return conn, stale
 }
 
 func (p *connPool) dial(ctx context.Context, addr string, call *dialCall) {
@@ -166,22 +212,17 @@ func (p *connPool) dial(ctx context.Context, addr string, call *dialCall) {
 	defer cancel()
 
 	conn, err := p.client.DialContext(ctx, addr)
-	if err == nil {
-		p.dialed.Add(1)
-
-		call.conn = newMuxConn(conn, p.maxInFlight, p.timeout, p.now)
-	}
-
-	call.err = err
 
 	p.mu.Lock()
 	delete(p.dials, addr)
 
-	if call.conn != nil {
-		p.conns[addr] = call.conn
+	if err == nil {
+		p.dialed.Add(1)
+		p.conns[addr] = append(p.conns[addr], newMuxConn(conn, p.maxInFlight, p.timeout, p.now))
 	}
 	p.mu.Unlock()
 
+	call.err = err
 	close(call.done)
 }
 
@@ -198,20 +239,23 @@ func shouldRedial(ctx context.Context, err error) bool {
 func (p *connPool) Close() error {
 	p.mu.Lock()
 	conns := p.conns
-	p.conns = make(map[string]*muxConn)
+	p.conns = make(map[string][]*muxConn)
 	p.mu.Unlock()
 
-	for _, conn := range conns {
-		conn.close(net.ErrClosed)
+	for _, addrConns := range conns {
+		for _, conn := range addrConns {
+			conn.close(net.ErrClosed)
+		}
 	}
 
 	return nil
 }
 
-// muxConn is one DoT connection carrying many queries at once. Each query is
-// written under an ID unique among the connection's in-flight queries (RFC 7766
-// §6.2.1), and one reader goroutine hands each reply to the query waiting on its
-// ID once its question matches (RFC 7766 §7).
+// muxConn is one DoT connection carrying many queries at once. A query first
+// reserves one of the connection's slots, then is written under an ID unique
+// among the connection's in-flight queries (RFC 7766 §6.2.1), and one reader
+// goroutine hands each reply to the query waiting on its ID once its question
+// matches (RFC 7766 §7).
 //
 // The connection stopped responding when a write doesn't finish within timeout,
 // or nothing at all is read for timeout while a written query is unanswered: a
@@ -269,19 +313,29 @@ func newMuxConn(conn *dns.Conn, maxInFlight int, timeout time.Duration, now func
 	return c
 }
 
+// reserve takes one of the connection's slots if one is free, and counts the
+// connection as used now, so the idle TTL can't run out before the query
+// registers.
+func (c *muxConn) reserve(now time.Time) bool {
+	select {
+	case c.slots <- struct{}{}:
+	default:
+		return false
+	}
+
+	c.mu.Lock()
+	c.lastUsed = now
+	c.mu.Unlock()
+
+	return true
+}
+
 // exchange writes a copy of msg under a connection-unique ID and waits for its
-// reply. The caller's msg is not modified, and its ID is restored in the reply.
+// reply, then releases the slot the caller reserved. The caller's msg is not
+// modified, and its ID is restored in the reply.
 func (c *muxConn) exchange(
 	ctx context.Context, msg *dns.Msg, now func() time.Time,
 ) (*dns.Msg, time.Duration, error) {
-	select {
-	case c.slots <- struct{}{}:
-	case <-c.done:
-		return nil, 0, c.err()
-	case <-ctx.Done():
-		return nil, 0, ctx.Err()
-	}
-
 	defer func() { <-c.slots }()
 
 	query := msg.Copy()
@@ -497,22 +551,15 @@ func (c *muxConn) deliver(resp *dns.Msg, r reply, now time.Time) error {
 	return c.conn.SetReadDeadline(deadline)
 }
 
-// take reports whether the connection can take another query: it is open, and
-// either has queries waiting or was idle for no longer than idleTTL. A taken
-// connection counts as used now, so the TTL can't run out before the caller
-// registers its query.
-func (c *muxConn) take(now time.Time, idleTTL time.Duration) bool {
+// usable reports whether the connection can still take queries: it is open,
+// and either has queries waiting or was idle for no longer than idleTTL.
+func (c *muxConn) usable(now time.Time, idleTTL time.Duration) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	waiting := len(c.pending) > c.abandoned
 
-	ok := c.closeErr == nil && (waiting || now.Sub(c.lastUsed) <= idleTTL)
-	if ok {
-		c.lastUsed = now
-	}
-
-	return ok
+	return c.closeErr == nil && (waiting || now.Sub(c.lastUsed) <= idleTTL)
 }
 
 // close tears the connection down once, failing every query still waiting on it.

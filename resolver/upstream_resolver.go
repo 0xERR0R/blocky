@@ -35,9 +35,10 @@ const (
 	retryAttempts        = 3
 	sha256HashLength     = 32
 
-	// connPoolMaxInFlight bounds the queries pipelined on one DoT connection; a
-	// burst beyond it waits for a slot instead of opening connections.
-	connPoolMaxInFlight = 100
+	// connPoolMaxInFlight bounds the queries pipelined on one DoT connection; once
+	// every connection to an address is this full, another one is opened. 200 is
+	// Unbound's default for the same limit (max-reuse-tcp-queries).
+	connPoolMaxInFlight = 200
 	// connPoolIdleTimeout discards pooled connections idle longer than this,
 	// before an upstream is likely to have closed them.
 	connPoolIdleTimeout = 30 * time.Second
