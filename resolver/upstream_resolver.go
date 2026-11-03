@@ -113,7 +113,7 @@ type upstreamClient interface {
 
 type dnsUpstreamClient struct {
 	tcpClient, udpClient *dns.Client
-	// pool pipelines the DoT path's queries over one connection per address;
+	// pool pipelines the DoT path's queries over persistent connections;
 	// nil for the plain tcp+udp client, whose TCP leg is only a rare fallback
 	// (truncation, question mismatch, UDP failure) and so does not benefit from
 	// pooling.

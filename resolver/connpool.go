@@ -30,6 +30,13 @@ var (
 // replaced to get a fresh ID space.
 const connPoolMaxAbandoned = 1024
 
+// connPoolMaxAttempts bounds how often a DoT query is sent when the connection
+// it went out on closes before the reply (RFC 7766 §6.2.4: clients SHOULD retry
+// such queries). One retry isn't enough: a server that closes connections after
+// some number of queries can close the retry's connection too. Three is the
+// same count as dohMaxAttempts.
+const connPoolMaxAttempts = 3
+
 // connPool pipelines a single upstream client's DoT queries (RFC 7858 §3.3,
 // RFC 7766 §6.2.1.1) over a per-address set of persistent connections.
 //
@@ -43,8 +50,9 @@ const connPoolMaxAbandoned = 1024
 //   - Queries go to the oldest connection with room, so surplus connections
 //     idle out once load drops; idleTTL bounds how long a connection may sit
 //     idle before a query replaces it.
-//   - exchange retries once on a fresh connection when a query's connection
-//     closed under it (a server-closed connection can't be detected up front).
+//   - exchange sends a query again, up to connPoolMaxAttempts times, when its
+//     connection closed under it (a server-closed connection can't be detected
+//     up front).
 type connPool struct {
 	client      *dns.Client
 	maxInFlight int
@@ -109,20 +117,21 @@ func (p *connPool) openCount() int {
 	return n
 }
 
-// exchange sends msg to addr over the address's shared connection. A query that
-// failed because its connection closed gets one transparent retry on a fresh
-// connection; anything else is left to the caller.
+// exchange sends msg to addr over one of the address's connections. A query
+// whose connection closed before the reply, other than for a timeout, is sent
+// again on another, up to connPoolMaxAttempts times; anything else is left to
+// the caller.
 func (p *connPool) exchange(
 	ctx context.Context, msg *dns.Msg, addr string,
 ) (*dns.Msg, time.Duration, error) {
-	for attempt := 0; ; attempt++ {
+	for attempt := 1; ; attempt++ {
 		conn, err := p.get(ctx, addr)
 		if err != nil {
 			return nil, 0, err
 		}
 
 		resp, rtt, err := conn.exchange(ctx, msg, p.now)
-		if err == nil || attempt > 0 || conn.err() == nil || !shouldRedial(ctx, err) {
+		if err == nil || attempt == connPoolMaxAttempts || conn.err() == nil || !shouldRedial(ctx, err) {
 			return resp, rtt, err
 		}
 
@@ -493,7 +502,7 @@ func (c *muxConn) abandon(id uint16, ch chan reply) {
 	c.mu.Unlock()
 
 	if tooMany {
-		c.close(fmt.Errorf("%d abandoned queries still unanswered", c.maxAbandoned))
+		c.close(fmt.Errorf("more than %d abandoned queries still unanswered", c.maxAbandoned))
 	}
 }
 

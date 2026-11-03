@@ -24,7 +24,7 @@ type MockDoTUpstreamServer struct {
 	connCount  atomic.Int32
 	openConns  atomic.Int32
 	closeAfter atomic.Int32
-	hangUp     atomic.Bool
+	hangUps    atomic.Int32
 
 	listener   net.Listener
 	answerFn   func(request *dns.Msg) (response *dns.Msg)
@@ -66,10 +66,10 @@ func (t *MockDoTUpstreamServer) WithAnswerError(errorCode int) *MockDoTUpstreamS
 	return t
 }
 
-// WithHangUpOnFirstQuery makes the server close the connection the first query
+// WithHangUps makes the server close the connection each of the first n queries
 // arrives on, without answering it.
-func (t *MockDoTUpstreamServer) WithHangUpOnFirstQuery() *MockDoTUpstreamServer {
-	t.hangUp.Store(true)
+func (t *MockDoTUpstreamServer) WithHangUps(n int) *MockDoTUpstreamServer {
+	t.hangUps.Store(int32(n)) //nolint:gosec // small test value
 
 	return t
 }
@@ -182,7 +182,7 @@ func (t *MockDoTUpstreamServer) handleConn(conn net.Conn) {
 
 		t.callCount.Add(1)
 
-		if t.hangUp.CompareAndSwap(true, false) {
+		if t.hangUps.Add(-1) >= 0 {
 			return
 		}
 

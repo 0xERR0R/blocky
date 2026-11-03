@@ -329,6 +329,29 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		answer(nextQuery)
 		Expect(questionOf(<-next)).Should(Equal("next.example."))
 		Expect(client.closes()).Should(BeZero())
+
+		// The unwritten query reserved no ID; a leftover entry would keep the
+		// connection counted as busy past the idle TTL.
+		sut.mu.Lock()
+		defer sut.mu.Unlock()
+		Expect(sut.pending).Should(BeEmpty())
+	})
+
+	It("clears the read deadline once every query is answered", func() {
+		sut.timeout = 50 * time.Millisecond
+
+		first := send(ctx, util.NewMsgWithQuestion("a.example.", A))
+		answer(read())
+		Expect(questionOf(<-first)).Should(Equal("a.example."))
+
+		// Idle for longer than the timeout, with nothing unanswered.
+		time.Sleep(150 * time.Millisecond)
+		Expect(sut.err()).Should(Succeed())
+
+		next := send(ctx, util.NewMsgWithQuestion("b.example.", A))
+		answer(read())
+		Expect(questionOf(<-next)).Should(Equal("b.example."))
+		Expect(client.closes()).Should(BeZero())
 	})
 
 	// answerMalformed answers query with its ID, then a header announcing one

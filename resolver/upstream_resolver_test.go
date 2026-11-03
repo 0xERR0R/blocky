@@ -1275,26 +1275,46 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			Expect(pool.stats().dialed).Should(BeZero())
 		})
 
-		It("retries a query on a new connection when the server closes the one it was sent on", func() {
-			mock := NewMockDoTUpstreamServer().
-				WithAnswerRR("example.com 123 IN A 123.124.122.122").
-				WithHangUpOnFirstQuery()
+		When("the server closes the connection a query was sent on", func() {
+			// Several TLS dials must fit in one attempt, too tight for the suite's 50 ms under -race.
+			newResolver := func(mock *MockDoTUpstreamServer) *UpstreamResolver {
+				upstreams := defaultUpstreamsConfig
+				upstreams.Timeout = config.Duration(2 * time.Second)
 
-			// Two TLS dials must fit in one attempt, too tight for the suite's 50 ms under -race.
-			upstreams := defaultUpstreamsConfig
-			upstreams.Timeout = config.Duration(2 * time.Second)
-			sut := newDoTResolverWith(mock.Start(), upstreams)
+				return newDoTResolverWith(mock.Start(), upstreams)
+			}
 
-			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
-				Should(SatisfyAll(
-					BeDNSRecord("example.com.", A, "123.124.122.122"),
-					HaveReturnCode(dns.RcodeSuccess),
-				))
+			It("sends the query again on a new connection", func() {
+				mock := NewMockDoTUpstreamServer().
+					WithAnswerRR("example.com 123 IN A 123.124.122.122").
+					WithHangUps(connPoolMaxAttempts - 1)
+				sut := newResolver(mock)
 
-			Expect(mock.GetCallCount()).Should(Equal(2))
-			stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
-			Expect(stats.dialed).Should(Equal(int64(2)))
-			Expect(stats.retried).Should(Equal(int64(1)))
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(SatisfyAll(
+						BeDNSRecord("example.com.", A, "123.124.122.122"),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+
+				Expect(mock.GetCallCount()).Should(Equal(connPoolMaxAttempts))
+				stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
+				Expect(stats.dialed).Should(Equal(int64(connPoolMaxAttempts)))
+				Expect(stats.retried).Should(Equal(int64(connPoolMaxAttempts - 1)))
+			})
+
+			It("gives up after connPoolMaxAttempts attempts", func() {
+				mock := NewMockDoTUpstreamServer().
+					WithAnswerRR("example.com 123 IN A 123.124.122.122").
+					WithHangUps(connPoolMaxAttempts)
+				sut := newResolver(mock)
+
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(MatchError(errConnClosed))
+
+				Expect(mock.GetCallCount()).Should(Equal(connPoolMaxAttempts))
+				Expect(sut.upstreamClient.(*dnsUpstreamClient).pool.stats().retried).
+					Should(Equal(int64(connPoolMaxAttempts - 1)))
+			})
 		})
 
 		It("closes pooled connections when the client is closed (Fix #2)", func() {
