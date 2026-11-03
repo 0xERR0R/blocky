@@ -45,6 +45,7 @@ package dnssec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -68,11 +69,11 @@ var (
 	// unreachable), as opposed to a genuine cryptographic failure. It must propagate as
 	// Indeterminate ("could not validate"), never Bogus - see determineFinalValidationResult.
 	errIndeterminateChain = errors.New("chain of trust is indeterminate (incomplete/unreachable)")
-	// errDNSKEYUnavailable marks a transient failure to fetch the signer's DNSKEY RRset
-	// (upstream error/timeout). Like errIndeterminateChain this is "could not validate", not
-	// proof of an invalid signature, so it must not be funnelled to Bogus. Distinct from a
-	// DNSKEY response that arrives but contains no matching key, which stays a genuine failure.
-	errDNSKEYUnavailable = errors.New("signer DNSKEY could not be retrieved (unreachable)")
+	// errDNSKEYUnavailable marks a transient failure to fetch a zone's DNSKEY RRset (upstream
+	// error/timeout or SERVFAIL). Like errIndeterminateChain this is "could not validate",
+	// not proof of an invalid signature, so it must not be funnelled to Bogus. Distinct from a
+	// DNSKEY response that arrives but contains no key, which stays a genuine failure.
+	errDNSKEYUnavailable = errors.New("DNSKEY could not be retrieved (unreachable)")
 	// errBogusChain marks an RRSIG skipped because its signer's chain of trust is provably
 	// invalid (e.g. a DS digest mismatch) - genuine evidence of tampering, NOT mere
 	// unreachability. It is a genuine failure and must dominate any Indeterminate sibling, so
@@ -98,7 +99,7 @@ type Validator struct {
 	trustAnchors          *TrustAnchorStore
 	logger                *logrus.Entry
 	upstream              Resolver // Used to query for DNSKEY and DS records
-	validationCache       cache.ExpiringCache[ValidationResult]
+	validationCache       cache.ExpiringCache[zoneStatus]
 	nsec3HashCache        sync.Map // Cache for NSEC3 hash computations: key = "name:alg:salt:iterations"
 	cacheExpiration       time.Duration
 	maxChainDepth         uint // Maximum depth for chain of trust validation
@@ -187,7 +188,7 @@ func NewValidator(
 		trustAnchors: trustAnchors,
 		logger:       logger,
 		upstream:     upstream,
-		validationCache: expirationcache.NewCache[ValidationResult](ctx, expirationcache.Options{
+		validationCache: expirationcache.NewCache[zoneStatus](ctx, expirationcache.Options{
 			CleanupInterval: time.Hour,
 			Shards:          cache.ShardCount(),
 		}),
@@ -231,8 +232,9 @@ func (v *Validator) ValidateResponse(
 	start := time.Now()
 	v.logger.Debugf("DNSSEC validation requested for %s", question.Name)
 
-	// Initialize query budget for this validation request (DoS protection)
-	ctx = context.WithValue(ctx, queryBudgetKey{}, int(v.maxUpstreamQueries))
+	// Initialize query budget for this validation request (DoS protection); every sub-query of
+	// the validation draws from it
+	ctx = withQueryBudget(ctx, int(v.maxUpstreamQueries))
 
 	var result ValidationResult
 
@@ -251,6 +253,14 @@ func (v *Validator) ValidateResponse(
 		result = v.validateAuthorityOrAdditional(ctx, response, question)
 	default:
 		result = ValidationResultInsecure
+	}
+
+	// A validation that ran out of query budget is incomplete. Unlike an unreachable upstream, the
+	// response itself can force this, so its answer is refused instead of passed on unvalidated.
+	if result == ValidationResultIndeterminate && queryBudgetExhausted(ctx) {
+		v.logger.Warnf("Query budget exhausted while validating %s - treating as Bogus", question.Name)
+
+		result = ValidationResultBogus
 	}
 
 	v.recordMetrics(start, result)
@@ -515,7 +525,7 @@ func (v *Validator) validateSingleRRset(
 		case errors.Is(err, errUnsupportedRSAExponent):
 			// Track unsupported signatures but continue trying others
 			hasUnsupportedSignature = true
-		case errors.Is(err, errIndeterminateChain), errors.Is(err, errDNSKEYUnavailable):
+		case errors.Is(err, errIndeterminateChain):
 			// Validation data could not be gathered (transient/unreachable) - this is
 			// "could not determine", not a cryptographic failure (issue #2120).
 			hasIndeterminateChain = true
@@ -606,35 +616,15 @@ func (v *Validator) tryVerifyWithRRSIG(
 		}
 	}
 
-	// Query and match DNSKEY
-	_, matchingKey, err := v.queryAndMatchDNSKEY(ctx, signerName, matchingSig.KeyTag, matchingSig.Algorithm)
-	if err != nil {
-		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): DNSKEY query/match failed: %v",
-			matchingSig.Algorithm, matchingSig.KeyTag, err)
-
-		return false, err
-	}
-
-	// Check for unsupported RSA exponents (Go crypto limitation)
-	if hasUnsupportedRSAExponent(matchingKey) {
-		v.logger.Debugf(
-			"DNSKEY for %s (algorithm=%d, keytag=%d) has unsupported RSA exponent "+
-				"(exceeds 2^31-1, Go crypto limitation) - treating zone as Insecure per RFC 4035 §2.2",
-			domain, matchingSig.Algorithm, matchingSig.KeyTag)
-
-		return false, errUnsupportedRSAExponent
-	}
-
-	// Validate the DNSKEY via chain of trust
-	chainResult := v.walkChainOfTrust(ctx, signerName)
+	// Validate the signer's DNSKEY RRset via the chain of trust. Only keys from that validated
+	// RRset may verify the signature: a key from any other DNSKEY response is unauthenticated.
+	chainResult, signerKeys := v.walkChainOfTrust(ctx, signerName)
 
 	// Skip verification if the chain of trust could not be established. Distinguish the two
 	// reasons: an Indeterminate chain (a DS/DNSKEY sub-query timed out / upstream unreachable)
 	// is a transient "could not validate" and must propagate as Indeterminate, NOT Bogus
 	// (issue #2120); a Bogus chain (e.g. a DS digest mismatch) is a genuine failure and stays
 	// Bogus via the default in determineFinalValidationResult.
-	// Per RFC 5155 §6: NSEC3 Opt-Out allows unsigned delegations, but if the zone IS signed
-	// (has RRSIG records), we should still validate those signatures cryptographically.
 	if chainResult == ValidationResultIndeterminate {
 		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust is indeterminate (unreachable)",
 			matchingSig.Algorithm, matchingSig.KeyTag)
@@ -651,31 +641,47 @@ func (v *Validator) tryVerifyWithRRSIG(
 		return false, errBogusChain
 	}
 
-	// Verify the signature and return result based on chain status
-	return v.verifyAndReturnResult(rrset, matchingSig, matchingKey, nsRecords, qname, domain, chainResult)
+	if chainResult == ValidationResultInsecure {
+		// The signer is below an insecure delegation (e.g. NSEC3 Opt-Out): it has no
+		// authenticated keys, so its signatures prove nothing (RFC 4035 §5.2). The RRset is
+		// insecure too, unless a trust anchor below the signer covers it.
+		if v.hasTrustAnchorBelow(signerName, rrsetName) {
+			return false, errBogusChain
+		}
+
+		return true, errInsecureChain
+	}
+
+	// Verify the signature with the matching key of the signer's validated DNSKEY RRset
+	return v.verifyWithSignerKeys(rrset, matchingSig, signerKeys, nsRecords, qname, domain)
 }
 
-// verifyAndReturnResult verifies the signature and returns the result based on chain status
-func (v *Validator) verifyAndReturnResult(
-	rrset []dns.RR, matchingSig *dns.RRSIG, matchingKey *dns.DNSKEY,
-	nsRecords []dns.RR, qname, domain string, chainResult ValidationResult,
+// verifyWithSignerKeys verifies an RRset with the key of signerKeys, the signer's validated
+// DNSKEY RRset, that the RRSIG names
+func (v *Validator) verifyWithSignerKeys(
+	rrset []dns.RR, matchingSig *dns.RRSIG, signerKeys []*dns.DNSKEY, nsRecords []dns.RR, qname, domain string,
 ) (bool, error) {
-	// Verify the signature cryptographically (even if chain is Insecure)
+	matchingKey := findMatchingDNSKEY(signerKeys, matchingSig.KeyTag, matchingSig.Algorithm)
+	if matchingKey == nil {
+		return false, fmt.Errorf("no DNSKEY with key tag %d and algorithm %d in the validated DNSKEY RRset of %s",
+			matchingSig.KeyTag, matchingSig.Algorithm, matchingSig.SignerName)
+	}
+
+	// Check for unsupported RSA exponents (Go crypto limitation)
+	if hasUnsupportedRSAExponent(matchingKey) {
+		v.logger.Debugf(
+			"DNSKEY for %s (algorithm=%d, keytag=%d) has unsupported RSA exponent "+
+				"(exceeds 2^31-1, Go crypto limitation) - treating zone as Insecure per RFC 4035 §2.2",
+			domain, matchingSig.Algorithm, matchingSig.KeyTag)
+
+		return false, errUnsupportedRSAExponent
+	}
+
 	if err := v.verifyRRSIG(rrset, matchingSig, matchingKey, nsRecords, qname); err != nil {
 		v.logger.Debugf("RRSIG verification failed for algorithm=%d, keytag=%d: %v (trying next RRSIG if available)",
 			matchingSig.Algorithm, matchingSig.KeyTag, err)
 
 		return false, err
-	}
-
-	// Signature verified successfully
-	if chainResult == ValidationResultInsecure {
-		// Signature is cryptographically valid, but chain of trust to root cannot be established
-		// This happens with NSEC3 Opt-Out when parent has no DS but child is signed
-		v.logger.Debugf("RRSIG verified for %s (algorithm=%d, keytag=%d), but chain is Insecure",
-			domain, matchingSig.Algorithm, matchingSig.KeyTag)
-
-		return true, errInsecureChain
 	}
 
 	// Verification succeeded with full chain of trust!
@@ -746,7 +752,7 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 	}
 
 	// Query DS records for this domain from the parent zone
-	ctx, dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
+	dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
 	if err != nil {
 		// Could not reach the upstream (e.g. answering from cache after the upstream is
 		// gone). Fail closed if the name lives under a trust anchor; we must not serve an
@@ -799,6 +805,20 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 func (v *Validator) isUnderTrustAnchor(domain string) bool {
 	for d := dns.Fqdn(domain); d != ""; d = v.getParentDomain(d) {
 		if v.trustAnchors.HasTrustAnchor(d) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasTrustAnchorBelow reports whether a trust anchor covers name below signer, an ancestor of
+// name. The zone of that anchor, not signer, has to sign the RRsets of name.
+func (v *Validator) hasTrustAnchorBelow(signer, name string) bool {
+	signer = dns.CanonicalName(signer)
+
+	for name = dns.CanonicalName(name); name != signer && name != ""; name = v.getParentDomain(name) {
+		if v.trustAnchors.HasTrustAnchor(name) {
 			return true
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"maps"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -152,6 +154,57 @@ var _ = Describe("Config", func() {
 				Expect(c.Upstreams.Init.Strategy).Should(Equal(InitStrategyFailOnError))
 			})
 		})
+	})
+
+	Describe("LoadConfigWithLogger", func() {
+		It("logs what it finds to the logger it is given, not the global logger", func() {
+			global := maps.Clone(log.Log().Hooks)
+			DeferCleanup(func() { log.Log().ReplaceHooks(global) })
+
+			globalHook := test.NewLocal(log.Log())
+
+			cfgFile := tmpDir.CreateStringFile("config.yml",
+				"upstream:",
+				"  default: [1.1.1.1]",
+				"caching:",
+				"  minTime: 5",
+				"blocking:",
+				"  denylists:",
+				"    ads: [example.com]",
+				"  clientGroupsBlock:",
+				"    default: [ads]",
+				"  schedules:",
+				"    weekend:",
+				"      weekdays: [sat, sat]",
+			)
+
+			_, err := LoadConfigWithLogger(logger, cfgFile.Path, true)
+			Expect(err).Should(Succeed())
+
+			Expect(hook.Messages).Should(ContainElements(
+				ContainSubstring(`config option "upstream" is deprecated`),
+				ContainSubstring("duration without a unit"),
+				ContainSubstring("duplicate weekday 'Saturday'"),
+			))
+			Expect(globalHook.AllEntries()).Should(BeEmpty())
+		})
+
+		DescribeTable("returns an invalid config's error instead of exiting",
+			func(lines []string, expected string) {
+				cfgFile := tmpDir.CreateStringFile("config.yml", lines...)
+
+				_, err := LoadConfigWithLogger(logger, cfgFile.Path, true)
+				Expect(err).Should(MatchError(ContainSubstring(expected)))
+			},
+			Entry("ports", []string{"ports:", "  dohPath: nope"}, "dohPath must start with '/'"),
+			Entry("DNS64",
+				[]string{"dns64:", "  enable: true", "filtering:", "  queryTypes: [AAAA]"},
+				"DNS64 will have no effect"),
+			Entry("rate limit", []string{"rateLimit:", "  enable: true"}, "rate must be > 0"),
+			Entry("rebinding protection",
+				[]string{"rebindingProtection:", "  allowedDomains: [\"  \"]"},
+				"allowedDomains[0] must not be empty"),
+		)
 	})
 
 	Describe("Creation of Config", func() {

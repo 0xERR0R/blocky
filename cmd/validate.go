@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
@@ -29,9 +32,16 @@ func validateConfiguration(_ *cobra.Command, _ []string) error {
 		return errors.New("configuration path does not exist")
 	}
 
-	err = initConfig()
+	_, err = loadConfig(false, func(cfg *config.Config) {
+		logCfg := commandLogConfig(cfg)
+
+		// validate reports what loading the config logs, so log.level must not hide it
+		logCfg.Level = max(logCfg.Level, logrus.InfoLevel)
+
+		log.Configure(&logCfg)
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to load configuration file '%s': %w", configPath, err)
 	}
 
 	log.Log().Info("Configuration is valid")

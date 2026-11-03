@@ -1,12 +1,12 @@
 package dnssec
 
 import (
-	"context"
-	"errors"
+	"crypto/ecdsa"
+	"encoding/base64"
+	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -232,6 +232,18 @@ var _ = Describe("RRset validation functions", func() {
 			result := findMatchingDNSKEY([]*dns.DNSKEY{}, 12345, dns.ECDSAP256SHA256)
 			Expect(result).Should(BeNil())
 		})
+
+		It("should skip revoked keys", func() {
+			key := &dns.DNSKEY{
+				Hdr:       dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDNSKEY},
+				Flags:     257 | 0x0080, // KSK with REVOKE flag
+				Protocol:  3,
+				Algorithm: dns.ECDSAP256SHA256,
+				PublicKey: "key1",
+			}
+
+			Expect(findMatchingDNSKEY([]*dns.DNSKEY{key}, key.KeyTag(), key.Algorithm)).Should(BeNil())
+		})
 	})
 
 	Describe("isSupportedAlgorithm", func() {
@@ -453,76 +465,74 @@ var _ = Describe("RRset validation functions", func() {
 		})
 	})
 
-	Describe("queryAndMatchDNSKEY", func() {
-		It("should query and find matching DNSKEY", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+	Describe("verifyWithZoneKeys", func() {
+		var (
+			key    *dns.DNSKEY
+			priv   *ecdsa.PrivateKey
+			rrset  []dns.RR
+			budget int
+		)
 
-			dnskey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "example.com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.ECDSAP256SHA256,
-				PublicKey: "test-key",
+		BeforeEach(func() {
+			key, priv, _ = newSignedZoneKey("example.com.")
+			rrset = []dns.RR{&dns.A{
+				Hdr: dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   []byte{192, 0, 2, 1},
+			}}
+			budget = maxZoneKeyVerifications
+		})
+
+		It("should verify an RRset signed by one of the keys", func() {
+			otherKey, _, _ := newSignedZoneKey("example.com.")
+			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
+
+			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{otherKey, key}, &budget)).
+				Should(Succeed())
+		})
+
+		It("should reject a signature made by a key outside the set", func() {
+			otherKey, _, _ := newSignedZoneKey("example.com.")
+			for otherKey.KeyTag() == key.KeyTag() {
+				otherKey, _, _ = newSignedZoneKey("example.com.")
 			}
+			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
 
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return &model.Response{
-					Res: &dns.Msg{
-						Answer: []dns.RR{dnskey},
-					},
-				}, nil
-			}
+			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{otherKey}, &budget)).
+				Should(MatchError(ContainSubstring("no RRSIG made by a validated key")))
+		})
 
-			newCtx, key, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", dnskey.KeyTag(), dnskey.Algorithm)
+		It("should try every key that has the key tag of the signature", func() {
+			// Swapping two public key bytes an even distance apart keeps the key tag checksum
+			// (RFC 4034 Appendix B) and breaks the key.
+			pub, err := base64.StdEncoding.DecodeString(key.PublicKey)
 			Expect(err).Should(Succeed())
-			Expect(key).Should(Equal(dnskey))
-			Expect(newCtx).ShouldNot(BeNil())
+			i := 0
+			for pub[i] == pub[i+2] {
+				i++
+			}
+			pub[i], pub[i+2] = pub[i+2], pub[i]
+			sameTag := *key
+			sameTag.PublicKey = base64.StdEncoding.EncodeToString(pub)
+			Expect(sameTag.KeyTag()).Should(Equal(key.KeyTag()))
+			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
+
+			Expect(sut.verifyWithZoneKeys(rrset, []*dns.RRSIG{sig}, []*dns.DNSKEY{&sameTag, key}, &budget)).
+				Should(Succeed())
+			Expect(budget).Should(Equal(maxZoneKeyVerifications-2), "both keys were tried")
 		})
 
-		It("should fail when DNSKEY with matching key tag not found", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
+		It("should stop after a bounded number of failed verifications", func() {
+			sig := signRRset(rrset, dns.TypeA, key, priv, "example.com.")
+			sig.Signature = signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, "example.com.").Signature
 
-			dnskey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "example.com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.ECDSAP256SHA256,
-				PublicKey: "test-key",
+			sigs := make([]*dns.RRSIG, 100)
+			for i := range sigs {
+				sigs[i] = sig
 			}
 
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return &model.Response{
-					Res: &dns.Msg{
-						Answer: []dns.RR{dnskey},
-					},
-				}, nil
-			}
-
-			_, _, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", 12345, dns.ECDSAP256SHA256) // Wrong key tag
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("no DNSKEY with key tag"))
-		})
-
-		It("should treat query failure as Bogus", func() {
-			ctx := context.WithValue(context.Background(), queryBudgetKey{}, 10)
-
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return nil, errors.New("query failed")
-			}
-
-			_, _, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", 12345, dns.ECDSAP256SHA256)
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("failed to query DNSKEY"))
+			err := sut.verifyWithZoneKeys(rrset, sigs, []*dns.DNSKEY{key}, &budget)
+			Expect(err).Should(MatchError(ContainSubstring("signature verification failed")))
+			Expect(strings.Count(err.Error(), "signature verification failed")).Should(Equal(maxZoneKeyVerifications))
 		})
 	})
 })

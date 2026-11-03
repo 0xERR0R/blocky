@@ -1,133 +1,94 @@
 package stringcache
 
 import (
-	"hash/maphash"
-	"math/bits"
-	"slices"
-	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/trie"
 )
 
-const (
-	wildcardFilterWordBits       = 64
-	wildcardFilterEntriesPerWord = 8
-)
-
+// wildcardCache matches a domain against "*.suffix" rules, stored as hashes of
+// the byte-reversed suffix (see hashReversed). accepted is the number of accepted
+// entries, including duplicates and entries that match nothing.
 type wildcardCache struct {
-	tlds map[string]wildcardBucket
-	seed maphash.Seed
-	cnt  int
+	seed     uint64
+	set      hashSet
+	accepted int
 }
 
-// Each TLD shares sorted, concatenated buckets by length, without repeating
-// the TLD in each entry. A nil entries map matches the TLD itself.
-type wildcardBucket struct {
-	entries stringMap
-	filter  []uint64
+func (c wildcardCache) elementCount() int {
+	return c.accepted
 }
 
-func (cache wildcardCache) elementCount() int {
-	return cache.cnt
-}
+func (c wildcardCache) findMatch(query string) (string, bool) {
+	domain := query
 
-func (cache wildcardCache) findMatch(domain string) (string, bool) {
-	tld, rest := trie.SplitTLD(domain)
-	bucket, ok := cache.tlds[tld]
-	if !ok {
+	start, found, nonASCII := c.walk(domain)
+	if nonASCII {
+		// Unicode case folding can't be done byte by byte: retry on the lowered text.
+		domain = strings.ToLower(domain)
+		start, found, _ = c.walk(domain)
+	}
+
+	if !found {
 		return "", false
 	}
 
-	var rule string
-	if bucket.entries == nil {
-		rule = "*." + tld
-	} else {
-		base, found := bucket.findBase(rest, cache.seed)
-		if !found {
-			return "", false
-		}
-
-		rule = "*." + base + "." + tld
-	}
-
-	logMatch("wildcard_cache", "wildcard block rule", rule, domain)
+	rule := "*." + strings.ToLower(collapseDots(strings.TrimRight(domain[start:], ".")))
+	logMatch("wildcard_cache", "wildcard block rule", rule, query)
 
 	return rule, true
 }
 
-func (b wildcardBucket) findBase(domain string, seed maphash.Seed) (string, bool) {
-	domain = strings.Trim(domain, ".")
+// walk hashes domain from its end towards its start, ASCII case-insensitively
+// and ignoring empty labels, as if the dots were trimmed and collapsed first.
+// It probes the hash of every label-boundary suffix, shortest first, so the
+// broadest matching parent wins. start is the offset in domain of the first
+// matching suffix; nonASCII reports that domain has bytes that can't be folded.
+func (c wildcardCache) walk(domain string) (start int, found, nonASCII bool) {
+	var (
+		h        = fnvBasis(c.seed)
+		labelLen int
+		highBits byte
+	)
 
-	// Search the broadest parent first, preserving the trie's reported rule
-	// even when the list also contains children of that parent.
 	for i := len(domain) - 1; i >= 0; i-- {
-		if i != 0 && domain[i-1] != '.' {
+		b := domain[i]
+
+		if b != '.' {
+			highBits |= b
+			h = fnvStep(h, lowerASCII(b))
+			labelLen++
+
 			continue
 		}
 
-		if domain[i] == '.' {
-			return b.findBaseSkippingEmptyLabels(domain, seed)
+		if labelLen == 0 {
+			continue // empty label: leading, trailing or repeated dot
 		}
 
-		key := domain[i:]
-		word, mask := b.filterBits(seed, key)
-		if b.filter[word]&mask != mask {
-			continue
+		// The label ending right after this dot is complete.
+		if c.set.contains(mix(h)) {
+			return i + 1, true, highBits >= utf8.RuneSelf
 		}
 
-		width := len(key)
-		entries := b.entries[width]
-
-		idx := sort.Search(len(entries)/width, func(j int) bool {
-			return entries[j*width:(j+1)*width] >= key
-		})
-		if idx < len(entries)/width && entries[idx*width:(idx+1)*width] == key {
-			return entries[idx*width : (idx+1)*width], true
-		}
+		h = fnvStep(h, b)
+		labelLen = 0
 	}
 
-	return "", false
-}
-
-// SplitTLD skipped empty labels in the trie. Preserve that behavior for direct
-// cache callers and HTTP queries; only repeated-dot queries need this rewrite.
-func (b wildcardBucket) findBaseSkippingEmptyLabels(domain string, seed maphash.Seed) (string, bool) {
-	var buf [256]byte
-	clean := buf[:0]
-	for i := range len(domain) {
-		if domain[i] != '.' || i == 0 || domain[i-1] != '.' {
-			clean = append(clean, domain[i])
-		}
-	}
-
-	return b.findBase(string(clean), seed)
-}
-
-// filterBits maps key to one filter word and two bits in it, so a probe reads a
-// single cache line. The filter only rejects definite misses; binary search
-// verifies every hit.
-func (b wildcardBucket) filterBits(seed maphash.Seed, key string) (word, mask uint64) {
-	hash := maphash.String(seed, key)
-	first := hash % wildcardFilterWordBits
-	second := (hash / wildcardFilterWordBits) % wildcardFilterWordBits
-	// len(b.filter) is a power of two, so the mask selects a valid word.
-	word = (hash / (wildcardFilterWordBits * wildcardFilterWordBits)) & (uint64(len(b.filter)) - 1)
-
-	return word, 1<<first | 1<<second
+	return 0, labelLen > 0 && c.set.contains(mix(h)), highBits >= utf8.RuneSelf
 }
 
 type wildcardCacheFactory struct {
-	tmp map[string]map[int][]string
-	cnt int
+	entries  hashedEntries
+	accepted int
 }
 
 func newWildcardCacheFactory() cacheFactory {
-	return &wildcardCacheFactory{tmp: make(map[string]map[int][]string)}
+	return &wildcardCacheFactory{entries: newHashedEntries()}
 }
 
-func (r *wildcardCacheFactory) addEntry(entry string) bool {
+func (f *wildcardCacheFactory) addEntry(entry string) bool {
 	globCount := strings.Count(entry, "*")
 	if globCount == 0 {
 		return false
@@ -139,72 +100,42 @@ func (r *wildcardCacheFactory) addEntry(entry string) bool {
 		return true // invalid but handled
 	}
 
-	r.cnt++
-	entry = normalizeWildcard(entry)
-	if entry == "" {
-		return true
+	f.accepted++
+
+	domain := collapseDots(normalizeWildcard(entry))
+	if domain == "" {
+		log.Log().Warnf("empty wildcard '%s': it has no domain and matches nothing", entry)
+
+		return true // invalid but handled
 	}
 
-	if strings.Contains(entry, "..") {
-		entry = strings.Join(strings.FieldsFunc(entry, func(c rune) bool { return c == '.' }), ".")
-	}
-
-	tld, rest := trie.SplitTLD(entry)
-	if r.tmp[tld] == nil {
-		r.tmp[tld] = make(map[int][]string)
-	}
-
-	r.tmp[tld][len(rest)] = append(r.tmp[tld][len(rest)], rest)
+	f.entries.add(hashReversed(f.entries.seed, domain))
 
 	return true
 }
 
-func (r *wildcardCacheFactory) count() int {
-	return r.cnt
+func (f *wildcardCacheFactory) count() int {
+	return f.accepted
 }
 
-func (r *wildcardCacheFactory) create() stringCache {
-	if r.cnt == 0 {
+func (f *wildcardCacheFactory) create() stringCache {
+	if f.accepted == 0 {
 		return nil
 	}
 
-	cache := wildcardCache{
-		tlds: make(map[string]wildcardBucket, len(r.tmp)),
-		seed: maphash.MakeSeed(),
-		cnt:  r.cnt,
-	}
-
-	for tld, lengths := range r.tmp {
-		bucket := wildcardBucket{}
-		if len(lengths[0]) == 0 {
-			bucket.entries = make(stringMap, len(lengths))
-			count := 0
-
-			for width, entries := range lengths {
-				slices.Sort(entries)
-				entries = slices.Compact(entries)
-				count += len(entries)
-				bucket.entries[width] = strings.Join(entries, "")
-				delete(lengths, width)
-			}
-
-			// At least eight bits per entry, in a power-of-two number of words.
-			bucket.filter = make([]uint64, 1<<bits.Len(uint(count/wildcardFilterEntriesPerWord)))
-			for width, entries := range bucket.entries {
-				for i := 0; i < len(entries); i += width {
-					word, mask := bucket.filterBits(cache.seed, entries[i:i+width])
-					bucket.filter[word] |= mask
-				}
-			}
-		}
-
-		cache.tlds[strings.Clone(tld)] = bucket
-		delete(r.tmp, tld)
-	}
-
-	return cache
+	return wildcardCache{seed: f.entries.seed, set: f.entries.build(), accepted: f.accepted}
 }
 
+// normalizeWildcard turns a "*.example.com" entry into its lowercase suffix "example.com".
 func normalizeWildcard(domain string) string {
-	return strings.Trim(normalizeEntry(strings.TrimLeft(domain, "*")), ".")
+	return strings.Trim(strings.ToLower(strings.TrimLeft(domain, "*")), ".")
+}
+
+// collapseDots replaces runs of dots by a single dot.
+func collapseDots(domain string) string {
+	if !strings.Contains(domain, "..") {
+		return domain
+	}
+
+	return strings.Join(strings.FieldsFunc(domain, func(c rune) bool { return c == '.' }), ".")
 }

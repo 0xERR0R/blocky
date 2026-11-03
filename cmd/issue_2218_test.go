@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 
 	"github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -94,5 +97,34 @@ var _ = Describe("Healthcheck derives the port from the config (#2218)", func() 
 
 			return c.Execute()
 		}, "2s").Should(Succeed())
+	})
+
+	It("keeps working and logs why when the config is invalid", func() {
+		keepGlobals()
+		hook := test.NewLocal(log.Log())
+
+		ip := "127.0.0.1"
+		port := helpertest.GetStringPort(65116)
+		hostPort := helpertest.GetHostPort(ip, 65116)
+
+		srv := createMockServer(hostPort)
+		go func() {
+			defer GinkgoRecover()
+			Expect(srv.ListenAndServe()).Should(Succeed())
+		}()
+
+		writeConfig("rateLimit:\n  enable: true\nupstreams:\n  groups:\n    default:\n      - 1.1.1.1\n")
+
+		Eventually(func() error {
+			c := NewHealthcheckCommand()
+			c.SetArgs([]string{"-p", port, "-b", ip})
+
+			return c.Execute()
+		}, "2s").Should(Succeed())
+
+		Expect(hook.AllEntries()).Should(ContainElement(SatisfyAll(
+			HaveField("Level", logrus.WarnLevel),
+			HaveField("Message", ContainSubstring("rate must be > 0 when enabled")),
+		)))
 	})
 })

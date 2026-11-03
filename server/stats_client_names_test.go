@@ -24,7 +24,7 @@ import (
 var _ = Describe("Client identity for queries answered at the head of the chain", func() {
 	const clientName = "laptop"
 
-	var clientIP = net.ParseIP("192.168.1.11")
+	clientIP := net.ParseIP("192.168.1.11")
 
 	newServer := func(ctx context.Context, adapt func(cfg *config.Config)) *Server {
 		GinkgoHelper()
