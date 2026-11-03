@@ -208,7 +208,7 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 			client: &http.Client{
 				Transport: transport,
 			},
-			host: cfg.Host,
+			host: dohHost(cfg.Host),
 		}
 
 	case config.NetProtocolTcpTls:
@@ -239,6 +239,16 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 		log.Log().Fatalf("invalid protocol %s", cfg.Net)
 		panic("unreachable")
 	}
+}
+
+// dohHost returns the Host header for an upstream host: an IPv6 literal must be
+// in brackets (RFC 9110 §7.2).
+func dohHost(host string) string {
+	if strings.ContainsRune(host, ':') {
+		return "[" + host + "]"
+	}
+
+	return host
 }
 
 func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {

@@ -269,3 +269,8 @@ func (t *stalePooledConnTransport) RoundTrip(req *http.Request) (*http.Response,
 func (t *stalePooledConnTransport) GetCallCount() int {
 	return int(t.calls.Load())
 }
+
+// roundTripFunc adapts a function to http.RoundTripper.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }

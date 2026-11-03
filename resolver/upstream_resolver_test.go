@@ -1319,6 +1319,33 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 		})
 	})
 
+	Describe("DoH Host header (#2335)", func() {
+		DescribeTable("sends the upstream's host, with an IPv6 literal in brackets",
+			func(upstream, wantHost string) {
+				u, err := config.ParseUpstream(upstream)
+				Expect(err).Should(Succeed())
+
+				client := createUpstreamClient(newUpstreamConfig(u, defaultUpstreamsConfig)).(*httpUpstreamClient)
+				answer := &stalePooledConnTransport{answerFn: rrAnswerFn("example.com 123 IN A 123.124.122.122")}
+
+				var gotHost string
+
+				client.client.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					gotHost = req.Host
+
+					return answer.RoundTrip(req)
+				})
+
+				_, _, err = client.callExternal(ctx, newRequest("example.com.", A).Req, dohTestURL)
+				Expect(err).Should(Succeed())
+				Expect(gotHost).Should(Equal(wantHost))
+			},
+			Entry("name", "https://dns.example.com/dns-query", "dns.example.com"),
+			Entry("IPv4 address", "https://1.1.1.1/dns-query", "1.1.1.1"),
+			Entry("IPv6 address", "https://[2606:4700:4700::1111]/dns-query", "[2606:4700:4700::1111]"),
+		)
+	})
+
 	Describe("TLS session resumption (Fix A)", func() {
 		// The fix configures a ClientSessionCache. We assert the client-side
 		// effect we control: a session ticket is cached and then offered on the
