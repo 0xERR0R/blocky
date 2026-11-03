@@ -17,52 +17,39 @@ import (
 var _ io.Closer = (*connPool)(nil)
 
 var (
-	// errConnClosed wraps the cause whenever a pipelined connection is torn down.
-	errConnClosed = errors.New("DoT connection closed")
-
-	// errUnpackReply fails the one query whose reply didn't unpack.
+	errConnClosed  = errors.New("DoT connection closed")
 	errUnpackReply = errors.New("can't unpack reply")
 )
 
 // connPoolMaxAbandoned bounds the IDs a connection keeps reserved for queries
-// that stopped waiting. Each is freed when its late reply arrives; only a server
-// that drops queries leaves them for good, and past this many the connection is
-// replaced to get a fresh ID space.
+// that stopped waiting; past it the connection is replaced.
 const connPoolMaxAbandoned = 1024
 
-// connPoolMaxAttempts bounds how often a DoT query is sent when the connection
-// it went out on closes before the reply (RFC 7766 §6.2.4: clients SHOULD retry
-// such queries). One retry isn't enough: a server that closes connections after
-// some number of queries can close the retry's connection too. Three is the
-// same count as dohMaxAttempts.
+// connPoolMaxAttempts bounds how often a query is sent when its connection
+// closes before the reply (RFC 7766 §6.2.4). A server that closes connections
+// after some number of queries can close the retry's too; 3 as dohMaxAttempts.
 const connPoolMaxAttempts = 3
 
-// connPool pipelines a single upstream client's DoT queries (RFC 7858 §3.3,
-// RFC 7766 §6.2.1.1) over a per-address set of persistent connections.
+// connPool pipelines a single upstream client's DoT queries (RFC 7858 §3.3)
+// over persistent connections per address.
 //
 // Safety properties:
-//   - A connection carries up to maxInFlight queries, and another connection
-//     to the address is opened only when every one is full. At ordinary load an
-//     address has one connection, as RFC 7766 §6.2.2 recommends; under heavy
-//     load the set grows with the queries in flight, not with every query.
-//   - An address has at most one dial in progress, shared by every query
-//     waiting for a connection, so a burst can't turn into a connection storm.
-//   - Queries go to the oldest connection with room, so surplus connections
-//     idle out once load drops; idleTTL bounds how long a connection may sit
-//     idle before a query replaces it.
-//   - exchange sends a query again, up to connPoolMaxAttempts times, when its
-//     connection closed under it (a server-closed connection can't be detected
-//     up front).
+//   - A connection carries up to maxInFlight queries; another to the same
+//     address is opened only when all are full, so at ordinary load an address
+//     has one connection (RFC 7766 §6.2.2).
+//   - An address has at most one dial in progress, shared by the queries
+//     waiting on it, so a burst can't become a connection storm.
+//   - Queries go to the oldest connection with room, so surplus ones idle out.
+//   - exchange resends a query whose connection closed under it, up to
+//     connPoolMaxAttempts times.
 type connPool struct {
 	client      *dns.Client
 	maxInFlight int
 	idleTTL     time.Duration
-	// timeout is the upstream's timeout. It bounds each dial, and decides when a
-	// connection stopped responding (see muxConn).
+	// timeout bounds each dial and decides when a connection stopped responding.
 	timeout time.Duration
 
-	// now is overridable in tests; defaults to time.Now. Socket deadlines use
-	// the real clock.
+	// now is overridable in tests; socket deadlines use the real clock.
 	now func() time.Time
 
 	mu    sync.Mutex
@@ -117,10 +104,9 @@ func (p *connPool) openCount() int {
 	return n
 }
 
-// exchange sends msg to addr over one of the address's connections. A query
-// whose connection closed before the reply, other than for a timeout, is sent
-// again on another, up to connPoolMaxAttempts times; anything else is left to
-// the caller.
+// exchange sends msg over one of addr's connections, and sends it again on
+// another when the connection closed before the reply for a reason other than
+// a timeout.
 func (p *connPool) exchange(
 	ctx context.Context, msg *dns.Msg, addr string,
 ) (*dns.Msg, time.Duration, error) {
@@ -139,9 +125,8 @@ func (p *connPool) exchange(
 	}
 }
 
-// get returns a connection to addr with a slot reserved for one query. When no
-// connection has a free slot, it waits for the address's dial, starting one if
-// none is in progress, and tries again.
+// get returns a connection to addr with a slot reserved for one query, waiting
+// for the address's dial when none has room.
 func (p *connPool) get(ctx context.Context, addr string) (*muxConn, error) {
 	for {
 		p.mu.Lock()
@@ -183,9 +168,8 @@ func (p *connPool) get(ctx context.Context, addr string) (*muxConn, error) {
 	}
 }
 
-// pick reserves a slot on the oldest of addr's connections that has one free,
-// and drops the connections that closed or sat idle longer than idleTTL. The
-// caller holds p.mu.
+// pick reserves a slot on the oldest of addr's connections with one free, and
+// drops those that closed or sat idle past idleTTL. The caller holds p.mu.
 func (p *connPool) pick(addr string) (conn *muxConn, stale []*muxConn) {
 	now := p.now()
 	all := p.conns[addr]
@@ -235,16 +219,16 @@ func (p *connPool) dial(ctx context.Context, addr string, call *dialCall) {
 	close(call.done)
 }
 
-// shouldRedial reports whether a failed exchange should be retried on a fresh
-// connection. Only connection-level failures qualify; a cancelled or expired
-// context or a timeout is surfaced so the caller's retry and IP rotation handle
-// it.
+// shouldRedial reports whether a failed exchange on a pooled connection should
+// be retried transparently on a fresh dial. Only connection-level failures (a
+// stale pooled connection) qualify; a cancelled/expired context or a timeout is
+// surfaced to the caller so its retry and IP-rotation logic can handle it.
 func shouldRedial(ctx context.Context, err error) bool {
 	return ctx.Err() == nil && !isTimeout(err)
 }
 
-// Close closes every connection. A query still waiting on one is retried on a
-// new connection, so the pool stays usable.
+// Close closes every connection; the queries on them are resent, and the pool
+// stays usable.
 func (p *connPool) Close() error {
 	p.mu.Lock()
 	conns := p.conns
@@ -260,16 +244,14 @@ func (p *connPool) Close() error {
 	return nil
 }
 
-// muxConn is one DoT connection carrying many queries at once. A query first
-// reserves one of the connection's slots, then is written under an ID unique
-// among the connection's in-flight queries (RFC 7766 §6.2.1), and one reader
-// goroutine hands each reply to the query waiting on its ID once its question
-// matches (RFC 7766 §7).
+// muxConn is one DoT connection carrying many queries at once. Each query takes
+// a slot and is written under an ID unique among the connection's in-flight
+// queries (RFC 7766 §6.2.1); one reader goroutine hands each reply to the query
+// with its ID and question (RFC 7766 §7).
 //
-// The connection stopped responding when a write doesn't finish within timeout,
-// or nothing at all is read for timeout while a written query is unanswered: a
-// blackholed path accepts writes and never answers. Either closes it, failing
-// the queries still on it with the timeout, which the caller's retry handles.
+// It closes, failing its queries with the timeout, when a write doesn't finish
+// within timeout or nothing is read for timeout while a written query is
+// unanswered: a blackholed path accepts writes and never answers.
 type muxConn struct {
 	conn    *dns.Conn
 	slots   chan struct{}
@@ -291,16 +273,15 @@ type muxConn struct {
 	closeErr   error
 }
 
-// pendingQuery is a query registered on a muxConn and not yet answered. Its
-// reply channel is nil once the caller stopped waiting: the ID stays reserved
-// until the late reply arrives, so that reply can't answer a newer query.
+// pendingQuery is a query not yet answered. Its reply channel is nil once the
+// caller stopped waiting; the ID stays reserved so the late reply can't answer
+// a newer query.
 type pendingQuery struct {
 	query   *dns.Msg
 	written bool
 	reply   chan reply
 }
 
-// reply is what a waiting query receives: the reply, or why it couldn't be read.
 type reply struct {
 	msg *dns.Msg
 	err error
@@ -322,9 +303,8 @@ func newMuxConn(conn *dns.Conn, maxInFlight int, timeout time.Duration, now func
 	return c
 }
 
-// reserve takes one of the connection's slots if one is free, and counts the
-// connection as used now, so the idle TTL can't run out before the query
-// registers.
+// reserve takes a free slot, if any, and marks the connection used, so the idle
+// TTL can't run out before the query registers.
 func (c *muxConn) reserve(now time.Time) bool {
 	select {
 	case c.slots <- struct{}{}:
@@ -339,9 +319,8 @@ func (c *muxConn) reserve(now time.Time) bool {
 	return true
 }
 
-// exchange writes a copy of msg under a connection-unique ID and waits for its
-// reply, then releases the slot the caller reserved. The caller's msg is not
-// modified, and its ID is restored in the reply.
+// exchange writes a copy of msg under a connection-unique ID, waits for the
+// reply with msg's ID restored, and releases the caller's slot.
 func (c *muxConn) exchange(
 	ctx context.Context, msg *dns.Msg, now func() time.Time,
 ) (*dns.Msg, time.Duration, error) {
@@ -406,8 +385,7 @@ func (c *muxConn) await(ctx context.Context, id uint16, ch chan reply) (*dns.Msg
 	}
 }
 
-// register reserves an ID that no in-flight query on this connection uses and
-// records the query under it.
+// register records the query under an ID no in-flight query uses.
 func (c *muxConn) register(query *dns.Msg, ch chan reply) (uint16, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -448,8 +426,7 @@ func (c *muxConn) write(ctx context.Context, id uint16, query *dns.Msg) (wrote b
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	// The context may have ended while the query waited for the writer, and no
-	// one would read its reply.
+	// The context may have ended while the query waited for the writer.
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -469,8 +446,8 @@ func (c *muxConn) write(ctx context.Context, id uint16, query *dns.Msg) (wrote b
 	return true, err
 }
 
-// expectReply marks the query written, before its reply can arrive. The first
-// written query to go unanswered sets the read deadline.
+// expectReply marks the query written, before its reply can arrive, and arms
+// the read deadline if no other query is unanswered.
 func (c *muxConn) expectReply(id uint16) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -510,8 +487,7 @@ func (c *muxConn) readLoop(now func() time.Time) {
 	for {
 		resp, err := c.conn.ReadMsg()
 		if resp == nil {
-			// An I/O error, a frame too short for a header, or the read deadline:
-			// the stream is lost.
+			// An I/O error, a short frame or the read deadline: the stream is lost.
 			c.close(err)
 
 			return
@@ -519,8 +495,7 @@ func (c *muxConn) readLoop(now func() time.Time) {
 
 		r := reply{msg: resp}
 		if err != nil {
-			// The header unpacked but the rest didn't. The stream is still in sync,
-			// so only the query with this ID fails.
+			// Only the body failed to unpack; the stream is in sync.
 			r = reply{err: fmt.Errorf("%w: %w", errUnpackReply, err)}
 		}
 
@@ -532,9 +507,9 @@ func (c *muxConn) readLoop(now func() time.Time) {
 	}
 }
 
-// deliver hands r to the query waiting on resp's ID. A reply with an unknown ID
-// or a question that doesn't match the query's is dropped. Any frame read shows
-// the path is alive, so the read deadline restarts while queries are unanswered.
+// deliver hands r to the written query with resp's ID and question, dropping it
+// otherwise. Any frame shows the path is alive, so the read deadline restarts
+// while queries are unanswered.
 func (c *muxConn) deliver(resp *dns.Msg, r reply, now time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -560,8 +535,8 @@ func (c *muxConn) deliver(resp *dns.Msg, r reply, now time.Time) error {
 	return c.conn.SetReadDeadline(deadline)
 }
 
-// usable reports whether the connection can still take queries: it is open,
-// and either has queries waiting or was idle for no longer than idleTTL.
+// usable reports whether the connection is open and either busy or idle for no
+// longer than idleTTL.
 func (c *muxConn) usable(now time.Time, idleTTL time.Duration) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()

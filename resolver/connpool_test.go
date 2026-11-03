@@ -330,8 +330,7 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		Expect(questionOf(<-next)).Should(Equal("next.example."))
 		Expect(client.closes()).Should(BeZero())
 
-		// The unwritten query reserved no ID; a leftover entry would keep the
-		// connection counted as busy past the idle TTL.
+		// The unwritten query left no ID reserved.
 		sut.mu.Lock()
 		defer sut.mu.Unlock()
 		Expect(sut.pending).Should(BeEmpty())
@@ -354,10 +353,9 @@ var _ = Describe("muxConn", Label("connPool"), func() {
 		Expect(client.closes()).Should(BeZero())
 	})
 
-	// answerMalformed answers query with its ID, then a header announcing one
-	// question whose first label runs past the end: framed correctly, but it
-	// doesn't unpack. (miekg treats a frame shorter than a header as a framing
-	// error, and a header alone as a valid reply.)
+	// answerMalformed answers query with a header whose question runs past the
+	// end of the frame. (A shorter frame is a framing error, and a bare header
+	// unpacks.)
 	answerMalformed := func(query *dns.Msg) {
 		_, err := server.Write([]byte{byte(query.Id >> 8), byte(query.Id), 0x81, 0x80, 0, 1, 0, 0, 0, 0, 0, 0, 5, 'a'})
 		Expect(err).Should(Succeed())
