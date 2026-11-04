@@ -1087,8 +1087,8 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 		// newDoTResolver builds a resolver pointing at the mock server and trusts
 		// its self-signed certificate. The pool shares the tcpClient's TLS config,
 		// so InsecureSkipVerify applies to pooled dials too.
-		newDoTResolver := func(upstream config.Upstream) *UpstreamResolver {
-			cfg := newUpstreamConfig(upstream, defaultUpstreamsConfig)
+		newDoTResolverWith := func(upstream config.Upstream, upstreams config.Upstreams) *UpstreamResolver {
+			cfg := newUpstreamConfig(upstream, upstreams)
 			r := newUpstreamResolverUnchecked(cfg, systemResolverBootstrap)
 			client := r.upstreamClient.(*dnsUpstreamClient)
 			client.tcpClient.TLSConfig.InsecureSkipVerify = true
@@ -1097,6 +1097,10 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			DeferCleanup(client.Close)
 
 			return r
+		}
+
+		newDoTResolver := func(upstream config.Upstream) *UpstreamResolver {
+			return newDoTResolverWith(upstream, defaultUpstreamsConfig)
 		}
 
 		It("reuses a single connection across multiple queries", func() {
@@ -1118,12 +1122,87 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 
 			stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
 			Expect(stats.dialed).Should(Equal(int64(1)))
-			Expect(stats.reused).Should(Equal(int64(2)))
+		})
+
+		It("pipelines concurrent queries over one connection (#2336)", func() {
+			// Replies come back after varying delays, so out of order.
+			var n atomic.Int32
+
+			mock := NewMockDoTUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.122").
+				WithReplyDelay(func(*dns.Msg) time.Duration {
+					return time.Duration(n.Add(1)%7) * 5 * time.Millisecond
+				})
+
+			// The suite's 50 ms attempt timeout is too short for a burst sharing one
+			// TLS dial under -race: a timed-out query is re-sent and skews the count.
+			upstreams := defaultUpstreamsConfig
+			upstreams.Timeout = config.Duration(2 * time.Second)
+			sut := newDoTResolverWith(mock.Start(), upstreams)
+
+			const queries = 50
+
+			errs := make(chan error, queries)
+
+			for range queries {
+				go func() {
+					defer GinkgoRecover()
+
+					resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
+					if err == nil && resp.Res.Rcode != dns.RcodeSuccess {
+						err = errors.New(dns.RcodeToString[resp.Res.Rcode])
+					}
+
+					errs <- err
+				}()
+			}
+
+			for range queries {
+				Expect(<-errs).Should(Succeed())
+			}
+
+			Expect(mock.GetCallCount()).Should(Equal(queries))
+			// One dial served the whole burst.
+			Expect(mock.GetConnCount()).Should(Equal(1))
+			Expect(sut.upstreamClient.(*dnsUpstreamClient).pool.stats().dialed).Should(Equal(int64(1)))
+		})
+
+		It("opens another connection only when every connection to the address is full", func() {
+			mock := NewMockDoTUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.122").
+				WithReplyDelay(func(*dns.Msg) time.Duration { return time.Second })
+
+			upstreams := defaultUpstreamsConfig
+			upstreams.Timeout = config.Duration(3 * time.Second)
+			sut := newDoTResolverWith(mock.Start(), upstreams)
+			pool := sut.upstreamClient.(*dnsUpstreamClient).pool
+			pool.maxInFlight = 2
+
+			const queries = 5
+
+			errs := make(chan error, queries)
+
+			for range queries {
+				go func() {
+					defer GinkgoRecover()
+
+					_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+					errs <- err
+				}()
+			}
+
+			for range queries {
+				Expect(<-errs).Should(Succeed())
+			}
+
+			// Replies take a second, so all five are in flight at once: two per connection.
+			Expect(mock.GetConnCount()).Should(Equal(3))
+			Expect(pool.stats().dialed).Should(Equal(int64(3)))
 		})
 
 		It("transparently recovers when the upstream closed a pooled connection", func() {
-			// The server drops the connection after each query, so every reuse
-			// hits a stale connection and must fall back to a fresh dial.
+			// The server drops the connection after each query, so every query
+			// after the first finds the previous connection closed.
 			mock := NewMockDoTUpstreamServer().
 				WithAnswerRR("example.com 123 IN A 123.124.122.122").
 				WithCloseAfter(1)
@@ -1141,15 +1220,101 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			Expect(mock.GetCallCount()).Should(Equal(2))
 			// A fresh connection per query because each was closed server-side.
 			Expect(mock.GetConnCount()).Should(Equal(2))
+			Expect(sut.upstreamClient.(*dnsUpstreamClient).pool.stats().dialed).Should(Equal(int64(2)))
+		})
 
-			// The second query took the pooled connection, found it broken on
-			// exchange, and recovered with a fresh dial — never surfacing an error.
-			// reused counts only successful reuses, so it stays 0 here; the broken
-			// reuse is reflected by retried instead.
-			stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
-			Expect(stats.dialed).Should(Equal(int64(2)))
-			Expect(stats.reused).Should(Equal(int64(0)))
-			Expect(stats.retried).Should(Equal(int64(1)))
+		It("dials a new connection once the old one sat idle past the TTL", func() {
+			mock := NewMockDoTUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoTResolver(mock.Start())
+			pool := sut.upstreamClient.(*dnsUpstreamClient).pool
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(HaveReturnCode(dns.RcodeSuccess))
+
+			later := time.Now().Add(connPoolIdleTimeout + time.Second)
+			pool.now = func() time.Time { return later }
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(HaveReturnCode(dns.RcodeSuccess))
+
+			Expect(mock.GetConnCount()).Should(Equal(2))
+			Expect(pool.stats().dialed).Should(Equal(int64(2)))
+			// The idle connection was closed, not just replaced.
+			Eventually(mock.openConnCount).Should(Equal(1))
+		})
+
+		It("fails every query waiting on a dial that fails, and keeps no connection", func() {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			Expect(err).Should(Succeed())
+
+			port, err := config.ConvertPort(strconv.Itoa(listener.Addr().(*net.TCPAddr).Port))
+			Expect(err).Should(Succeed())
+			Expect(listener.Close()).Should(Succeed())
+
+			sut := newDoTResolver(config.Upstream{Net: config.NetProtocolTcpTls, Host: "127.0.0.1", Port: port})
+
+			const queries = 10
+
+			errs := make(chan error, queries)
+
+			for range queries {
+				go func() {
+					defer GinkgoRecover()
+
+					_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+					errs <- err
+				}()
+			}
+
+			for range queries {
+				Expect(<-errs).Should(HaveOccurred())
+			}
+
+			pool := sut.upstreamClient.(*dnsUpstreamClient).pool
+			Expect(pool.openCount()).Should(BeZero())
+			Expect(pool.stats().dialed).Should(BeZero())
+		})
+
+		When("the server closes the connection a query was sent on", func() {
+			// Several TLS dials must fit in one attempt, too tight for the suite's 50 ms under -race.
+			newResolver := func(mock *MockDoTUpstreamServer) *UpstreamResolver {
+				upstreams := defaultUpstreamsConfig
+				upstreams.Timeout = config.Duration(2 * time.Second)
+
+				return newDoTResolverWith(mock.Start(), upstreams)
+			}
+
+			It("sends the query again on a new connection", func() {
+				mock := NewMockDoTUpstreamServer().
+					WithAnswerRR("example.com 123 IN A 123.124.122.122").
+					WithHangUps(connPoolMaxAttempts - 1)
+				sut := newResolver(mock)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(SatisfyAll(
+						BeDNSRecord("example.com.", A, "123.124.122.122"),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+
+				Expect(mock.GetCallCount()).Should(Equal(connPoolMaxAttempts))
+				stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
+				Expect(stats.dialed).Should(Equal(int64(connPoolMaxAttempts)))
+				Expect(stats.retried).Should(Equal(int64(connPoolMaxAttempts - 1)))
+			})
+
+			It("gives up after connPoolMaxAttempts attempts", func() {
+				mock := NewMockDoTUpstreamServer().
+					WithAnswerRR("example.com 123 IN A 123.124.122.122").
+					WithHangUps(connPoolMaxAttempts)
+				sut := newResolver(mock)
+
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(MatchError(errConnClosed))
+
+				Expect(mock.GetCallCount()).Should(Equal(connPoolMaxAttempts))
+				Expect(sut.upstreamClient.(*dnsUpstreamClient).pool.stats().retried).
+					Should(Equal(int64(connPoolMaxAttempts - 1)))
+			})
 		})
 
 		It("closes pooled connections when the client is closed (Fix #2)", func() {
@@ -1160,10 +1325,10 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 				Should(HaveReturnCode(dns.RcodeSuccess))
 
 			client := sut.upstreamClient.(*dnsUpstreamClient)
-			Expect(client.pool.idleCount()).Should(Equal(1))
+			Expect(client.pool.openCount()).Should(Equal(1))
 
 			Expect(client.Close()).Should(Succeed())
-			Expect(client.pool.idleCount()).Should(Equal(0))
+			Expect(client.pool.openCount()).Should(Equal(0))
 		})
 
 		It("does not leak server goroutines when the mock is closed (Fix #5)", func() {

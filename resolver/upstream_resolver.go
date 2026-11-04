@@ -35,9 +35,10 @@ const (
 	retryAttempts        = 3
 	sha256HashLength     = 32
 
-	// connPoolMaxIdle bounds the number of idle DoT connections kept per upstream
-	// address, so a burst of concurrent queries can't leak connections.
-	connPoolMaxIdle = 8
+	// connPoolMaxInFlight bounds the queries pipelined on one DoT connection; once
+	// every connection to an address is this full, another one is opened. 200 is
+	// Unbound's default for the same limit (max-reuse-tcp-queries).
+	connPoolMaxInFlight = 200
 	// connPoolIdleTimeout discards pooled connections idle longer than this,
 	// before an upstream is likely to have closed them.
 	connPoolIdleTimeout = 30 * time.Second
@@ -112,7 +113,7 @@ type upstreamClient interface {
 
 type dnsUpstreamClient struct {
 	tcpClient, udpClient *dns.Client
-	// pool reuses persistent connections for the connection-oriented DoT path;
+	// pool pipelines the DoT path's queries over persistent connections;
 	// nil for the plain tcp+udp client, whose TCP leg is only a rare fallback
 	// (truncation, question mismatch, UDP failure) and so does not benefit from
 	// pooling.
@@ -219,7 +220,7 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 		return &dnsUpstreamClient{
 			tcpClient: tcpClient,
-			pool:      newConnPool(tcpClient, connPoolMaxIdle, connPoolIdleTimeout),
+			pool:      newConnPool(tcpClient, connPoolMaxInFlight, connPoolIdleTimeout, cfg.Timeout.ToDuration()),
 		}
 
 	case config.NetProtocolQuic:
@@ -397,8 +398,8 @@ func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 
-// Close releases the connection pool's idle connections, if pooling is in use
-// (the DoT path). Implements io.Closer.
+// Close closes the connection pool's connections, if pooling is in use (the DoT
+// path). Implements io.Closer.
 func (r *dnsUpstreamClient) Close() error {
 	if r.pool != nil {
 		return r.pool.Close()
