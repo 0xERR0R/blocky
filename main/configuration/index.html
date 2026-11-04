@@ -2904,6 +2904,8 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="nt">mapping</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">fritz.box</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.1</span>
 <span class="w">    </span><span class="nt">lan.net</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.1,192.168.178.2</span>
+<span class="w">    </span><span class="c1"># forward an entire TLD (e.g. all *.xyz) to a specific resolver</span>
+<span class="w">    </span><span class="c1"># xyz: 1.1.1.1</span>
 
 <span class="c1"># optional: use allow/denylists to block queries (for example ads, trackers, adult pages etc.)</span>
 <span class="nt">blocking</span><span class="p">:</span>
@@ -4378,6 +4380,8 @@ It only has an effect together with <code>rewrite</code>; without any rewrite ru
 <span class="w">    </span><span class="nt">lan.net</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.170.1.2,192.170.1.3</span>
 <span class="w">    </span><span class="c1"># for reverse DNS lookups of local devices</span>
 <span class="w">    </span><span class="nt">178.168.192.in-addr.arpa</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.1</span>
+<span class="w">    </span><span class="c1"># for all queries under a TLD (e.g. *.xyz)</span>
+<span class="w">    </span><span class="nt">xyz</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
 <span class="w">    </span><span class="c1"># for all unqualified hostnames</span>
 <span class="w">    </span><span class="nt">.</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">168.168.0.1</span>
 </code></pre></div>
@@ -4386,6 +4390,10 @@ It only has an effect together with <code>rewrite</code>; without any rewrite ru
 <p class="admonition-title">Tip</p>
 <p>You can use <code>.</code> as wildcard for all non full qualified domains (domains without dot)</p>
 </div>
+<p>A mapping key matches the domain itself and all of its subdomains. Since a bare TLD is just a
+parent domain, you can use it to forward an entire TLD to a specific resolver. For example,
+<code>xyz: 1.1.1.1</code> sends every query ending in <code>.xyz</code> (such as <code>foo.xyz</code> and <code>a.b.xyz</code>) to <code>1.1.1.1</code>,
+just like dnsmasq's <code>server=/xyz/1.1.1.1</code>.</p>
 <p>In this example, a <abbr title="Domain Name System">DNS</abbr> query "client.fritz.box" will be redirected to the router's <abbr title="Domain Name System">DNS</abbr> server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
 The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1.</p>
 <p>If not found and if <code>fallbackUpstream</code> was set to <code>true</code>, the original query "blog.example.com" will be sent upstream.</p>
