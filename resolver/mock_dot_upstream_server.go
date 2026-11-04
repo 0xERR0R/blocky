@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
@@ -16,27 +17,41 @@ import (
 // MockDoTUpstreamServer is a mock DNS-over-TLS (tcp-tls) server for testing the
 // connection pool. It counts accepted connections (to prove reuse) and served
 // queries, and can close connections after a fixed number of queries to
-// simulate an upstream that drops idle connections.
+// simulate an upstream that drops idle connections. With WithReplyDelay it
+// answers pipelined queries concurrently, so replies can arrive out of order.
 type MockDoTUpstreamServer struct {
 	callCount  atomic.Int32
 	connCount  atomic.Int32
 	openConns  atomic.Int32
 	closeAfter atomic.Int32
+	hangUps    atomic.Int32
 
-	listener net.Listener
-	answerFn func(request *dns.Msg) (response *dns.Msg)
+	listener   net.Listener
+	answerFn   func(request *dns.Msg) (response *dns.Msg)
+	replyDelay func(request *dns.Msg) time.Duration
 
 	// mu guards conns, the set of accepted connections Close must tear down so
 	// their handleConn goroutines don't block forever on ReadMsg.
-	mu    sync.Mutex
-	conns []net.Conn
+	mu     sync.Mutex
+	conns  []net.Conn
+	closed chan struct{}
+	once   sync.Once
 }
 
 func NewMockDoTUpstreamServer() *MockDoTUpstreamServer {
-	srv := &MockDoTUpstreamServer{}
+	srv := &MockDoTUpstreamServer{closed: make(chan struct{})}
 	ginkgo.DeferCleanup(srv.Close)
 
 	return srv
+}
+
+// WithReplyDelay answers each query in its own goroutine after delay(query), so
+// a connection's replies can arrive in a different order than its queries.
+// WithCloseAfter has no effect in this mode.
+func (t *MockDoTUpstreamServer) WithReplyDelay(delay func(request *dns.Msg) time.Duration) *MockDoTUpstreamServer {
+	t.replyDelay = delay
+
+	return t
 }
 
 func (t *MockDoTUpstreamServer) WithAnswerRR(answers ...string) *MockDoTUpstreamServer {
@@ -47,6 +62,14 @@ func (t *MockDoTUpstreamServer) WithAnswerRR(answers ...string) *MockDoTUpstream
 
 func (t *MockDoTUpstreamServer) WithAnswerError(errorCode int) *MockDoTUpstreamServer {
 	t.answerFn = errorAnswerFn(errorCode)
+
+	return t
+}
+
+// WithHangUps makes the server close the connection each of the first n queries
+// arrives on, without answering it.
+func (t *MockDoTUpstreamServer) WithHangUps(n int) *MockDoTUpstreamServer {
+	t.hangUps.Store(int32(n)) //nolint:gosec // small test value
 
 	return t
 }
@@ -75,6 +98,8 @@ func (t *MockDoTUpstreamServer) openConnCount() int {
 }
 
 func (t *MockDoTUpstreamServer) Close() {
+	t.once.Do(func() { close(t.closed) })
+
 	if t.listener != nil {
 		_ = t.listener.Close()
 	}
@@ -144,7 +169,10 @@ func (t *MockDoTUpstreamServer) handleConn(conn net.Conn) {
 
 	dnsConn := &dns.Conn{Conn: conn}
 
-	var served int32
+	var (
+		served  int32
+		writeMu sync.Mutex
+	)
 
 	for {
 		msg, err := dnsConn.ReadMsg()
@@ -153,6 +181,16 @@ func (t *MockDoTUpstreamServer) handleConn(conn net.Conn) {
 		}
 
 		t.callCount.Add(1)
+
+		if t.hangUps.Add(-1) >= 0 {
+			return
+		}
+
+		if t.replyDelay != nil {
+			go t.replyLater(dnsConn, &writeMu, msg)
+
+			continue
+		}
 
 		response := mockReply(msg, t.answerFn(msg))
 
@@ -165,4 +203,20 @@ func (t *MockDoTUpstreamServer) handleConn(conn net.Conn) {
 			return
 		}
 	}
+}
+
+// replyLater answers msg after its delay, unless the server is closed first.
+func (t *MockDoTUpstreamServer) replyLater(dnsConn *dns.Conn, writeMu *sync.Mutex, msg *dns.Msg) {
+	defer ginkgo.GinkgoRecover()
+
+	select {
+	case <-time.After(t.replyDelay(msg)):
+	case <-t.closed:
+		return
+	}
+
+	writeMu.Lock()
+	defer writeMu.Unlock()
+
+	_ = dnsConn.WriteMsg(mockReply(msg, t.answerFn(msg)))
 }
