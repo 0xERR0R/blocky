@@ -284,6 +284,8 @@ type Config struct {
 	QueryLog QueryLog `yaml:"queryLog"`
 	// Prometheus metrics configuration.
 	Prometheus Metrics `yaml:"prometheus"`
+	// Go profiler (pprof) endpoints served under /debug.
+	Pprof Pprof `yaml:"pprof"`
 	// In-memory statistics subsystem (24h window), served at /api/stats.
 	Statistics Statistics `yaml:"statistics"`
 	// Redis configuration for cache and state synchronization between instances.

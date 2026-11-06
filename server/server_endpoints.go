@@ -197,7 +197,9 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
 
-	configureDebugHandler(router)
+	if cfg.Pprof.Enable {
+		configureDebugHandler(router)
+	}
 
 	configureDocsHandler(router)
 
@@ -276,10 +278,13 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 				URL:   "/docs/config.schema.json",
 				Title: "Configuration JSON Schema",
 			},
-			{
+		}
+
+		if cfg.Pprof.Enable {
+			pd.Links = append(pd.Links, HandlerLink{
 				URL:   "/debug/",
 				Title: "Go Profiler",
-			},
+			})
 		}
 
 		if cfg.Prometheus.Enable {

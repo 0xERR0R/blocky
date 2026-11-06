@@ -801,6 +801,18 @@
       "type": "object",
       "description": "Prometheus metrics configuration."
     },
+    "pprof": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "If true, serves the Go profiler (pprof) endpoints under /debug on the HTTP(S) listeners.",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Go profiler (pprof) endpoints served under /debug."
+    },
     "statistics": {
       "properties": {
         "enable": {
