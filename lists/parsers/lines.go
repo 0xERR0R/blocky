@@ -10,6 +10,8 @@ import (
 	"unicode"
 )
 
+const utf8BOM = "\uFEFF"
+
 // Lines splits `r` into a series of lines.
 //
 // Empty lines are skipped, and comments are stripped.
@@ -64,7 +66,13 @@ func (l *lines) Next(ctx context.Context) (string, error) {
 			break
 		}
 
-		text := strings.TrimSpace(l.scanner.Text())
+		text := l.scanner.Text()
+		if l.lineNo == 1 {
+			// Editors on Windows often save lists with a UTF-8 byte order mark
+			text = strings.TrimPrefix(text, utf8BOM)
+		}
+
+		text = strings.TrimSpace(text)
 
 		if len(text) == 0 {
 			continue // empty line

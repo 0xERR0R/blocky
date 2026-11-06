@@ -82,6 +82,36 @@ var _ = Describe("Lines", func() {
 		})
 	})
 
+	When("it starts with a UTF-8 byte order mark", func() {
+		BeforeEach(func() {
+			sutReader = linesReader(
+				"\xef\xbb\xbf# comment",
+				"first",
+			)
+		})
+
+		It("does not return it as part of the first line", func() {
+			str, err := sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(str).Should(Equal("first"))
+			Expect(sut.Position()).Should(Equal("line 2"))
+		})
+	})
+
+	When("the first line is an entry after a UTF-8 byte order mark", func() {
+		BeforeEach(func() {
+			sutReader = linesReader(
+				"\xef\xbb\xbf127.0.0.1 first",
+			)
+		})
+
+		It("returns the entry without it", func() {
+			str, err := sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(str).Should(Equal("127.0.0.1 first"))
+		})
+	})
+
 	When("it has commented lines", func() {
 		BeforeEach(func() {
 			sutReader = linesReader(
