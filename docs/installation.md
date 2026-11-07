@@ -277,3 +277,5 @@ See linked project for installation instructions.
 - [BlockyUI](https://github.com/GabeDuarteM/blocky-ui) provides a fully featured and modern Web UI for managing your Blocky DNS server.
 
 - [Blocky Visor](https://github.com/JCHHeilmann/blocky-visor) is a static SPA dashboard with live metrics and DNS query testing. Comes with an optional Go sidecar that adds historical analytics based on parsing Blocky's log files, log viewing, and config editing.
+
+- [Blocky Blocking Editor](https://github.com/scambra/blocky-blocking-editor/) is a graphical editor for blocking settings, with support for deny/allow lists, schedules, per-client rules, generating the blocky config. Includes a Docker example deployment, with automatic restart of blocky.
