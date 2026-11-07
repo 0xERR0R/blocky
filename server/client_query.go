@@ -104,19 +104,12 @@ func (q clientQuery) normalizeResponse(res *dns.Msg) {
 		res.SetEdns0(dns.DefaultMsgSize, q.wantsDNSSEC)
 	}
 
-	// truncate if necessary; Truncate also disables compression when the message already fits
-	// uncompressed and enables it when compression is needed to fit, so we let it decide rather
-	// than forcing Compress=true and paying a compression-map alloc + packing on every response.
 	res.Truncate(q.maxResponseSize)
 
-	// Fitting the buffer the client advertised isn't enough on its own: that client may be a
-	// forwarder relaying our answer to a stub with a smaller buffer, and it can only truncate
-	// what it received. Compress anything that wouldn't fit a bare 512-byte UDP message so it
-	// survives that hop; below that there is nothing to gain and the compression map costs more
-	// than the bytes it would save.
-	if !res.Compress && res.Len() > dns.MinMsgSize {
-		res.Compress = true
-	}
+	// Truncate turns compression off when the message fits uncompressed. Compress anyway: some
+	// stub resolvers drop uncompressed answers, and a forwarder in front of blocky may relay the
+	// answer to a client with a smaller buffer than the one it advertised.
+	res.Compress = true
 }
 
 // For TCP returns 64k
