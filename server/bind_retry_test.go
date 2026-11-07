@@ -125,5 +125,29 @@ var _ = Describe("startup bind retry", func() {
 
 			Expect(errors.Is(retryServe(retryCtx, srv), context.Canceled)).To(BeTrue())
 		})
+
+		It("stops serving and returns nil when the context is cancelled", func(ctx context.Context) {
+			started := make(chan struct{})
+
+			srv := &dns.Server{
+				Addr:    "127.0.0.1:0",
+				Net:     "tcp",
+				Handler: dns.NewServeMux(),
+				NotifyStartedFunc: func() {
+					close(started)
+				},
+			}
+
+			retryCtx, cancel := context.WithCancel(ctx)
+			served := make(chan error, 1)
+			go func() { served <- retryServe(retryCtx, srv) }()
+
+			Eventually(started, "6s", "100ms").Should(BeClosed())
+
+			// Cancelling the context must shut the server down gracefully and
+			// make retryServe return nil, not a spurious startup error.
+			cancel()
+			Expect(<-served).Should(Succeed())
+		})
 	})
 })

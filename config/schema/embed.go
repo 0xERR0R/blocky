@@ -69,8 +69,7 @@ func ValidateYAML(data []byte) ([]Error, error) {
 	}
 
 	if err := compiled.Validate(instance); err != nil {
-		var ve *jsonschema.ValidationError
-		if errors.As(err, &ve) {
+		if ve, ok := errors.AsType[*jsonschema.ValidationError](err); ok {
 			return flatten(ve), nil
 		}
 

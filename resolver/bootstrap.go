@@ -225,6 +225,7 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	// family) instead of consuming the whole attempt — the standard dialer
 	// does this dual-stack fallback for us, but we bypass it by resolving the
 	// host ourselves and dialing a single address.
+	//nolint:gosec // shuffling for load spreading, not for security
 	rand.Shuffle(len(ips), func(i, j int) { ips[i], ips[j] = ips[j], ips[i] })
 
 	var dialErr *multierror.Error

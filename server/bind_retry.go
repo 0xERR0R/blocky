@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
 	"net"
 	"time"
 
@@ -81,16 +83,95 @@ func listenPacketRetry(ctx context.Context, address string) (net.PacketConn, err
 	return pc, err
 }
 
-// retryServe serves via srv.ListenAndServe, retrying while the bind fails: on
-// a bind error miekg/dns leaves the server un-started, so calling it again
-// simply retries the bind. An error after a successful bind (the listener or
-// packet conn is then set) comes from the serving loop and is returned as-is:
-// re-calling ListenAndServe would fail with "server already started".
-func retryServe(ctx context.Context, srv *dns.Server) error {
-	options := append(bindRetryOptions(ctx, srv.Net, srv.Addr),
-		retry.RetryIf(func(err error) bool {
-			return srv.Listener == nil && srv.PacketConn == nil
-		}))
+// bindDNSServer binds the server's socket, retrying while the interface owning
+// the address comes up. On success it sets srv.Listener or srv.PacketConn so
+// the server can subsequently be started with ActivateAndServe.
+func bindDNSServer(ctx context.Context, srv *dns.Server) error {
+	switch srv.Net {
+	case networkUDP:
+		pc, err := listenPacketRetry(ctx, srv.Addr)
+		if err != nil {
+			return err
+		}
 
-	return retry.Do(func() error { return srv.ListenAndServe() }, options...)
+		srv.PacketConn = pc
+	case networkTCP:
+		l, err := listenTCPRetry(ctx, srv.Addr)
+		if err != nil {
+			return err
+		}
+
+		srv.Listener = l
+	case networkTCPTLS:
+		l, err := listenTCPRetry(ctx, srv.Addr)
+		if err != nil {
+			return err
+		}
+
+		srv.Listener = tls.NewListener(l, srv.TLSConfig)
+	default:
+		return fmt.Errorf("unsupported DNS listener network %q", srv.Net)
+	}
+
+	return nil
+}
+
+// retryServe binds the server's socket (retrying while the interface owning the
+// address comes up) and then serves it. Binding and serving are split so that a
+// cancelled context aborts the in-progress bind (net.Listen respects the
+// context) and stops the serve loop, rather than leaving a half-started server.
+func retryServe(ctx context.Context, srv *dns.Server) error {
+	if srv.Listener == nil && srv.PacketConn == nil {
+		if err := bindDNSServer(ctx, srv); err != nil {
+			return err
+		}
+	}
+
+	return serveDNSServer(ctx, srv)
+}
+
+// serveDNSServer serves an already-bound server and stops it when ctx is
+// cancelled. A goroutine watches the context: if the server is already serving,
+// it shuts it down gracefully; if it has not reached a serving state yet (the
+// bind completed but ActivateAndServe below has not set the server's started
+// flag), the socket is closed directly so that the pending ActivateAndServe
+// fails instead of serving forever.
+func serveDNSServer(ctx context.Context, srv *dns.Server) error {
+	stop := make(chan struct{})
+	defer close(stop)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-stop:
+			return
+		}
+
+		if err := srv.Shutdown(); err != nil {
+			closeServerSocket(srv)
+		}
+	}()
+
+	err := srv.ActivateAndServe()
+	if ctx.Err() != nil {
+		// The server was stopped as part of a shutdown; an error from
+		// ActivateAndServe (e.g. a closed socket) is expected and not a
+		// startup failure.
+		return nil
+	}
+
+	return err
+}
+
+// closeServerSocket closes a bound server socket directly. It is only used as a
+// fallback when the server is cancelled before it reaches a serving state, so
+// there are no in-flight connections to drain.
+func closeServerSocket(srv *dns.Server) {
+	if srv.Listener != nil {
+		_ = srv.Listener.Close()
+	}
+
+	if srv.PacketConn != nil {
+		_ = srv.PacketConn.Close()
+	}
 }
