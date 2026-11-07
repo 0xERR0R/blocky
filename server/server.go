@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache"
@@ -55,6 +56,8 @@ type Server struct {
 	http3PacketConns []net.PacketConn // one per address in ports.https
 	closers          []io.Closer
 	redisCancel      context.CancelFunc
+	dnsStartCancel   context.CancelFunc // cancels DNS startup (bind retries) on Stop
+	dnsServeWG       sync.WaitGroup     // tracks the DNS serve goroutines started in Start
 }
 
 func logger() *logrus.Entry {
@@ -330,10 +333,9 @@ func newTCPListeners(
 	ctx context.Context, proto string, addresses config.ListenConfig, proxyProtocol bool,
 ) ([]net.Listener, error) {
 	listeners := make([]net.Listener, 0, len(addresses))
-	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		listener, err := lc.Listen(ctx, networkTCP, address)
+		listener, err := listenTCPRetry(ctx, address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}
@@ -678,13 +680,24 @@ func toMB(b uint64) uint64 {
 func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	logger().Info("Starting server")
 
+	// Derive a context whose cancellation stops in-flight DNS bind retries
+	// (see retryServe); Stop cancels it before shutting down the servers.
+	dnsCtx, cancel := context.WithCancel(ctx)
+	s.dnsStartCancel = cancel
+
 	for _, srv := range s.dnsServers {
+		s.dnsServeWG.Add(1)
 		go func() {
+			defer s.dnsServeWG.Done()
+
 			// When a listener/packet connection was pre-created (freeBind), serve it via
-			// ActivateAndServe; otherwise let miekg/dns create the socket via ListenAndServe.
-			serve := srv.ListenAndServe
+			// ActivateAndServe; otherwise let miekg/dns create the socket via ListenAndServe,
+			// retrying the bind while the interface is not up yet (see bind_retry.go).
+			var serve func() error
 			if srv.Listener != nil || srv.PacketConn != nil {
 				serve = srv.ActivateAndServe
+			} else {
+				serve = func() error { return retryServe(dnsCtx, srv) }
 			}
 
 			if err := serve(); err != nil {
@@ -728,6 +741,13 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 func (s *Server) Stop(ctx context.Context) error {
 	logger().Info("Stopping server")
 
+	// Cancel startup (bind retries) first: a DNS listener whose bind is still
+	// being retried has no socket to close, and ShutdownContext on an un-started
+	// server only returns "server not started".
+	if s.dnsStartCancel != nil {
+		s.dnsStartCancel()
+	}
+
 	// Shut down HTTP/3 in order: server first (drains in-flight
 	// requests and unblocks the Serve goroutines), then UDP packet
 	// conns. Closing the packet conns first would cause Serve to
@@ -756,10 +776,17 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	for _, server := range s.dnsServers {
+		// A server whose bind never succeeded has no socket to shut down.
+		if server.Listener == nil && server.PacketConn == nil {
+			continue
+		}
+
 		if err := server.ShutdownContext(ctx); err != nil {
 			return fmt.Errorf("stop %s listener failed: %w", server.Net, err)
 		}
 	}
+
+	s.dnsServeWG.Wait()
 
 	return nil
 }
