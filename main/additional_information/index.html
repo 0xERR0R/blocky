@@ -885,7 +885,11 @@ INFO server: RUN NumGoroutine =         18
 </div>
 <h2 id="debug-profiling">Debug / Profiling</h2>
 <p>If http listener is enabled, <a href="https://golang.org/pkg/net/http/pprof/">pprof</a> endpoint (<code>/debug/pprof</code>) is enabled
-automatically.</p>
+by default. The endpoint is not authenticated, so disable it with <code>pprof.enable: false</code> if the <abbr title="Hypertext Transfer Protocol">HTTP</abbr> listener is
+reachable from untrusted networks.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">pprof</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
 <h2 id="list-sources">List sources</h2>
 <p>Some links/ideas for lists:</p>
 <h3 id="denylists">Denylists</h3>

@@ -3074,6 +3074,11 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># url path, optional (default '/metrics')</span>
 <span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/metrics</span>
 
+<span class="c1"># optional: serve the Go profiler (pprof) endpoints under /debug on the HTTP(S) listeners</span>
+<span class="nt">pprof</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># default: true</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
 <span class="c1"># optional: write query information (question, answer, client, duration etc.) to daily csv file</span>
 <span class="nt">queryLog</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># optional one of: mysql, postgresql, timescale, sqlite, csv, csv-client. If empty, log to console</span>
