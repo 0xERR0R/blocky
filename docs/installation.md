@@ -200,15 +200,13 @@ path like '/app/allowlists/allowlist.txt' in the config file.
 
 ## Multiple configuration files
 
-For complex setups, splitting the configuration between multiple YAML files might be desired. In this case, folder containing YAML files is passed on startup, Blocky will join all the files.
+For complex setups, splitting the configuration between multiple YAML files might be desired. In this case, pass a folder containing YAML files on startup and Blocky merges all the files.
 
 ```sh
 ./blocky --config ./config/
 ```
 
-!!! warning
-
-    Blocky simply joins the multiple YAML files. If an option (e.g. `upstream`) is present in multiple files, the configuration will not load and start will fail.
+See [Multiple configuration files](configuration.md#multiple-configuration-files) for the merge order and rules.
 
 ## Other installation types
 
