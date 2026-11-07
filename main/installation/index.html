@@ -1130,13 +1130,10 @@ so they need no ownership changes. See the permission note under
 </div>
 </div>
 <h2 id="multiple-configuration-files">Multiple configuration files</h2>
-<p>For complex setups, splitting the configuration between multiple <abbr title="YAML Ain't Markup Language">YAML</abbr> files might be desired. In this case, folder containing <abbr title="YAML Ain't Markup Language">YAML</abbr> files is passed on startup, Blocky will join all the files.</p>
+<p>For complex setups, splitting the configuration between multiple <abbr title="YAML Ain't Markup Language">YAML</abbr> files might be desired. In this case, pass a folder containing <abbr title="YAML Ain't Markup Language">YAML</abbr> files on startup and Blocky merges all the files.</p>
 <div class="highlight"><pre><span></span><code>./blocky<span class="w"> </span>--config<span class="w"> </span>./config/
 </code></pre></div>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Blocky simply joins the multiple <abbr title="YAML Ain't Markup Language">YAML</abbr> files. If an option (e.g. <code>upstream</code>) is present in multiple files, the configuration will not load and start will fail.</p>
-</div>
+<p>See <a href="../configuration/#multiple-configuration-files">Multiple configuration files</a> for the merge order and rules.</p>
 <h2 id="other-installation-types">Other installation types</h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
