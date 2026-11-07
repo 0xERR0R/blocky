@@ -42,7 +42,13 @@ To print runtime configuration / statistics, you can send `SIGUSR1` signal to ru
 ## Debug / Profiling
 
 If http listener is enabled, [pprof](https://golang.org/pkg/net/http/pprof/) endpoint (`/debug/pprof`) is enabled
-automatically.
+by default. The endpoint is not authenticated, so disable it with `pprof.enable: false` if the HTTP listener is
+reachable from untrusted networks.
+
+```yaml
+pprof:
+  enable: false
+```
 
 ## List sources
 

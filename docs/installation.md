@@ -200,15 +200,13 @@ path like '/app/allowlists/allowlist.txt' in the config file.
 
 ## Multiple configuration files
 
-For complex setups, splitting the configuration between multiple YAML files might be desired. In this case, folder containing YAML files is passed on startup, Blocky will join all the files.
+For complex setups, splitting the configuration between multiple YAML files might be desired. In this case, pass a folder containing YAML files on startup and Blocky merges all the files.
 
 ```sh
 ./blocky --config ./config/
 ```
 
-!!! warning
-
-    Blocky simply joins the multiple YAML files. If an option (e.g. `upstream`) is present in multiple files, the configuration will not load and start will fail.
+See [Multiple configuration files](configuration.md#multiple-configuration-files) for the merge order and rules.
 
 ## Other installation types
 
@@ -277,3 +275,5 @@ See linked project for installation instructions.
 - [BlockyUI](https://github.com/GabeDuarteM/blocky-ui) provides a fully featured and modern Web UI for managing your Blocky DNS server.
 
 - [Blocky Visor](https://github.com/JCHHeilmann/blocky-visor) is a static SPA dashboard with live metrics and DNS query testing. Comes with an optional Go sidecar that adds historical analytics based on parsing Blocky's log files, log viewing, and config editing.
+
+- [Blocky Blocking Editor](https://github.com/scambra/blocky-blocking-editor/) is a graphical editor for blocking settings, with support for deny/allow lists, schedules, per-client rules, generating the blocky config. Includes a Docker example deployment, with automatic restart of blocky.
