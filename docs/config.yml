@@ -245,6 +245,11 @@ prometheus:
   # url path, optional (default '/metrics')
   path: /metrics
 
+# optional: serve the Go profiler (pprof) endpoints under /debug on the HTTP(S) listeners
+pprof:
+  # default: true
+  enable: true
+
 # optional: write query information (question, answer, client, duration etc.) to daily csv file
 queryLog:
   # optional one of: mysql, postgresql, timescale, sqlite, csv, csv-client. If empty, log to console
