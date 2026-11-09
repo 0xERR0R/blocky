@@ -19,7 +19,7 @@ import (
 const (
 	// bindRetryAttempts is the total number of bind attempts (the initial
 	// attempt plus bindRetryAttempts-1 retries) before giving up.
-	bindRetryAttempts = 5
+	bindRetryAttempts = 10
 
 	// bindRetryDelay is the wait between two bind attempts.
 	bindRetryDelay = 500 * time.Millisecond
