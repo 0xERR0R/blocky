@@ -950,6 +950,72 @@ var _ = Describe("DNSSECValidator", func() {
 		})
 	})
 
+	Context("mixed-case owner names (issue #2361)", func() {
+		// DNS names are case-insensitive, and RFC 4034 §6.2 defines the canonical (lowercase)
+		// form used for DNSSEC. A DNSKEY answer whose owner name is mixed-case - as upstreams
+		// commonly echo the query's case - must validate as Secure, not Bogus.
+
+		newComAnchor := func() (*TrustAnchorStore, *dns.DNSKEY, *dns.RRSIG) {
+			key, priv, anchor := newSignedZoneKey("com.")
+			keySig := signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, "com.")
+
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+
+			return store, key, keySig
+		}
+
+		// comResolver answers the DNSKEY sub-query issued while walking the chain of trust for
+		// the com. signer with the canonical (lowercase) RRset.
+		comResolver := func(key *dns.DNSKEY, keySig *dns.RRSIG) func(context.Context, *model.Request) (*model.Response, error) {
+			return func(_ context.Context, req *model.Request) (*model.Response, error) {
+				q := req.Req.Question[0]
+				if q.Qtype == dns.TypeDNSKEY && dns.CanonicalName(q.Name) == "com." {
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{key, keySig}}}, nil
+				}
+
+				return &model.Response{Res: &dns.Msg{}}, nil
+			}
+		}
+
+		It("validates a DNSKEY RRset whose owner name is mixed-case as Secure", func() {
+			store, key, keySig := newComAnchor()
+
+			// The upstream echoes the query's case in the owner name, but keeps the RRSIG
+			// SignerName lowercase (observed with Quad9, Cloudflare and Mullvad).
+			mixedKey := *key
+			mixedKey.Hdr.Name = "COm."
+			mixedSig := *keySig
+			mixedSig.Hdr.Name = "COm."
+
+			mockUpstream.ResolveFn = comResolver(key, keySig)
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "COm.", Qtype: dns.TypeDNSKEY, Qclass: dns.ClassINET}
+			response := &dns.Msg{Answer: []dns.RR{&mixedKey, &mixedSig}}
+
+			Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(ValidationResultSecure),
+				"a mixed-case DNSKEY owner name must validate as Secure (RFC 4034 §6)")
+		})
+
+		It("matches an RRSIG whose owner name differs in case from its RRset", func() {
+			store, key, keySig := newComAnchor()
+
+			// The RRset owner is mixed-case but the covering RRSIG's owner name is lowercase.
+			mixedKey := *key
+			mixedKey.Hdr.Name = "COm."
+
+			mockUpstream.ResolveFn = comResolver(key, keySig)
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "COm.", Qtype: dns.TypeDNSKEY, Qclass: dns.ClassINET}
+			response := &dns.Msg{Answer: []dns.RR{&mixedKey, keySig}}
+
+			Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(ValidationResultSecure),
+				"an RRSIG owner name that differs only in case must still match its RRset")
+		})
+	})
+
 	Describe("NewValidator", func() {
 		It("should create validator with trust anchors", func() {
 			Expect(sut).ShouldNot(BeNil())
