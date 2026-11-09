@@ -798,29 +798,20 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	// Wait for the DNS serve goroutines to finish, bounded by the shutdown
-	// timeout carried by ctx.
+	// timeout carried by ctx. The context is always respected, even when it is
+	// already done, so a stalled serve goroutine cannot block Stop indefinitely.
 	done := make(chan struct{})
 	go func() {
 		s.dnsServeWG.Wait()
 		close(done)
 	}()
 
-	// When the caller's context still has time left, wait bounded by it.
-	if ctx.Err() == nil {
-		select {
-		case <-done:
-			return nil
-		case <-ctx.Done():
-			return fmt.Errorf("stopping DNS listeners timed out: %w", ctx.Err())
-		}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("stopping DNS listeners timed out: %w", ctx.Err())
 	}
-
-	// The context is already done (e.g. the caller passed a cancelled context):
-	// there is no timeout left to enforce, and the serve goroutines were
-	// already told to stop above, so just wait for them to finish.
-	<-done
-
-	return nil
 }
 
 func extractClientIDFromHost(hostName string) string {
