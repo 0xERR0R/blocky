@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +27,9 @@ var (
 
 	// raiseNetBindService is a seam so tests can stub the capability raise.
 	raiseNetBindService = util.RaiseNetBindService
+
+	// unprivilegedPortStartFile is a seam so tests can point at a fake sysctl.
+	unprivilegedPortStartFile = "/proc/sys/net/ipv4/ip_unprivileged_port_start"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -47,13 +51,13 @@ const privilegedPortCapHint = "grant CAP_NET_BIND_SERVICE (Kubernetes " +
 	"or use a port >= 1024"
 
 // warnMissingPrivilegedPortCapability raises CAP_NET_BIND_SERVICE if it is
-// available, and warns when a privileged port (< 1024) is configured but the
-// capability could not be obtained. It never fails: any real bind error
-// surfaces later from server.NewServer.
+// available, and warns when a privileged port (see privilegedPorts) is
+// configured but the capability could not be obtained. It never fails: any
+// real bind error surfaces later from server.NewServer.
 func warnMissingPrivilegedPortCapability(ports config.Ports) {
 	effective, err := raiseNetBindService()
 	if err != nil {
-		if privileged := ports.PrivilegedPorts(); len(privileged) > 0 {
+		if privileged := privilegedPorts(ports); len(privileged) > 0 {
 			log.Log().Warnf("could not adjust process capabilities (%v); binding "+
 				"privileged port(s) %s may fail — %s",
 				err, strings.Join(privileged, ", "), privilegedPortCapHint)
@@ -70,10 +74,28 @@ func warnMissingPrivilegedPortCapability(ports config.Ports) {
 		return
 	}
 
-	if privileged := ports.PrivilegedPorts(); len(privileged) > 0 {
+	if privileged := privilegedPorts(ports); len(privileged) > 0 {
 		log.Log().Warnf("configured to listen on privileged port(s) %s without "+
 			"CAP_NET_BIND_SERVICE; %s", strings.Join(privileged, ", "), privilegedPortCapHint)
 	}
+}
+
+// privilegedPorts returns the configured ports that need CAP_NET_BIND_SERVICE.
+// Ports below net.ipv4.ip_unprivileged_port_start need it. Docker sets that
+// sysctl to 0 in a container's network namespace, so there no port does. When
+// the sysctl can't be read (not Linux, or no /proc), it falls back to < 1024.
+func privilegedPorts(ports config.Ports) []string {
+	b, err := os.ReadFile(unprivilegedPortStartFile)
+	if err != nil {
+		return ports.PrivilegedPorts()
+	}
+
+	start, err := strconv.ParseUint(strings.TrimSpace(string(b)), 10, 16)
+	if err != nil {
+		return ports.PrivilegedPorts()
+	}
+
+	return ports.PortsBelow(uint16(start))
 }
 
 // loadServerConfig loads the config, sets up logging from it and logs the banner

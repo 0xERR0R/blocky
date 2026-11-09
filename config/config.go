@@ -443,18 +443,26 @@ const privilegedPortCeiling = 1024
 // PrivilegedPorts returns the configured listen addresses across DNS, HTTP,
 // HTTPS and TLS whose port is below privilegedPortCeiling.
 func (p *Ports) PrivilegedPorts() []string {
-	var privileged []string
+	return p.PortsBelow(privilegedPortCeiling)
+}
+
+// PortsBelow returns the configured listen addresses across DNS, HTTP, HTTPS
+// and TLS whose port is below limit. Linux lets the first unprivileged port be
+// moved with the net.ipv4.ip_unprivileged_port_start sysctl, so callers that
+// know its value can pass it here instead of using PrivilegedPorts.
+func (p *Ports) PortsBelow(limit uint16) []string {
+	var below []string
 
 	for _, lc := range []ListenConfig{p.DNS, p.HTTP, p.HTTPS, p.TLS} {
 		for _, addr := range lc {
 			// Port 0 (OS-assigned ephemeral port) is never privileged.
-			if port, ok := extractPort(addr); ok && port > 0 && port < privilegedPortCeiling {
-				privileged = append(privileged, addr)
+			if port, ok := extractPort(addr); ok && port > 0 && port < limit {
+				below = append(below, addr)
 			}
 		}
 	}
 
-	return privileged
+	return below
 }
 
 // extractPort returns the port number of a listen address. It accepts every
