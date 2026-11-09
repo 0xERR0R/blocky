@@ -66,7 +66,7 @@ type Server struct {
 	dnsCancelMu     sync.Mutex     // guards dnsStartCancels
 	dnsServeWG      sync.WaitGroup // tracks the DNS serve goroutines started in Start
 
-	// dnsServeWG is populated synchronously by Start and waited on by Stop, so
+	// The DNS startup state above is populated by Start and read by Stop, so
 	// Start must be called (and return) before Stop; the two are not concurrent.
 	stopped atomic.Bool // guards against a double Stop
 }
@@ -701,7 +701,14 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	for _, srv := range s.dnsServers {
 		s.dnsServeWG.Go(func() {
 			if err := retryServe(dnsCtx, srv); err != nil && dnsCtx.Err() == nil {
-				errCh <- fmt.Errorf("start %s listener failed: %w", srv.Net, err)
+				// The error send is cancellation-aware: if the channel has no
+				// reader (or is full) while Stop cancels dnsCtx, we must not
+				// block, otherwise the serve goroutine never finishes and
+				// dnsServeWG.Wait() in Stop hangs past its deadline.
+				select {
+				case errCh <- fmt.Errorf("start %s listener failed: %w", srv.Net, err):
+				case <-dnsCtx.Done():
+				}
 			}
 		})
 	}
