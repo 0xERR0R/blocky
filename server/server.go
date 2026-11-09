@@ -808,18 +808,19 @@ func (s *Server) Stop(ctx context.Context) error {
 		close(done)
 	}()
 
-	if ctx.Err() != nil {
-		<-done
-
-		return nil
+	if ctx.Err() == nil {
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return fmt.Errorf("stopping DNS listeners timed out: %w", ctx.Err())
+		}
 	}
 
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("stopping DNS listeners timed out: %w", ctx.Err())
-	}
+	// The context is already done: there is no deadline left to enforce.
+	<-done
+
+	return nil
 }
 
 func extractClientIDFromHost(hostName string) string {
