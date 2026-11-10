@@ -100,6 +100,9 @@ type UpstreamResolver struct {
 
 	upstreamClient upstreamClient
 	bootstrap      *Bootstrap
+
+	// reason is the reason of every response, built once
+	reason string
 }
 
 type upstreamClient interface {
@@ -603,6 +606,8 @@ func newUpstreamResolverUnchecked(cfg upstreamConfig, bootstrap *Bootstrap) *Ups
 
 		upstreamClient: upstreamClient,
 		bootstrap:      bootstrap,
+
+		reason: fmt.Sprintf("RESOLVED (%s)", cfg),
 	}
 
 	// the resolver's loggers name its upstream
@@ -684,7 +689,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 		return nil, fmt.Errorf("all %d attempts to resolve via upstream %s failed: %w", retryAttempts, r.cfg.String(), err)
 	}
 
-	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.cfg)}, nil
+	return &model.Response{Res: resp, Reason: r.reason}, nil
 }
 
 func (r *UpstreamResolver) logResponse(

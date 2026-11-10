@@ -225,6 +225,22 @@ func isDebugEnabled(logger *logrus.Entry) bool {
 	return logger.Logger.IsLevelEnabled(logrus.DebugLevel)
 }
 
+// isTraceEnabled is isDebugEnabled for the Trace level.
+func isTraceEnabled(logger *logrus.Entry) bool {
+	return logger.Logger.IsLevelEnabled(logrus.TraceLevel)
+}
+
+// withDebugField returns logger with the field if it emits at Debug level, and logger
+// itself otherwise. Use it on the hot path for a field only Debug lines are logged with:
+// adding a field copies the logger.
+func withDebugField(logger *logrus.Entry, name, value string) *logrus.Entry {
+	if isDebugEnabled(logger) {
+		return logger.WithField(name, value)
+	}
+
+	return logger
+}
+
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.
 type configurable[T config.Configurable] struct {
 	cfg T

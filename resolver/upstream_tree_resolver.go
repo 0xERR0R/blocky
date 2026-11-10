@@ -111,7 +111,10 @@ func (r *UpstreamTreeResolver) Resolve(ctx context.Context, request *model.Reque
 	group := r.upstreamGroupByClient(logger, request)
 
 	// delegate request to group resolver
-	logger.WithField("resolver", fmt.Sprintf("%s (%s)", group, r.branches[group].Type())).Debug("delegating to resolver")
+	if isDebugEnabled(logger) {
+		logger.WithField("resolver", fmt.Sprintf("%s (%s)", group, r.branches[group].Type())).
+			Debug("delegating to resolver")
+	}
 
 	resp, err := r.branches[group].Resolve(ctx, request)
 	if err != nil {
