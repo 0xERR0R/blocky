@@ -90,14 +90,30 @@ var _ = Describe("warnMissingPrivilegedPortCapability", func() {
 				HTTP: config.ListenConfig{":80"},
 			})
 			Expect(loggerHook.AllEntries()).Should(HaveLen(1))
-			Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("port(s) :53 without"))
+			Expect(loggerHook.LastEntry().Message).Should(SatisfyAll(
+				ContainSubstring("port(s) :53 without"),
+				ContainSubstring("use a port >= 80"),
+			))
+		})
+
+		It("suggests ports from ip_unprivileged_port_start when it is above 1024", func() {
+			setUnprivilegedPortStart("2048\n")
+
+			warnMissingPrivilegedPortCapability(config.Ports{DNS: config.ListenConfig{":1053"}})
+			Expect(loggerHook.LastEntry().Message).Should(SatisfyAll(
+				ContainSubstring("port(s) :1053 without"),
+				ContainSubstring("use a port >= 2048"),
+			))
 		})
 
 		It("falls back to ports below 1024 when the sysctl can't be parsed", func() {
 			setUnprivilegedPortStart("garbage\n")
 
 			warnMissingPrivilegedPortCapability(config.Ports{DNS: config.ListenConfig{":53"}})
-			Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("CAP_NET_BIND_SERVICE"))
+			Expect(loggerHook.LastEntry().Message).Should(SatisfyAll(
+				ContainSubstring("CAP_NET_BIND_SERVICE"),
+				ContainSubstring("use a port >= 1024"),
+			))
 		})
 	})
 
@@ -112,6 +128,17 @@ var _ = Describe("warnMissingPrivilegedPortCapability", func() {
 			Expect(loggerHook.LastEntry().Message).Should(SatisfyAll(
 				ContainSubstring("could not adjust process capabilities"),
 				ContainSubstring("CAP_NET_BIND_SERVICE"),
+			))
+		})
+
+		It("suggests ports from ip_unprivileged_port_start in the combined warning", func() {
+			setUnprivilegedPortStart("2048\n")
+
+			warnMissingPrivilegedPortCapability(config.Ports{DNS: config.ListenConfig{":1053"}})
+			Expect(loggerHook.AllEntries()).Should(HaveLen(1))
+			Expect(loggerHook.LastEntry().Message).Should(SatisfyAll(
+				ContainSubstring("could not adjust process capabilities"),
+				ContainSubstring("use a port >= 2048"),
 			))
 		})
 

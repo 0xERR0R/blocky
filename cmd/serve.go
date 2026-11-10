@@ -45,10 +45,11 @@ func newServeCommand() *cobra.Command {
 }
 
 // privilegedPortCapHint describes how to satisfy the CAP_NET_BIND_SERVICE
-// requirement for binding ports below 1024.
-const privilegedPortCapHint = "grant CAP_NET_BIND_SERVICE (Kubernetes " +
-	"securityContext capabilities.add, or docker run --cap-add NET_BIND_SERVICE) " +
-	"or use a port >= 1024"
+// requirement. start is the first port that doesn't need it.
+func privilegedPortCapHint(start uint16) string {
+	return fmt.Sprintf("grant CAP_NET_BIND_SERVICE (Kubernetes securityContext "+
+		"capabilities.add, or docker run --cap-add NET_BIND_SERVICE) or use a port >= %d", start)
+}
 
 // warnMissingPrivilegedPortCapability raises CAP_NET_BIND_SERVICE if it is
 // available, and warns when a privileged port (see privilegedPorts) is
@@ -57,10 +58,10 @@ const privilegedPortCapHint = "grant CAP_NET_BIND_SERVICE (Kubernetes " +
 func warnMissingPrivilegedPortCapability(ports config.Ports) {
 	effective, err := raiseNetBindService()
 	if err != nil {
-		if privileged := privilegedPorts(ports); len(privileged) > 0 {
+		if privileged, start := privilegedPorts(ports); len(privileged) > 0 {
 			log.Log().Warnf("could not adjust process capabilities (%v); binding "+
 				"privileged port(s) %s may fail — %s",
-				err, strings.Join(privileged, ", "), privilegedPortCapHint)
+				err, strings.Join(privileged, ", "), privilegedPortCapHint(start))
 
 			return
 		}
@@ -74,28 +75,36 @@ func warnMissingPrivilegedPortCapability(ports config.Ports) {
 		return
 	}
 
-	if privileged := privilegedPorts(ports); len(privileged) > 0 {
+	if privileged, start := privilegedPorts(ports); len(privileged) > 0 {
 		log.Log().Warnf("configured to listen on privileged port(s) %s without "+
-			"CAP_NET_BIND_SERVICE; %s", strings.Join(privileged, ", "), privilegedPortCapHint)
+			"CAP_NET_BIND_SERVICE; %s", strings.Join(privileged, ", "), privilegedPortCapHint(start))
 	}
 }
 
-// privilegedPorts returns the configured ports that need CAP_NET_BIND_SERVICE.
-// Ports below net.ipv4.ip_unprivileged_port_start need it. Docker sets that
-// sysctl to 0 in a container's network namespace, so there no port does. When
-// the sysctl can't be read (not Linux, or no /proc), it falls back to < 1024.
-func privilegedPorts(ports config.Ports) []string {
+// privilegedPorts returns the configured ports that need CAP_NET_BIND_SERVICE,
+// and the first port that doesn't.
+func privilegedPorts(ports config.Ports) ([]string, uint16) {
+	start := unprivilegedPortStart()
+
+	return ports.PortsBelow(start), start
+}
+
+// unprivilegedPortStart returns net.ipv4.ip_unprivileged_port_start, the first
+// port that can be bound without CAP_NET_BIND_SERVICE. Docker sets it to 0 in
+// a container's network namespace. When it can't be read (not Linux, or no
+// /proc), it falls back to config.PrivilegedPortCeiling.
+func unprivilegedPortStart() uint16 {
 	b, err := os.ReadFile(unprivilegedPortStartFile)
 	if err != nil {
-		return ports.PrivilegedPorts()
+		return config.PrivilegedPortCeiling
 	}
 
 	start, err := strconv.ParseUint(strings.TrimSpace(string(b)), 10, 16)
 	if err != nil {
-		return ports.PrivilegedPorts()
+		return config.PrivilegedPortCeiling
 	}
 
-	return ports.PortsBelow(uint16(start))
+	return uint16(start)
 }
 
 // loadServerConfig loads the config, sets up logging from it and logs the banner

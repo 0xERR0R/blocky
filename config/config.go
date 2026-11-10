@@ -436,14 +436,14 @@ func (c *Ports) proxyProtocolListenConfig(listener ProxyProtocolType) (ListenCon
 	}
 }
 
-// privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
+// PrivilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
 // it require CAP_NET_BIND_SERVICE (or root) to bind on Linux.
-const privilegedPortCeiling = 1024
+const PrivilegedPortCeiling = 1024
 
 // PrivilegedPorts returns the configured listen addresses across DNS, HTTP,
-// HTTPS and TLS whose port is below privilegedPortCeiling.
+// HTTPS and TLS whose port is below PrivilegedPortCeiling.
 func (p *Ports) PrivilegedPorts() []string {
-	return p.PortsBelow(privilegedPortCeiling)
+	return p.PortsBelow(PrivilegedPortCeiling)
 }
 
 // PortsBelow returns the configured listen addresses across DNS, HTTP, HTTPS
