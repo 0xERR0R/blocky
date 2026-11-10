@@ -103,7 +103,9 @@ func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *mode
 	// processRequest only reports `resolved` for a query it sent to a mapped
 	// upstream, so anything else continues down the chain under its original name.
 	if !resolved {
-		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+		if isTraceEnabled(logger) {
+			logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+		}
 
 		return r.next.Resolve(ctx, request)
 	}

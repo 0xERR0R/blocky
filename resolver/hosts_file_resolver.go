@@ -152,7 +152,9 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 		return model.NewResponseWithAnswers(request, response, model.ResponseTypeHOSTSFILE, "HOSTS FILE"), nil
 	}
 
-	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+	if isTraceEnabled(logger) {
+		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+	}
 
 	return r.next.Resolve(ctx, request)
 }
