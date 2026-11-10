@@ -597,13 +597,18 @@ func NewUpstreamResolver(
 func newUpstreamResolverUnchecked(cfg upstreamConfig, bootstrap *Bootstrap) *UpstreamResolver {
 	upstreamClient := createUpstreamClient(cfg)
 
-	return &UpstreamResolver{
+	r := &UpstreamResolver{
 		typed:        withType(upstreamResolverType),
 		configurable: withConfig(cfg),
 
 		upstreamClient: upstreamClient,
 		bootstrap:      bootstrap,
 	}
+
+	// the resolver's loggers name its upstream
+	r.logFields[logFieldUpstream] = cfg.String()
+
+	return r
 }
 
 func (r UpstreamResolver) String() string {
@@ -612,12 +617,6 @@ func (r UpstreamResolver) String() string {
 
 func (r UpstreamResolver) Upstream() config.Upstream {
 	return r.cfg.Upstream
-}
-
-func (r *UpstreamResolver) log(ctx context.Context) (context.Context, *logrus.Entry) {
-	return r.logWithFields(ctx, logrus.Fields{
-		logFieldUpstream: r.cfg.String(),
-	})
 }
 
 // testResolve sends a test query to verify the upstream is reachable and working
