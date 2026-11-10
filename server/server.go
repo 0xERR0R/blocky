@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -837,17 +838,27 @@ func newRequest(
 	clientIP net.IP, clientID string,
 	protocol model.RequestProtocol, request *dns.Msg,
 ) (context.Context, *model.Request) {
-	ctx, logger := log.CtxWithFields(ctx, logrus.Fields{
-		"req_id":    uuid.New().String(),
-		"question":  util.QuestionToString(request.Question),
-		"client_ip": clientIP,
+	// The chain may rename the question in place (see ConditionalUpstreamResolver),
+	// the log entries of the request name what the client asked.
+	questions := slices.Clone(request.Question)
+
+	// Most requests log nothing, so the fields of their log entries are built when the
+	// first one is logged.
+	ctx = log.CtxWithLazyFields(ctx, func() logrus.Fields {
+		return logrus.Fields{
+			"req_id":    uuid.New().String(),
+			"question":  util.QuestionToString(questions),
+			"client_ip": clientIP,
+		}
 	})
 
-	logger.WithFields(logrus.Fields{
-		"client_request_id": request.Id,
-		"client_id":         clientID,
-		"protocol":          protocol,
-	}).Trace("new incoming request")
+	if log.IsLevelEnabled(ctx, logrus.TraceLevel) {
+		log.FromCtx(ctx).WithFields(logrus.Fields{
+			"client_request_id": request.Id,
+			"client_id":         clientID,
+			"protocol":          protocol,
+		}).Trace("new incoming request")
+	}
 
 	req := model.Request{
 		ClientIP:        clientIP,

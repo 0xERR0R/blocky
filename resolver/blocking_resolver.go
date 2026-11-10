@@ -819,9 +819,7 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 }
 
 func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifier string) (*[]net.IP, time.Duration) {
-	ctx, logger := r.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		return log.WithPrefix(logger, "client_id_cache")
-	})
+	ctx, logger := r.logWithFields(ctx, log.PrefixFields(r.Type()+".client_id_cache"))
 
 	var result []net.IP
 
