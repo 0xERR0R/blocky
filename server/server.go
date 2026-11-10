@@ -962,7 +962,8 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 	contextUpstreamTimeoutMultiplier := 100
 	timeoutDuration := time.Duration(contextUpstreamTimeoutMultiplier) * s.cfg.Upstreams.Timeout.ToDuration()
 
-	ctx, cancel := context.WithTimeout(ctx, timeoutDuration)
+	// most queries are answered before anything waits on their context
+	ctx, cancel := util.WithLazyTimeout(ctx, timeoutDuration)
 
 	defer cancel()
 
