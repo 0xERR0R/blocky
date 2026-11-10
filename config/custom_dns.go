@@ -17,7 +17,7 @@ type CustomDNS struct {
 	CustomTTL Duration `default:"1h" yaml:"customTTL"`
 	// Simple domain-to-IP mappings; multiple IPs per domain separated by commas.
 	Mapping CustomDNSMapping `yaml:"mapping"`
-	// DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV).
+	// DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV, HTTPS, SVCB).
 	Zone ZoneFileDNS `default:"" yaml:"zone"`
 	// If true, queries for types not defined for a domain return empty; if false, they are forwarded upstream.
 	FilterUnmappedTypes bool `default:"true" yaml:"filterUnmappedTypes"`
