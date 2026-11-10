@@ -21,6 +21,10 @@ const (
 	parallelResolverType      = "parallel_best"
 	randomResolverType        = "random"
 	parallelBestResolverCount = 2
+
+	// upstreamStackSize is the call frame the goroutine of a raced upstream makes room
+	// for, see util.GrowStack. It gives the goroutine an 8 KiB stack.
+	upstreamStackSize = 4 << 10
 )
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
@@ -74,6 +78,9 @@ func (r *upstreamResolverStatus) resolve(ctx context.Context, req *model.Request
 }
 
 func (r *upstreamResolverStatus) resolveToChan(ctx context.Context, req *model.Request, ch chan<- requestResponse) {
+	// The goroutine is new: asking an upstream needs a deeper stack than it starts with.
+	util.GrowStack[[upstreamStackSize]byte]()
+
 	resp, err := r.resolve(ctx, req)
 
 	ch <- requestResponse{
