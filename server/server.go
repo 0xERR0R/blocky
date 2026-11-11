@@ -408,7 +408,7 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 
 	if network == networkUDP {
 		srv.UDPSize = maxUDPBufferSize
-		srv.MsgAcceptFunc = acceptUDPQuery
+		serveUDPOnWorkers(srv)
 	}
 
 	if tlsCfg != nil {
@@ -468,28 +468,6 @@ func attachListener(ctx context.Context, srv *dns.Server, network, address strin
 	}
 
 	return nil
-}
-
-// queryStackSize is the call frame the goroutine of a UDP query makes room for, see
-// util.GrowStack. The runtime doubles the 2 KiB stack the goroutine starts with until
-// the frame fits, which gives it 16 KiB: enough to answer a query without growing the
-// stack again.
-const queryStackSize = 8 << 10
-
-// acceptUDPQuery is the first code that runs on the goroutine of a UDP query, before the
-// query is unpacked.
-//
-// Each UDP query gets a new goroutine. Without growing its stack here, the runtime
-// doubles it up to three times per query: to unpack the query, inside the resolver
-// chain, and when the query is sent to an upstream. The goroutine of a packet the
-// server ignores or rejects keeps its stack.
-func acceptUDPQuery(dh dns.Header) dns.MsgAcceptAction {
-	action := dns.DefaultMsgAcceptFunc(dh)
-	if action == dns.MsgAccept {
-		util.GrowStack[[queryStackSize]byte]()
-	}
-
-	return action
 }
 
 func createTLSServer(ctx context.Context, address string, tlsCfg *tls.Config, opts listenerOptions,
