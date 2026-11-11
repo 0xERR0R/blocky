@@ -100,6 +100,21 @@ var _ = Describe("Context logger", func() {
 		Expect(shared).Should(Equal(logrus.Fields{"prefix": "resolver"}))
 	})
 
+	It("gives a context the prefix PrefixedLog gives the global logger, in place of the one it had", func() {
+		ctx = CtxWithFields(ctx, PrefixFields("first"))
+		ctx = CtxWithFields(ctx, PrefixFields("second"))
+
+		FromCtx(ctx).Info("message")
+
+		Expect(hook.LastEntry().Data).Should(Equal(PrefixedLog("second").Data))
+	})
+
+	It("logs an entry without a context as it is", func() {
+		logger.WithField("a", 1).Info("message")
+
+		Expect(hook.LastEntry().Data).Should(Equal(logrus.Fields{"a": 1}))
+	})
+
 	Describe("lazy fields", func() {
 		var built atomic.Int32
 

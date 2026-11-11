@@ -290,6 +290,36 @@ var _ = Describe("UDP workers", func() {
 		Expect(replyID(receive(first))).Should(BeEquivalentTo(queryID))
 	})
 
+	It("tell a handler the address of the server", func(ctx context.Context) {
+		local := make(chan net.Addr, 1)
+
+		_, address := serve(ctx, func(w dns.ResponseWriter, request *dns.Msg) {
+			local <- w.LocalAddr()
+
+			answerQuery(w, request)
+		}, serveUDPOnWorkers)
+
+		Expect(exchange(ctx, address, query(queryID, nil), true)).ShouldNot(BeEmpty())
+		Expect((<-local).String()).Should(Equal(address))
+	})
+
+	It("tell a handler that its response cannot be packed", func(ctx context.Context) {
+		packed := make(chan error, 1)
+
+		_, address := serve(ctx, func(w dns.ResponseWriter, request *dns.Msg) {
+			reply := new(dns.Msg).SetReply(request)
+			// larger than the 12 bits a response code has with EDNS
+			reply.Rcode = 1 << 12
+
+			packed <- w.WriteMsg(reply)
+
+			answerQuery(w, request)
+		}, serveUDPOnWorkers)
+
+		Expect(exchange(ctx, address, query(queryID, nil), true)).ShouldNot(BeEmpty())
+		Expect(<-packed).Should(MatchError(dns.ErrRcode))
+	})
+
 	It("answer more queries at a time than there are workers", func(ctx context.Context) {
 		const (
 			queries uint16 = udpWorkerCount + 50

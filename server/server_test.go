@@ -26,6 +26,8 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -1111,6 +1113,32 @@ var _ = Describe("Running DNS server", func() {
 		It("should return empty string for empty hostname", func() {
 			clientID := extractClientIDFromHost("")
 			Expect(clientID).Should(Equal(""))
+		})
+	})
+
+	Describe("newRequest", func() {
+		It("logs the request at trace level with what identifies it", func() {
+			logger, entries := test.NewNullLogger()
+			logger.SetLevel(logrus.TraceLevel)
+
+			ctx, _ = NewCtx(ctx, logrus.NewEntry(logger))
+
+			msg := util.NewMsgWithQuestion("example.com.", A)
+			msg.Id = 4711
+			clientIP := net.ParseIP("192.168.178.1")
+
+			_, _ = newRequest(ctx, clientIP, "client123", model.RequestProtocolUDP, msg)
+
+			Expect(entries.AllEntries()).Should(HaveLen(1))
+			Expect(entries.LastEntry().Message).Should(Equal("new incoming request"))
+			Expect(entries.LastEntry().Data).Should(SatisfyAll(
+				HaveKey("req_id"),
+				HaveKeyWithValue("question", util.QuestionToString(msg.Question)),
+				HaveKeyWithValue("client_ip", clientIP),
+				HaveKeyWithValue("client_request_id", msg.Id),
+				HaveKeyWithValue("client_id", "client123"),
+				HaveKeyWithValue("protocol", model.RequestProtocolUDP),
+			))
 		})
 	})
 

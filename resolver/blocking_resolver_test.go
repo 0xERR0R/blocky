@@ -1690,6 +1690,11 @@ var _ = Describe("formatBlockReason", func() {
 			Should(Equal("BLOCKED CNAME (ads: *.docler.com)"))
 	})
 
+	It("renders no groups when none matched", func() {
+		Expect(formatBlockReason(nil, "")).Should(Equal("BLOCKED"))
+		Expect(formatBlockReason(nil, "IP")).Should(Equal("BLOCKED IP"))
+	})
+
 	It("renders multiple matched groups sorted by group for deterministic output", func() {
 		matches := map[string]string{"zeta": "z.com", "alpha": "a.com", "mid": "m.com"}
 
