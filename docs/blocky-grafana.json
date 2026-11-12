@@ -632,7 +632,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "blocky_build_info{job=~\"$job\", instance=~\"$instance\"}",
+                        "expr": "group by (version) (blocky_build_info{job=~\"$job\", instance=~\"$instance\"})",
                         "range": false,
                         "instant": true,
                         "legendFormat": "{{version}}"
