@@ -35,6 +35,7 @@ Following metrics will be exported:
 | blocky_rate_limit_cap_exhausted_total            | Counter of queries dropped because the rate limiter bucket store was full |
 | blocky_rate_limit_active_buckets                 | Gauge of token buckets (≈ distinct clients) currently tracked by the rate limiter |
 | blocky_dnstap_frames_dropped_total               | Counter of dnstap frames dropped because the internal buffer is full - non-zero values indicate the collector is slow or unreachable |
+| blocky_query_log_entries_dropped_total           | Counter of query log entries dropped instead of written, partitioned by reason: `queue_full` (the writer fell behind), `buffer_full` (the database was slow or unreachable for too long), `rejected` (the database refused the row), `shutdown` (not written before blocky stopped) |
 
 !!! note "`reason` label for blocked responses"
 
