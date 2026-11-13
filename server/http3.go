@@ -70,10 +70,9 @@ func newAltSvcMiddleware(h3 *http3Server) httpMiddleware {
 // an empty slice when addresses is empty.
 func newUDPPacketConns(ctx context.Context, addresses config.ListenConfig) ([]net.PacketConn, error) {
 	pcs := make([]net.PacketConn, 0, len(addresses))
-	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		pc, err := lc.ListenPacket(ctx, "udp", address)
+		pc, err := listenPacketRetry(ctx, address)
 		if err != nil {
 			for _, opened := range pcs {
 				_ = opened.Close()

@@ -89,8 +89,7 @@ func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.R
 		// (connection/timeout/DNS error). If the host answered with an HTTP error
 		// status (4xx/5xx) it is reachable, so we surface the error and let the
 		// existing in-memory cache stand rather than masking a removed/changed source.
-		var statusErr *httpStatusError
-		if !errors.As(err, &statusErr) {
+		if _, ok := errors.AsType[*httpStatusError](err); !ok {
 			if cached, openErr := openCached(c.dir, link); openErr == nil {
 				logger().WithField("link", link).WithError(err).Warn("download failed, using cached copy")
 

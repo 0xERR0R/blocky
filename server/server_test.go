@@ -1677,7 +1677,7 @@ var _ = Describe("Running DNS server", func() {
 			Expect(rr.Header().Get("Strict-Transport-Security")).Should(Equal("max-age=63072000"))
 			Expect(rr.Header().Get("X-Frame-Options")).Should(Equal("DENY"))
 			Expect(rr.Header().Get("X-Content-Type-Options")).Should(Equal("nosniff"))
-			Expect(rr.Header().Get("x-xss-protection")).Should(Equal("1; mode=block"))
+			Expect(rr.Header().Get("X-XSS-Protection")).Should(Equal("1; mode=block"))
 		})
 
 		It("should not set security headers for non-TLS requests", func() {
