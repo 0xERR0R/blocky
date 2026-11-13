@@ -89,11 +89,21 @@ func init() {
 		return
 	}
 
-	newLogger := logrus.New()
+	newLogger := newGlobalLogger()
 
 	ConfigureLogger(newLogger, DefaultConfig())
 
 	logger = newLogger
+}
+
+// newGlobalLogger returns a logger that adds the fields of an entry's context to it,
+// see CtxWithFields.
+func newGlobalLogger() *logrus.Logger {
+	newLogger := logrus.New()
+
+	newLogger.AddHook(ctxFieldsHook{})
+
+	return newLogger
 }
 
 // Log returns the global logger
@@ -106,24 +116,10 @@ func PrefixedLog(prefix string) *logrus.Entry {
 	return logger.WithField(prefixField, prefix)
 }
 
-// SetPrefix sets prefix as the logger's prefix, replacing any prefix it already
-// carries. Use this to give each resolver its own prefix without accumulating the
-// prefixes of resolvers earlier in the chain. Contrast with WithPrefix, which
-// appends to build a dotted chain (a.b.c).
-func SetPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
-	return logger.WithField(prefixField, prefix)
-}
-
-// WithPrefix adds the given prefix to the logger.
-func WithPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
-	// avoid fmt.Sprintf here: this runs once per resolver per request on the hot path,
-	// and the values are plain strings, so a direct concat skips the interface boxing
-	// and format-string parsing.
-	if existingPrefix, ok := logger.Data[prefixField].(string); ok {
-		prefix = existingPrefix + "." + prefix
-	}
-
-	return logger.WithField(prefixField, prefix)
+// PrefixFields returns the fields that give a context logger the prefix, replacing the
+// prefix it already has. See CtxWithFields.
+func PrefixFields(prefix string) logrus.Fields {
+	return logrus.Fields{prefixField: prefix}
 }
 
 // EscapeInput removes line breaks from input
@@ -307,7 +303,7 @@ func noColor() bool {
 func Silence() {
 	initDone.Store(true)
 
-	logger = logrus.New()
+	logger = newGlobalLogger()
 
 	logger.SetFormatter(nopFormatter{}) // skip expensive formatting
 

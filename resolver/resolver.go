@@ -185,10 +185,15 @@ func LogResolverConfig(res Resolver, logger *logrus.Entry) {
 // Should be embedded in a Resolver to auto-implement `Resolver.Type`.
 type typed struct {
 	typeName string
+
+	// logFields gives the resolver's loggers its type as prefix. Each resolver sets its
+	// own prefix, so the prefixes of the resolvers before it in the chain don't add up.
+	// Built once: every request adds the same fields to its context.
+	logFields logrus.Fields
 }
 
 func withType(t string) typed {
-	return typed{typeName: t}
+	return typed{typeName: t, logFields: log.PrefixFields(t)}
 }
 
 // Type implements `Resolver`.
@@ -202,25 +207,15 @@ func (t *typed) String() string {
 }
 
 func (t *typed) log(ctx context.Context) (context.Context, *logrus.Entry) {
-	return t.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry { return logger })
+	ctx = log.CtxWithFields(ctx, t.logFields)
+
+	return ctx, log.FromCtx(ctx)
 }
 
 func (t *typed) logWithFields(ctx context.Context, fields logrus.Fields) (context.Context, *logrus.Entry) {
-	return t.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		return logger.WithFields(fields)
-	})
-}
+	ctx = log.CtxWithFields(log.CtxWithFields(ctx, t.logFields), fields)
 
-func (t *typed) logWith(ctx context.Context, wrap func(*logrus.Entry) *logrus.Entry) (context.Context, *logrus.Entry) {
-	return log.WrapCtx(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		// per-resolver prefix: each resolver replaces the prefix with its own type rather
-		// than accumulating earlier resolvers' prefixes (avoids the dotted chain and the
-		// string concat that built it). The request-scoped fields (req_id/question/
-		// client_ip) the logger already carries are preserved.
-		logger = log.SetPrefix(logger, t.Type())
-
-		return wrap(logger)
-	})
+	return ctx, log.FromCtx(ctx)
 }
 
 // isDebugEnabled reports whether logger would emit at Debug level. Use it to guard
@@ -228,6 +223,22 @@ func (t *typed) logWith(ctx context.Context, wrap func(*logrus.Entry) *logrus.En
 // log-call arguments before logrus checks the level.
 func isDebugEnabled(logger *logrus.Entry) bool {
 	return logger.Logger.IsLevelEnabled(logrus.DebugLevel)
+}
+
+// isTraceEnabled is isDebugEnabled for the Trace level.
+func isTraceEnabled(logger *logrus.Entry) bool {
+	return logger.Logger.IsLevelEnabled(logrus.TraceLevel)
+}
+
+// withDebugField returns logger with the field if it emits at Debug level, and logger
+// itself otherwise. Use it on the hot path for a field only Debug lines are logged with:
+// adding a field copies the logger.
+func withDebugField(logger *logrus.Entry, name, value string) *logrus.Entry {
+	if isDebugEnabled(logger) {
+		return logger.WithField(name, value)
+	}
+
+	return logger
 }
 
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.

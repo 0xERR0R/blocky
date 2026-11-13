@@ -72,27 +72,31 @@ func NewDNSSECResolver(ctx context.Context, cfg config.DNSSEC, upstream Resolver
 
 // Resolve validates DNSSEC signatures if validation is enabled
 func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	// Without validation the resolver changes neither the query nor the answer, so skip
+	// the per-request work (matches the disabled-path early-return of other resolvers).
+	if !r.cfg.Validate {
+		return r.next.Resolve(ctx, request)
+	}
+
 	ctx, logger := r.log(ctx)
 
-	// If DNSSEC validation is enabled, set the DO (DNSSEC OK) bit. This overwrites what the client
+	// Set the DO (DNSSEC OK) bit. This overwrites what the client
 	// asked for, as RFC 4035 §3.2.1 requires of the resolver side; the server undoes it towards the
 	// client afterwards (see clientQuery.normalizeResponse in server/client_query.go), so don't
 	// make this conditional on the client's DO bit without adapting that.
-	if r.cfg.Validate {
-		// Check if EDNS0 is already present in the request
-		if opt := request.Req.IsEdns0(); opt != nil {
-			// EDNS0 already exists - just set the DO bit
-			opt.SetDo(true)
-			// Ensure buffer size is adequate for DNSSEC responses
-			if opt.UDPSize() < ednsUDPSize {
-				opt.SetUDPSize(ednsUDPSize)
-			}
-			logger.Debugf("DNSSEC DO bit set for query (existing EDNS0): %s", request.Req.Question[0].Name)
-		} else {
-			// No EDNS0 present - add it with DO bit
-			request.Req.SetEdns0(ednsUDPSize, true)
-			logger.Debugf("DNSSEC DO bit set for query (new EDNS0): %s", request.Req.Question[0].Name)
+	// Check if EDNS0 is already present in the request
+	if opt := request.Req.IsEdns0(); opt != nil {
+		// EDNS0 already exists - just set the DO bit
+		opt.SetDo(true)
+		// Ensure buffer size is adequate for DNSSEC responses
+		if opt.UDPSize() < ednsUDPSize {
+			opt.SetUDPSize(ednsUDPSize)
 		}
+		logger.Debugf("DNSSEC DO bit set for query (existing EDNS0): %s", request.Req.Question[0].Name)
+	} else {
+		// No EDNS0 present - add it with DO bit
+		request.Req.SetEdns0(ednsUDPSize, true)
+		logger.Debugf("DNSSEC DO bit set for query (new EDNS0): %s", request.Req.Question[0].Name)
 	}
 
 	// Get response from next resolver (upstream)
@@ -101,8 +105,8 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 		return nil, err
 	}
 
-	// Validate DNSSEC if enabled and validator is available
-	if r.cfg.Validate && r.validator != nil && len(request.Req.Question) > 0 {
+	// Validate DNSSEC if the validator is available
+	if r.validator != nil && len(request.Req.Question) > 0 {
 		// Only public-upstream answers carry a chain of trust in the public DNS hierarchy and
 		// form the GHSA-x845 attack surface, so validate exactly those: RESOLVED, plus cached
 		// upstream answers re-served as CACHED (re-validated on every hit). Every other response

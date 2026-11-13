@@ -224,6 +224,12 @@ func (r *CustomDNSResolver) processDNSEntry(
 
 // Resolve uses internal mapping to resolve the query
 func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	// Without records and rewrites the query goes to the next resolver as it is, so skip
+	// the per-request work (matches the disabled-path early-return of other resolvers).
+	if len(r.mapping) == 0 && len(r.cfg.Rewrite) == 0 {
+		return r.next.Resolve(ctx, request)
+	}
+
 	ctx, logger := r.log(ctx)
 
 	reverseResp := r.handleReverseDNS(request)
@@ -245,7 +251,9 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 	request.Req = original
 
 	if !handled {
-		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+		if isTraceEnabled(logger) {
+			logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+		}
 
 		return r.next.Resolve(ctx, request)
 	}

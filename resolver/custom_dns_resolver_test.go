@@ -126,6 +126,17 @@ var _ = Describe("CustomDNSResolver", func() {
 				Expect(err.Error()).Should(ContainSubstring("context canceled"))
 			})
 		})
+		When("No records are configured", func() {
+			BeforeEach(func() {
+				cfg = config.CustomDNS{}
+			})
+
+			It("should delegate to the next resolver", func() {
+				Expect(sut.Resolve(ctx, newRequest("custom.domain.", A))).ShouldNot(BeNil())
+
+				m.AssertCalled(GinkgoT(), "Resolve", mock.Anything)
+			})
+		})
 		When("Creating the IP response returns an error ", func() {
 			It("should return the error", func() {
 				createAnswerMock := func(_ dns.Question, _ net.IP, _ uint32) (dns.RR, error) {

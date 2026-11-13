@@ -89,6 +89,16 @@ var _ = Describe("ListCache", func() {
 	})
 
 	Describe("List cache and matching", func() {
+		When("No lists are configured", func() {
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{}
+			})
+
+			It("should not match anything", func() {
+				Expect(sut.Match("google.com", []string{"gr1"})).Should(BeEmpty())
+			})
+		})
+
 		When("List is empty", func() {
 			BeforeEach(func() {
 				lists = map[string][]config.BytesSource{
