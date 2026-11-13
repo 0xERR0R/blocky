@@ -436,25 +436,33 @@ func (c *Ports) proxyProtocolListenConfig(listener ProxyProtocolType) (ListenCon
 	}
 }
 
-// privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
+// PrivilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
 // it require CAP_NET_BIND_SERVICE (or root) to bind on Linux.
-const privilegedPortCeiling = 1024
+const PrivilegedPortCeiling = 1024
 
 // PrivilegedPorts returns the configured listen addresses across DNS, HTTP,
-// HTTPS and TLS whose port is below privilegedPortCeiling.
+// HTTPS and TLS whose port is below PrivilegedPortCeiling.
 func (p *Ports) PrivilegedPorts() []string {
-	var privileged []string
+	return p.PortsBelow(PrivilegedPortCeiling)
+}
+
+// PortsBelow returns the configured listen addresses across DNS, HTTP, HTTPS
+// and TLS whose port is below limit. Linux lets the first unprivileged port be
+// moved with the net.ipv4.ip_unprivileged_port_start sysctl, so callers that
+// know its value can pass it here instead of using PrivilegedPorts.
+func (p *Ports) PortsBelow(limit uint16) []string {
+	var below []string
 
 	for _, lc := range []ListenConfig{p.DNS, p.HTTP, p.HTTPS, p.TLS} {
 		for _, addr := range lc {
 			// Port 0 (OS-assigned ephemeral port) is never privileged.
-			if port, ok := extractPort(addr); ok && port > 0 && port < privilegedPortCeiling {
-				privileged = append(privileged, addr)
+			if port, ok := extractPort(addr); ok && port > 0 && port < limit {
+				below = append(below, addr)
 			}
 		}
 	}
 
-	return privileged
+	return below
 }
 
 // extractPort returns the port number of a listen address. It accepts every

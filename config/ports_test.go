@@ -97,6 +97,26 @@ var _ = Describe("Ports.PrivilegedPorts", func() {
 	})
 })
 
+var _ = Describe("Ports.PortsBelow", func() {
+	ports := Ports{
+		DNS:   ListenConfig{":53"},
+		HTTP:  ListenConfig{":80"},
+		HTTPS: ListenConfig{"127.0.0.1:443"},
+	}
+
+	It("returns nothing when the limit is 0", func() {
+		Expect(ports.PortsBelow(0)).Should(BeEmpty())
+	})
+
+	It("treats the limit itself as unprivileged", func() {
+		Expect(ports.PortsBelow(80)).Should(ConsistOf(":53"))
+	})
+
+	It("matches PrivilegedPorts at 1024", func() {
+		Expect(ports.PortsBelow(1024)).Should(ConsistOf(ports.PrivilegedPorts()))
+	})
+})
+
 var _ = Describe("extractPort", func() {
 	DescribeTable("parses the port from a listen address",
 		func(addr string, expectedPort uint16, expectedOK bool) {
