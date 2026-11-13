@@ -2,11 +2,15 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
 	"github.com/hako/durafmt"
 )
+
+// maxMinutes is the largest number of minutes a time.Duration can hold.
+const maxMinutes = math.MaxInt64 / int64(time.Minute)
 
 // Duration is a wrapper for time.Duration to support yaml unmarshalling
 type Duration time.Duration
@@ -45,8 +49,12 @@ func (c Duration) String() string {
 func (c *Duration) UnmarshalText(data []byte) error {
 	input := string(data)
 
-	if minutes, err := strconv.Atoi(input); err == nil {
+	if minutes, err := strconv.ParseInt(input, 10, 64); err == nil {
 		// number without unit: use minutes to ensure back compatibility
+		if minutes > maxMinutes || minutes < -maxMinutes {
+			return fmt.Errorf("invalid duration '%s': number of minutes is out of range", input)
+		}
+
 		*c = Duration(time.Duration(minutes) * time.Minute)
 
 		loadLogger().Warnf("Setting a duration without a unit is deprecated. Please use '%s min' instead.", input)
