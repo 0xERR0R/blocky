@@ -5459,6 +5459,7 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <li>Validate authenticated denial of existence using NSEC/NSEC3 records for <abbr title="Non-Existence Domain">NXDOMAIN</abbr> and NODATA responses</li>
 <li>Validate wildcard expansions according to RFC 4035 §5.3.4</li>
 <li>Return SERVFAIL for responses with invalid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures (Bogus)</li>
+<li>Return the data without validating it, and without the AD flag, to a client that set the Checking Disabled (CD) bit, since that client validates itself (RFC 4035 §3.2.2)</li>
 <li>Set the Authenticated Data (AD) flag only after successful validation</li>
 <li>Add Extended <abbr title="Domain Name System">DNS</abbr> Error (EDE) codes per RFC 8914 when validation fails</li>
 </ul>
