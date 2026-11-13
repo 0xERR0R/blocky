@@ -280,6 +280,64 @@ var _ = Describe("DNSSECResolver", func() {
 				Entry("resolved - public upstream", model.ResponseTypeRESOLVED),
 				Entry("cached upstream answer - re-validated on hit", model.ResponseTypeCACHED),
 			)
+
+			// RFC 4035 §3.2.2: with CD set, the client validates itself and gets the data as is.
+			When("the client sets the CD bit", func() {
+				BeforeEach(func() {
+					request.Req.CheckingDisabled = true
+				})
+
+				DescribeTable("returns the upstream answer without validating it",
+					func(rType model.ResponseType) {
+						// unsigned answer under the default root anchor: bogus without CD
+						response.AuthenticatedData = true
+						mockUpstream.On("Resolve", mock.Anything).Return(
+							&model.Response{Res: response, RType: rType}, nil)
+
+						resp, err := sut.Resolve(ctx, request)
+						Expect(err).Should(Succeed())
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(resp.Res.Answer).Should(HaveLen(1))
+						Expect(resp.RType).Should(Equal(rType))
+						Expect(resp.Res.AuthenticatedData).Should(BeFalse())
+						// no DS/DNSKEY sub-queries, and the CD bit went upstream with the request
+						Expect(mockUpstream.Calls).Should(HaveLen(1))
+						forwarded, ok := mockUpstream.Calls[0].Arguments.Get(0).(*model.Request)
+						Expect(ok).Should(BeTrue())
+						Expect(forwarded.Req.CheckingDisabled).Should(BeTrue())
+					},
+					Entry("resolved - public upstream", model.ResponseTypeRESOLVED),
+					Entry("cached upstream answer", model.ResponseTypeCACHED),
+				)
+
+				It("returns data with a broken signature instead of SERVFAIL", func() {
+					response.Answer = append(response.Answer, &dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						TypeCovered: dns.TypeA,
+						Algorithm:   8,
+						Labels:      2,
+						OrigTtl:     300,
+						Expiration:  uint32(time.Now().Add(-48 * time.Hour).Unix()),
+						Inception:   uint32(time.Now().Add(-72 * time.Hour).Unix()),
+						KeyTag:      12345,
+						SignerName:  "example.com.",
+						Signature:   "invalid",
+					})
+					mockUpstream.On("Resolve", mock.Anything).Return(
+						&model.Response{Res: response, RType: model.ResponseTypeRESOLVED}, nil)
+
+					resp, err := sut.Resolve(ctx, request)
+					Expect(err).Should(Succeed())
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Res.Answer).Should(HaveLen(2))
+					Expect(resp.Res.AuthenticatedData).Should(BeFalse())
+				})
+			})
 		})
 
 		When("upstream resolver returns error", func() {
