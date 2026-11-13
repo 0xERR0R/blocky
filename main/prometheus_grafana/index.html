@@ -878,13 +878,14 @@ or <a href="https://grafana.com/grafana/dashboards/13768">at grafana.com</a>
 <p>The dashboard is organized in sections (overview, traffic, latency, blocking &amp; lists, cache &amp; prefetching, <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>,
 rate limiting, Go runtime) and uses only Grafana core panels, so no additional plugins are needed. The "Blocking
 control" buttons in the overview section enable or temporarily disable blocking via the blocky <abbr title="Application Programming Interface">API</abbr>.</p>
+<p>Client filtering is available in the <strong>Traffic</strong> section using the new <code>blocky_client_response_total</code> metric.
+The dashboard has been converted to Grafana's v2 format to support the section-level client selector.</p>
 <p>When importing the dashboard, set the "blocky <abbr title="Application Programming Interface">API</abbr> URL" input to the address under which your browser can reach the
 blocky <abbr title="Hypertext Transfer Protocol">HTTP</abbr> <abbr title="Application Programming Interface">API</abbr> (e.g. <code>https://blocky.example.com</code> or <code>http://192.168.1.2:4000</code>) — it is used by the blocking
 control buttons.</p>
 <h3 id="requirements">Requirements</h3>
 <ul>
-<li>Grafana 10.2 or newer: the blocking control buttons use canvas button elements with <abbr title="Application Programming Interface">API</abbr> calls. All other panels
-  also work with older Grafana versions.</li>
+<li>Grafana 13 or higher for the v2 dashboard and client filtering in the Traffic section.</li>
 <li>blocky newer than v0.31 if Grafana is served from a different origin than the blocky <abbr title="Application Programming Interface">API</abbr>: older blocky versions
   reject the CORS preflight which Grafana sends for the blocking control buttons. Alternatively, expose the blocky
   <abbr title="Application Programming Interface">API</abbr> on the same origin as Grafana through your reverse proxy.</li>
