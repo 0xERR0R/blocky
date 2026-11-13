@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/lists"
@@ -249,7 +250,7 @@ func (r *HostsFileResolver) parseFile(
 		}
 
 		// Ignore loopback, if so configured
-		if r.cfg.FilterLoopback && (entry.IP.IsLoopback() || entry.Name == localhostName) {
+		if r.cfg.FilterLoopback && (entry.IP.IsLoopback() || strings.EqualFold(entry.Name, localhostName)) {
 			return nil
 		}
 
@@ -337,9 +338,14 @@ func (d hostsFileData) getIP(hostname string) net.IP {
 }
 
 func (d hostsFileData) add(entry *parsers.HostsFileEntry) {
-	d.hosts[entry.Name] = hostData{entry.IP, entry.Aliases}
+	// queries are looked up by their lower case name
+	name := strings.ToLower(entry.Name)
+	aliases := make([]string, len(entry.Aliases))
 
-	for _, alias := range entry.Aliases {
-		d.aliases[alias] = entry.IP
+	for i, alias := range entry.Aliases {
+		aliases[i] = strings.ToLower(alias)
+		d.aliases[aliases[i]] = entry.IP
 	}
+
+	d.hosts[name] = hostData{entry.IP, aliases}
 }
