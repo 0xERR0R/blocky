@@ -569,7 +569,7 @@ Please be aware that by enabling this your resolution will break unless every qu
 
 You can define your own domain name mappings for local DNS resolution. This is useful for creating user-friendly names for network devices, defining domain names for local services, or creating your own DNS zone.
 
-Custom DNS supports multiple record types (A, AAAA, CNAME, TXT, SRV) and provides automatic reverse DNS lookups for defined IP addresses.
+Custom DNS supports multiple record types (A, AAAA, CNAME, TXT, SRV, HTTPS, SVCB) and provides automatic reverse DNS lookups for defined IP addresses.
 
 | Parameter           | Type                                                   | Mandatory | Default value | Description                                                                                |
 | ------------------- | ------------------------------------------------------ | --------- | ------------- | ------------------------------------------------------------------------------------------ |
@@ -644,11 +644,28 @@ The zone file supports standard DNS zone file syntax including:
 
 For records defined using the `zone` parameter, the `customTTL` parameter is unused. Instead, the TTL is defined in the zone directly.
 
-custom DNS answers queries for `A`, `AAAA`, `CNAME`, `TXT` and `SRV` records. Other record types
-that are valid in a zone file (for example `SOA`, `NS`, `MX`, `CAA`, `HTTPS`/`SVCB` or the DNSSEC
+custom DNS answers queries for `A`, `AAAA`, `CNAME`, `TXT`, `SRV`, `HTTPS` and `SVCB` records. Other
+record types that are valid in a zone file (for example `SOA`, `NS`, `MX`, `CAA` or the DNSSEC
 records of a signed zone) may be present in the zone, but they are not answered by custom DNS: a
 query for such a type gets the same response as a query for a type that is not defined for the name
 (an empty answer, or the query is forwarded upstream when `filterUnmappedTypes` is `false`).
+
+`HTTPS` and `SVCB` records ([RFC 9460](https://www.rfc-editor.org/rfc/rfc9460)) are returned as written
+in the zone, with all their SvcParams. Browsers send an `HTTPS` query next to `A`/`AAAA` for every
+name, so this lets local services announce HTTP/3 support, an alternate port or address hints:
+
+!!! example
+
+    ```yaml
+    customDNS:
+      zone: |
+        $ORIGIN example.com.
+        app 3600 A     192.168.1.10
+        app 3600 HTTPS 1 . alpn="h3,h2" ipv4hint=192.168.1.10
+    ```
+
+When `AAAA` queries are [filtered](#filtering), the `ipv6hint` SvcParam is removed from these answers
+too.
 
 ### CNAME Resolution
 
