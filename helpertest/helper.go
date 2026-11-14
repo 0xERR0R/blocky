@@ -30,6 +30,7 @@ const (
 	MX    = dns.Type(dns.TypeMX)
 	PTR   = dns.Type(dns.TypePTR)
 	SRV   = dns.Type(dns.TypeSRV)
+	SVCB  = dns.Type(dns.TypeSVCB)
 	TXT   = dns.Type(dns.TypeTXT)
 	DS    = dns.Type(dns.TypeDS)
 )
@@ -278,9 +279,19 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) bool {
 		return strings.Join(v.Txt, " ") == matcher.answer
 	case *dns.MX:
 		return v.Mx == matcher.answer
+	case *dns.HTTPS:
+		return svcbRdata(&v.SVCB) == matcher.answer
+	case *dns.SVCB:
+		return svcbRdata(v) == matcher.answer
 	}
 
 	return false
+}
+
+// svcbRdata formats the RDATA of an SVCB or HTTPS record in presentation format:
+// priority, target and the SvcParams, e.g. `1 . alpn="h3,h2" port="8443"`.
+func svcbRdata(rr *dns.SVCB) string {
+	return strings.TrimPrefix(rr.String(), rr.Hdr.String())
 }
 
 // Match checks the DNS record
