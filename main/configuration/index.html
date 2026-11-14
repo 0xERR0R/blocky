@@ -3073,6 +3073,10 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="c1"># url path, optional (default '/metrics')</span>
 <span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/metrics</span>
+<span class="w">  </span><span class="c1"># use the client name (or IP) as the "client" label on blocky_query_total and</span>
+<span class="w">  </span><span class="c1"># blocky_client_response_total. Set to false to collapse the label to a single</span>
+<span class="w">  </span><span class="c1"># "unknown" value and bound metric cardinality (default: true)</span>
+<span class="w">  </span><span class="nt">enableClientLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 
 <span class="c1"># optional: serve the Go profiler (pprof) endpoints under /debug on the HTTP(S) listeners</span>
 <span class="nt">pprof</span><span class="p">:</span>
@@ -4925,6 +4929,12 @@ see <a href="#basic-configuration">Basic Configuration</a>).</p>
 <td>/metrics</td>
 <td>URL path to the metrics endpoint</td>
 </tr>
+<tr>
+<td>prometheus.enableClientLabel</td>
+<td>no</td>
+<td>true</td>
+<td>If true, the client name (or IP) is used as the <code>client</code> label on <code>blocky_query_total</code> and <code>blocky_client_response_total</code>. Set to <code>false</code> to collapse the label to a single <code>unknown</code> value (see <a href="../prometheus_grafana/#prometheus-export">Prometheus</a>).</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition example">
@@ -4932,6 +4942,7 @@ see <a href="#basic-configuration">Basic Configuration</a>).</p>
 <div class="highlight"><pre><span></span><code><span class="nt">prometheus</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/metrics</span>
+<span class="w">  </span><span class="nt">enableClientLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
 <h2 id="statistics">Statistics</h2>

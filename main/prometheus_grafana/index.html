@@ -845,8 +845,15 @@ distinct devices Blocky has seen. On networks with a stable, limited set of devi
 home LAN) this stays small, but on networks with high device turnover (e.g. public or guest Wi-Fi)
 the set of <code>client</code> label values can grow effectively unbounded over time. Consider this before
 scraping/retaining these metrics on such networks.</p>
-<p>Blocky has no option to drop the label yet, so the mitigation is on the Prometheus side: drop the
-affected metrics at scrape time when you do not need the per-client breakdown.</p>
+<p>When <abbr title="DNS-over-HTTPS">DoH</abbr> is enabled, the client name is also taken directly from the request URL (the path
+segment in <code>/dns-query/&lt;clientID&gt;</code> or the <code>id-</code> host prefix) and is therefore client-controlled:
+any client that can reach the <abbr title="DNS-over-HTTPS">DoH</abbr> endpoint can mint arbitrary <code>client</code> label values. Set
+<code>prometheus.enableClientLabel: false</code> (see <a href="../configuration/#prometheus">Prometheus</a>) to collapse
+the label to a single <code>unknown</code> value, keeping the metric names and label keys intact while
+bounding cardinality. This is recommended when blocky is reachable from untrusted networks or
+serves an unbounded set of clients.</p>
+<p>Alternatively, the mitigation is on the Prometheus side: drop the affected metrics at scrape time
+when you do not need the per-client breakdown.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">metric_relabel_configs</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source_labels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">__name__</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">regex</span><span class="p">:</span><span class="w"> </span><span class="s">"blocky_(query|client_response)_total"</span>
