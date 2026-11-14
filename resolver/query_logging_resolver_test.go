@@ -85,7 +85,7 @@ func (m *ClosingWriter) Close() error {
 	return nil
 }
 
-func queueFullDrops() float64 {
+func droppedEntries(reason querylog.DropReason) float64 {
 	families, err := metrics.Reg.Gather()
 	Expect(err).Should(Succeed())
 
@@ -95,7 +95,7 @@ func queueFullDrops() float64 {
 		}
 
 		for _, m := range family.GetMetric() {
-			if m.GetLabel()[0].GetValue() == string(querylog.DropReasonQueueFull) {
+			if m.GetLabel()[0].GetValue() == string(reason) {
 				return m.GetCounter().GetValue()
 			}
 		}
@@ -482,13 +482,13 @@ var _ = Describe("QueryLoggingResolver", func() {
 				mockWriter := &SlowMockWriter{}
 				sut.writer = mockWriter
 
-				before := queueFullDrops()
+				before := droppedEntries(querylog.DropReasonQueueFull)
 
 				Eventually(func() float64 {
 					_, ierr := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
 					Expect(ierr).Should(Succeed())
 
-					return queueFullDrops() - before
+					return droppedEntries(querylog.DropReasonQueueFull) - before
 				}, "3s", "1µs").Should(BeNumerically(">", 0))
 			})
 		})
@@ -534,6 +534,52 @@ var _ = Describe("QueryLoggingResolver", func() {
 			DeferCleanup(cancel)
 
 			Expect(sut.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
+		})
+
+		It("stops draining the queue at the deadline and counts what is left", func() {
+			sut.writer = &SlowMockWriter{} // 100 ms a write
+
+			cancelFn()
+			Eventually(sut.writeLogDone).Should(BeClosed())
+
+			for range 20 {
+				_, ierr := sut.Resolve(context.Background(), newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+				Expect(ierr).Should(Succeed())
+			}
+
+			before := droppedEntries(querylog.DropReasonShutdown)
+
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+			DeferCleanup(cancel)
+
+			start := time.Now()
+
+			Expect(sut.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
+			Expect(time.Since(start)).Should(BeNumerically("<", time.Second))
+			Expect(droppedEntries(querylog.DropReasonShutdown) - before).Should(BeNumerically(">", 10))
+		})
+
+		It("gives up at the deadline when a write blocks while the queue is drained", func() {
+			writer := &StuckWriter{release: make(chan struct{})}
+			DeferCleanup(func() { close(writer.release) })
+			sut.writer = writer
+
+			cancelFn()
+			Eventually(sut.writeLogDone).Should(BeClosed())
+
+			for range 3 {
+				_, ierr := sut.Resolve(context.Background(), newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+				Expect(ierr).Should(Succeed())
+			}
+
+			before := droppedEntries(querylog.DropReasonShutdown)
+
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			DeferCleanup(cancel)
+
+			Expect(sut.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
+			// 2 if the stuck write had already taken its entry from the queue, 3 if not yet
+			Expect(droppedEntries(querylog.DropReasonShutdown) - before).Should(BeElementOf(2.0, 3.0))
 		})
 
 		It("closes a writer that only has Close, like dnstap's", func() {

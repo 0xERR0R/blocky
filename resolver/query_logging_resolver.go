@@ -370,19 +370,43 @@ func (r *QueryLoggingResolver) Shutdown(ctx context.Context) error {
 	r.stopWriteLog()
 
 	// As in Server.Stop, a context that's already done leaves no deadline to enforce.
-	if ctx.Err() == nil {
-		select {
-		case <-r.writeLogDone:
-		case <-ctx.Done():
-			// A Write is stuck (only file writers block); the writer can't be touched under it.
-			return ctx.Err()
-		}
+	deadline := ctx.Done()
+	if ctx.Err() != nil {
+		deadline = nil
 	}
 
-	<-r.writeLogDone
+	// The queue is drained on a goroutine of its own: a write can block (file writers),
+	// and that mustn't hold Stop past its deadline.
+	drained := make(chan struct{})
 
-	for len(r.logChan) > 0 {
-		r.writer.Write(<-r.logChan)
+	go func() {
+		<-r.writeLogDone
+
+		for {
+			select {
+			case <-deadline:
+				return
+			case entry := <-r.logChan:
+				r.writer.Write(entry)
+			default:
+				close(drained)
+
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-drained:
+	case <-deadline:
+		select {
+		case <-drained: // it finished just as the deadline passed
+		default:
+			// A write may still be running, so the writer can't be shut down under it.
+			querylog.CountDropped(querylog.DropReasonShutdown, len(r.logChan))
+
+			return ctx.Err()
+		}
 	}
 
 	switch w := r.writer.(type) {

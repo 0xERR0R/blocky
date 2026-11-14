@@ -15,6 +15,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/DATA-DOG/go-sqlmock"
 	mysqldriver "github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"gorm.io/driver/mysql"
@@ -307,6 +308,35 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(droppedCount(DropReasonRejected) - before).Should(BeZero())
 			})
 		})
+
+		DescribeTable("a lone row the server twice gave up on, while it takes a plain row",
+			func(serverErr error) {
+				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Hour, config.QueryLogTypeSqlite)
+				db := connected(writer)
+
+				var failures atomic.Int32
+
+				failures.Store(2)
+				onInsert(db, func(tx *gorm.DB) {
+					if insertedRows(tx) != nil && failures.Add(-1) >= 0 {
+						_ = tx.AddError(serverErr)
+					}
+				})
+
+				before := droppedCount(DropReasonRejected)
+
+				writer.Write(&LogEntry{Start: time.Now()})
+
+				Expect(writer.Shutdown(ctx)).Should(Succeed())
+				Expect(countLogEntries(db)).Should(BeNumerically("==", 1))
+				Expect(droppedCount(DropReasonRejected) - before).Should(BeZero())
+			},
+			Entry("MySQL lock wait timeout", &mysqldriver.MySQLError{Number: 1205, Message: "Lock wait timeout exceeded"}),
+			Entry("MySQL deadlock", &mysqldriver.MySQLError{Number: 1213, Message: "Deadlock found when trying to get lock"}),
+			Entry("PostgreSQL lock_timeout", &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}),
+			Entry("PostgreSQL statement_timeout", &pgconn.PgError{Code: "57014", Message: "canceling statement due to statement timeout"}),
+			Entry("PostgreSQL deadlock", &pgconn.PgError{Code: "40P01", Message: "deadlock detected"}),
+		)
 
 		When("a batch is too slow to write whole", func() {
 			It("splits it and writes every row", func() {

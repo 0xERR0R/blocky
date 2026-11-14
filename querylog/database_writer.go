@@ -19,6 +19,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/publicsuffix"
 	"gorm.io/driver/mysql"
@@ -411,7 +412,7 @@ func (d *DatabaseWriter) ship(ctx context.Context, batch []*logEntry) (int, erro
 
 // write tries batch once. Its error is unrecoverable when the database takes a plain
 // row but not this batch: a larger batch is to be split, and a lone row is refused,
-// having failed twice for a reason other than running out of time.
+// having failed twice for a reason other than a timeout or a lock.
 func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
 	err := d.insert(ctx, batch)
 	if err == nil || !d.acceptsPlainRow(ctx) {
@@ -420,8 +421,8 @@ func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
 
 	if len(batch) == 1 {
 		// One more try at once, in case the failure was passing (e.g. a stale
-		// connection). Running out of time says nothing about the row: retry it.
-		if err = d.insert(ctx, batch); err == nil || errors.Is(err, errWriteTimedOut) || !d.acceptsPlainRow(ctx) {
+		// connection). A timeout or a lock says nothing about the row: retry it.
+		if err = d.insert(ctx, batch); err == nil || errors.Is(err, errInconclusive) || !d.acceptsPlainRow(ctx) {
 			return err
 		}
 	}
@@ -429,9 +430,10 @@ func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
 	return retry.Unrecoverable(err)
 }
 
-// errWriteTimedOut marks a write that ran out of time, whatever error the driver
-// reports for it (GORM may keep only the rollback's error, not the context's).
-var errWriteTimedOut = errors.New("query log write ran out of time")
+// errInconclusive marks a write that ran out of time or lost a lock, here or on the
+// server: that says nothing about its rows. It is set whatever error the driver
+// reports (GORM may keep only the rollback's error, not the context's).
+var errInconclusive = errors.New("query log write timed out or lost a lock")
 
 func (d *DatabaseWriter) insert(ctx context.Context, batch []*logEntry) error {
 	ctx, cancel := context.WithTimeout(ctx, d.writeTimeout)
@@ -439,11 +441,33 @@ func (d *DatabaseWriter) insert(ctx context.Context, batch []*logEntry) error {
 
 	// GORM runs the INSERTs in one transaction: the batch is written whole or not at all.
 	err := d.db.Load().WithContext(ctx).CreateInBatches(batch, dbStatementRows).Error
-	if err != nil && ctx.Err() != nil {
-		return fmt.Errorf("%w: %w", errWriteTimedOut, err)
+	if err != nil && (ctx.Err() != nil || serverTimedOut(err)) {
+		return fmt.Errorf("%w: %w", errInconclusive, err)
 	}
 
 	return err
+}
+
+// serverTimedOut reports whether the server gave up on a lock wait or a deadlock, or
+// (PostgreSQL) cancelled the statement. A row another session has locked can fail
+// like this while a plain row still goes in.
+func serverTimedOut(err error) bool {
+	var (
+		pgErr *pgconn.PgError
+		myErr *mysqldriver.MySQLError
+	)
+
+	switch {
+	case errors.As(err, &pgErr):
+		// lock_not_available, query_canceled, and class 40 (transaction rollback: deadlock, ...)
+		return pgErr.Code == "55P03" || pgErr.Code == "57014" || strings.HasPrefix(pgErr.Code, "40")
+	case errors.As(err, &myErr):
+		const lockWaitTimeout, deadlock = 1205, 1213
+
+		return myErr.Number == lockWaitTimeout || myErr.Number == deadlock
+	}
+
+	return false
 }
 
 // acceptsPlainRow reports whether the database takes a row of empty fields right
