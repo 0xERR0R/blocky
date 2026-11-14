@@ -55,15 +55,15 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 		return response, err
 	}
 
-	clientLabel := strings.Join(request.ClientNames, ",")
-	if !r.cfg.EnableClientLabel {
-		clientLabel = clientLabelUnknown
+	clientLabelValue := clientLabelUnknown
+	if r.cfg.EnableClientLabel {
+		clientLabelValue = strings.Join(request.ClientNames, ",")
 	}
 
 	// WithLabelValues is used instead of With(prometheus.Labels{...}) throughout: the map
 	// literal costs an allocation per query on the hot path. The value order must match the
 	// label order of the corresponding metric constructor below.
-	r.totalQueries.WithLabelValues(clientLabel, dns.TypeToString[request.Req.Question[0].Qtype]).Inc()
+	r.totalQueries.WithLabelValues(clientLabelValue, dns.TypeToString[request.Req.Question[0].Qtype]).Inc()
 
 	reqDuration := time.Since(request.RequestTS)
 	responseType := responseTypeErr
@@ -74,7 +74,7 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 
 	r.durationHistogram.WithLabelValues(responseType).Observe(reqDuration.Seconds())
 
-	r.totalClientResponse.WithLabelValues(clientLabel, responseType).Inc()
+	r.totalClientResponse.WithLabelValues(clientLabelValue, responseType).Inc()
 
 	if err != nil {
 		r.totalErrors.Inc()
