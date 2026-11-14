@@ -5,9 +5,11 @@ package querylog
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"net"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -84,6 +86,18 @@ func (f *flakyDialector) Initialize(db *gorm.DB) error {
 
 	return f.Dialector.Initialize(db)
 }
+
+// mockConnector hands out the connection of a sqlmock database.
+type mockConnector struct {
+	db   *sql.DB
+	mock sqlmock.Sqlmock
+}
+
+func (c mockConnector) Connect(context.Context) (driver.Conn, error) {
+	return c.mock.(driver.Conn), nil
+}
+
+func (c mockConnector) Driver() driver.Driver { return c.db.Driver() }
 
 var _ = Describe("DatabaseWriter", func() {
 	var (
@@ -670,8 +684,23 @@ var _ = Describe("DatabaseWriter", func() {
 			})
 		})
 
-		When("a MySQL server accepts connections but never answers", func() {
-			It("gives up connecting when the context ends", func() {
+		Describe("a MySQL server that stops answering", func() {
+			// opening returns how opening the database ends, when the attempt ends after 200 ms.
+			opening := func(connector driver.Connector, dsn string) chan error {
+				dialCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+				DeferCleanup(cancel)
+
+				done := make(chan error, 1)
+
+				go func() {
+					_, err := openDatabase(ctx, mysqlDialect(connector, dsn)(dialCtx), config.QueryLogTypeMysql, 7)
+					done <- err
+				}()
+
+				return done
+			}
+
+			It("gives up when it never answers the connection", func() {
 				listener, err := net.Listen("tcp", "127.0.0.1:0")
 				Expect(err).Should(Succeed())
 				DeferCleanup(listener.Close)
@@ -691,11 +720,40 @@ var _ = Describe("DatabaseWriter", func() {
 				connector, err := mysqldriver.MySQLDriver{}.OpenConnector(dsn)
 				Expect(err).Should(Succeed())
 
-				dialCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-				DeferCleanup(cancel)
+				Eventually(opening(connector, dsn), "5s").Should(Receive(MatchError(context.DeadlineExceeded)))
+			})
 
-				_, err = mysqlDialect(connector, dsn)(dialCtx)
-				Expect(err).Should(MatchError(context.DeadlineExceeded))
+			It("gives up when it never answers GORM's version query", func() {
+				db, mock, err := sqlmock.New()
+				Expect(err).Should(Succeed())
+
+				mock.ExpectQuery(regexp.QuoteMeta("SELECT VERSION()")).WillDelayFor(time.Minute).
+					WillReturnRows(sqlmock.NewRows([]string{"VERSION()"}).AddRow("8.4.0"))
+
+				Eventually(opening(mockConnector{db, mock}, ""), "5s").Should(Receive(MatchError(sqlmock.ErrCancelled)))
+			})
+		})
+
+		When("a MySQL server answers", func() {
+			It("lets GORM read the server version, and doesn't tie later queries to the attempt", func() {
+				db, mock, err := sqlmock.New()
+				Expect(err).Should(Succeed())
+
+				mock.ExpectQuery(regexp.QuoteMeta("SELECT VERSION()")).
+					WillReturnRows(sqlmock.NewRows([]string{"VERSION()"}).AddRow("11.8.2-MariaDB"))
+				mock.ExpectQuery("SELECT 1").WillReturnRows(sqlmock.NewRows([]string{"1"}).AddRow(1))
+
+				dialCtx, cancel := context.WithCancel(ctx)
+				target := mysqlDialect(mockConnector{db, mock}, "")(dialCtx)
+
+				opened, err := gorm.Open(target, &gorm.Config{DisableAutomaticPing: true})
+				Expect(err).Should(Succeed())
+				Expect(target.(mysqlDialector).DontSupportRenameIndex).Should(BeTrue())
+
+				cancel()
+
+				var one int
+				Expect(opened.Raw("SELECT 1").Row().Scan(&one)).Should(Succeed())
 			})
 		})
 

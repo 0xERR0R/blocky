@@ -128,26 +128,49 @@ func NewDatabaseWriter(ctx context.Context, dbType config.QueryLogType, target s
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
 }
 
-// dialect returns the dialector for one connection attempt, giving up when ctx is done.
-type dialect func(ctx context.Context) (gorm.Dialector, error)
+// dialect returns the dialector for one connection attempt, which ends with ctx.
+type dialect func(ctx context.Context) gorm.Dialector
 
 func fixedDialect(target gorm.Dialector) dialect {
-	return func(context.Context) (gorm.Dialector, error) { return target, nil }
+	return func(context.Context) gorm.Dialector { return target }
 }
 
-// mysqlDialect connects before handing GORM the pool: while opening, GORM queries the
-// server version without a context, so that query must reuse a connection that answered.
+// mysqlDialect ends GORM's MySQL setup with the connection attempt. GORM asks for the
+// server version with context.Background(), so a server that stops answering would
+// hold the writer until the connection died.
 func mysqlDialect(connector driver.Connector, dsn string) dialect {
-	return func(ctx context.Context) (gorm.Dialector, error) {
+	return func(ctx context.Context) gorm.Dialector {
 		pool := sql.OpenDB(connector)
-		if err := pool.PingContext(ctx); err != nil {
-			_ = pool.Close()
+		//nolint:forcetypeassert // mysql.New always returns a *mysql.Dialector
+		target := mysql.New(mysql.Config{Conn: attemptPool{pool, ctx}, DSN: dsn}).(*mysql.Dialector)
 
-			return nil, err
-		}
-
-		return mysql.New(mysql.Config{Conn: pool, DSN: dsn}), nil
+		return mysqlDialector{target, pool}
 	}
+}
+
+// mysqlDialector sets GORM up through an attemptPool, then gives it the pool itself.
+type mysqlDialector struct {
+	*mysql.Dialector
+
+	pool *sql.DB
+}
+
+func (d mysqlDialector) Initialize(db *gorm.DB) error {
+	err := d.Dialector.Initialize(db)
+	db.ConnPool = d.pool
+
+	return err
+}
+
+// attemptPool runs GORM's version query under the connection attempt's context.
+type attemptPool struct {
+	*sql.DB
+
+	ctx context.Context //nolint:containedctx // Initialize takes none
+}
+
+func (p attemptPool) QueryRowContext(_ context.Context, query string, args ...any) *sql.Row {
+	return p.DB.QueryRowContext(p.ctx, query, args...) //nolint:contextcheck // GORM passes context.Background()
 }
 
 func newDatabaseWriter(ctx context.Context, target dialect, logRetentionDays uint64,
@@ -291,12 +314,7 @@ func (d *DatabaseWriter) run(ctx context.Context) {
 		dialectCtx, cancel := context.WithTimeout(ctx, dbWriteTimeout)
 		defer cancel()
 
-		target, err := d.dialect(dialectCtx)
-		if err != nil {
-			return fmt.Errorf("can't create database connection: %w", err)
-		}
-
-		db, err := openDatabase(ctx, target, d.dbType, d.logRetentionDays)
+		db, err := openDatabase(ctx, d.dialect(dialectCtx), d.dbType, d.logRetentionDays)
 		if err == nil {
 			d.db.Store(db)
 		}
