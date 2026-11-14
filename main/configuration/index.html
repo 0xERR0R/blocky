@@ -4252,7 +4252,7 @@ Please be aware that by enabling this your resolution will break unless every qu
 </div>
 <h2 id="custom-dns">Custom <abbr title="Domain Name System">DNS</abbr></h2>
 <p>You can define your own domain name mappings for local <abbr title="Domain Name System">DNS</abbr> resolution. This is useful for creating user-friendly names for network devices, defining domain names for local services, or creating your own <abbr title="Domain Name System">DNS</abbr> zone.</p>
-<p>Custom <abbr title="Domain Name System">DNS</abbr> supports multiple record types (A, AAAA, <abbr title="Canonical Name">CNAME</abbr>, TXT, SRV) and provides automatic reverse <abbr title="Domain Name System">DNS</abbr> lookups for defined IP addresses.</p>
+<p>Custom <abbr title="Domain Name System">DNS</abbr> supports multiple record types (A, AAAA, <abbr title="Canonical Name">CNAME</abbr>, TXT, SRV, <abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr>, SVCB) and provides automatic reverse <abbr title="Domain Name System">DNS</abbr> lookups for defined IP addresses.</p>
 <table>
 <thead>
 <tr>
@@ -4351,11 +4351,25 @@ Please be aware that by enabling this your resolution will break unless every qu
 - <code>$INCLUDE</code> - includes another zone file relative to the blocky executable
 - <code>$GENERATE</code> - generates a range of records</p>
 <p>For records defined using the <code>zone</code> parameter, the <code>customTTL</code> parameter is unused. Instead, the <abbr title="Time-To-Live">TTL</abbr> is defined in the zone directly.</p>
-<p>custom <abbr title="Domain Name System">DNS</abbr> answers queries for <code>A</code>, <code>AAAA</code>, <code>CNAME</code>, <code>TXT</code> and <code>SRV</code> records. Other record types
-that are valid in a zone file (for example <code>SOA</code>, <code>NS</code>, <code>MX</code>, <code>CAA</code>, <code>HTTPS</code>/<code>SVCB</code> or the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>
+<p>custom <abbr title="Domain Name System">DNS</abbr> answers queries for <code>A</code>, <code>AAAA</code>, <code>CNAME</code>, <code>TXT</code>, <code>SRV</code>, <code>HTTPS</code> and <code>SVCB</code> records. Other
+record types that are valid in a zone file (for example <code>SOA</code>, <code>NS</code>, <code>MX</code>, <code>CAA</code> or the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>
 records of a signed zone) may be present in the zone, but they are not answered by custom <abbr title="Domain Name System">DNS</abbr>: a
 query for such a type gets the same response as a query for a type that is not defined for the name
 (an empty answer, or the query is forwarded upstream when <code>filterUnmappedTypes</code> is <code>false</code>).</p>
+<p><code>HTTPS</code> and <code>SVCB</code> records (<a href="https://www.rfc-editor.org/rfc/rfc9460">RFC 9460</a>) are returned as written
+in the zone, with all their SvcParams. Browsers send an <code>HTTPS</code> query next to <code>A</code>/<code>AAAA</code> for every
+name, so this lets local services announce <abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3 support, an alternate port or address hints:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">customDNS</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">zone</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">    </span><span class="no">$ORIGIN example.com.</span>
+<span class="w">    </span><span class="no">app 3600 A     192.168.1.10</span>
+<span class="w">    </span><span class="no">app 3600 HTTPS 1 . alpn="h3,h2" ipv4hint=192.168.1.10</span>
+</code></pre></div>
+</div>
+<p>When <code>AAAA</code> queries are <a href="#filtering">filtered</a>, the <code>ipv6hint</code> SvcParam is removed from these answers
+too.</p>
 <h3 id="cname-resolution"><abbr title="Canonical Name">CNAME</abbr> Resolution</h3>
 <p>When a <abbr title="Canonical Name">CNAME</abbr> record is defined and a query matches that record, blocky will:
 1. Return the <abbr title="Canonical Name">CNAME</abbr> record in the answer

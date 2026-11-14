@@ -169,7 +169,7 @@
         },
         "zone": {
           "type": "string",
-          "description": "DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV).",
+          "description": "DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV, HTTPS, SVCB).",
           "default": ""
         },
         "filterUnmappedTypes": {
