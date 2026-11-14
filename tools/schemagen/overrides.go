@@ -216,7 +216,7 @@ func makeMapper() func(reflect.Type) *jsonschema.Schema {
 		}
 
 		// go-enum string types are detected generically via EnumValues().
-		if ev, ok := reflect.New(t).Elem().Interface().(enumValuer); ok {
+		if ev, ok := reflect.TypeAssert[enumValuer](reflect.New(t).Elem()); ok {
 			return enumStringSchema(ev.EnumValues())
 		}
 
@@ -372,7 +372,7 @@ func applyEnumDescriptions(s *jsonschema.Schema, t reflect.Type) {
 		return
 	}
 
-	if ed, ok := reflect.New(t).Elem().Interface().(enumDescriptioner); ok {
+	if ed, ok := reflect.TypeAssert[enumDescriptioner](reflect.New(t).Elem()); ok {
 		if legend := ed.EnumDescriptions(); len(legend) > 0 && len(s.Enum) > 0 {
 			s.Description = withEnumLegend(s.Description, legend, s.Enum)
 		}

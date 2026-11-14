@@ -600,9 +600,10 @@ func (v *Validator) tryVerifyWithRRSIG(
 	signerName := matchingSig.SignerName
 	rrsetName := dns.Fqdn(rrset[0].Header().Name)
 
-	// RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner (self-signed at zone apex)
+	// RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner (self-signed at zone apex).
+	// Names are compared in canonical (case-insensitive) form per RFC 4034 §6.
 	if rrType == dns.TypeDNSKEY {
-		if signerName != rrsetName {
+		if dns.CanonicalName(signerName) != dns.CanonicalName(rrsetName) {
 			v.logger.Debugf("Skipping RRSIG: DNSKEY signer %s must equal owner %s (RFC 4035 §2.2)", signerName, rrsetName)
 
 			return false, nil

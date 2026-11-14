@@ -173,6 +173,34 @@ var _ = Describe("HostsFileResolver", func() {
 			})
 		})
 
+		When("names are written with upper case letters", func() {
+			BeforeEach(func() {
+				tmpFile = tmpDir.CreateStringFile("hosts-mixed-case.txt",
+					"10.0.0.6 NAS.Home.lan Files.HOME.lan",
+					"10.0.0.7 LocalHost",
+				)
+
+				sutConfig.Sources = config.NewBytesSources(tmpFile.Path)
+			})
+
+			It("resolves them case insensitively", func() {
+				for _, name := range []string{"nas.home.lan.", "NAS.home.LAN.", "files.home.lan."} {
+					Expect(sut.Resolve(ctx, newRequest(name, A))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeHOSTSFILE),
+								HaveReturnCode(dns.RcodeSuccess),
+								BeDNSRecord(name, A, "10.0.0.6"),
+							), name)
+				}
+			})
+
+			It("still filters the loopback name", func() {
+				Expect(sut.hosts.v4.hosts).ShouldNot(HaveKey("localhost"))
+				Expect(sut.hosts.v4.hosts).ShouldNot(HaveKey("LocalHost"))
+			})
+		})
+
 		When("Hosts file has too many errors", func() {
 			BeforeEach(func() {
 				tmpFile = tmpDir.CreateStringFile("hosts-too-many-errors.txt",

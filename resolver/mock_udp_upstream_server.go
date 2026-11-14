@@ -95,8 +95,8 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 	ln := createConnection()
 
 	ladr := ln.LocalAddr().String()
-	host := strings.Split(ladr, ":")[0]
-	p, err := config.ConvertPort(strings.Split(ladr, ":")[1])
+	host, portStr, _ := strings.Cut(ladr, ":")
+	p, err := config.ConvertPort(portStr)
 
 	util.FatalOnError("can't convert port: ", err)
 

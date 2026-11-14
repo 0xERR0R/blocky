@@ -404,6 +404,21 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					Expect(resp.Answer).ShouldNot(ContainElement(
 						BeDNSRecord("www.example.", A, "203.0.113.77")))
 				})
+
+				It("should return the answer unvalidated to a client that sets CD (RFC 4035 §3.2.2)",
+					func(ctx context.Context) {
+						msg := util.NewMsgWithQuestion("www.example.", A)
+						msg.CheckingDisabled = true // +cd: the client validates itself
+						msg.SetEdns0(4096, true)    // DO bit
+
+						resp, err := doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+
+						Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(resp.Answer).Should(ContainElement(
+							BeDNSRecord("www.example.", A, "203.0.113.77")))
+						Expect(resp.AuthenticatedData).Should(BeFalse())
+					})
 			})
 
 			When("an unsigned answer for a signed zone has been cached", func() {
@@ -456,6 +471,31 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						Expect(resp.Answer).ShouldNot(ContainElement(
 							BeDNSRecord("www.example.", A, "203.0.113.77")),
 							"forged unsigned answer replayed from cache after upstream shutdown")
+					})
+
+				It("should not serve an answer fetched with CD from cache to a client without CD",
+					func(ctx context.Context) {
+						msg := util.NewMsgWithQuestion("www.example.", A)
+						msg.CheckingDisabled = true
+						msg.SetEdns0(4096, true)
+
+						resp, err := doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+						Expect(resp.Answer).Should(ContainElement(
+							BeDNSRecord("www.example.", A, "203.0.113.77")))
+
+						// The upstream disappears; any later answer comes from the cache.
+						Expect(mokka.Terminate(ctx)).Should(Succeed())
+
+						msg = util.NewMsgWithQuestion("www.example.", A)
+						msg.SetEdns0(4096, true)
+
+						resp, err = doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+						Expect(resp.Rcode).Should(Equal(dns.RcodeServerFailure))
+						Expect(resp.Answer).ShouldNot(ContainElement(
+							BeDNSRecord("www.example.", A, "203.0.113.77")),
+							"answer fetched with CD served to a client without CD")
 					})
 			})
 
@@ -544,48 +584,6 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 
 					// AD flag should not be set when validation is disabled
 					Expect(resp.AuthenticatedData).Should(BeFalse())
-				})
-			})
-		})
-
-		Describe("Issue #1287 - Independent DNSSEC validation", func() {
-			When("upstream returns invalid DNSSEC data with CheckingDisabled flag", func() {
-				BeforeEach(func(ctx context.Context) {
-					// Use Google DNS - when queried with +cd flag, it returns data even for broken DNSSEC
-					// With DNSSEC validation enabled, Blocky should independently validate and reject
-					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
-						upstreams:
-						  groups:
-						    default:
-						      - 8.8.8.8
-						dnssec:
-						  validate: true
-						log:
-						  level: debug
-						`))
-					Expect(err).Should(Succeed())
-				})
-
-				It("should independently validate and reject broken DNSSEC (Issue #1287 FIXED)", func(ctx context.Context) {
-					// Query dnssec-failed.org with CheckingDisabled flag
-					// This domain has intentionally broken DNSSEC signatures
-					// Google DNS will return data when queried with +cd flag (CheckingDisabled)
-					// But Blocky should independently validate and reject it
-					msg := util.NewMsgWithQuestion("dnssec-failed.org.", A)
-					msg.CheckingDisabled = true // +cd flag
-					msg.SetEdns0(4096, true)    // DO bit
-
-					resp, err := doDNSRequest(ctx, blocky, msg)
-					Expect(err).Should(Succeed())
-
-					// FIXED BEHAVIOR: Blocky validates independently regardless of upstream behavior
-					// Should return SERVFAIL because DNSSEC validation failed
-					Expect(resp.Rcode).Should(Equal(dns.RcodeServerFailure),
-						"Blocky should validate independently and reject broken DNSSEC")
-
-					// Should NOT have the Authenticated Data (AD) flag set
-					Expect(resp.AuthenticatedData).Should(BeFalse(),
-						"AD flag should not be set for failed DNSSEC validation")
 				})
 			})
 		})

@@ -103,23 +103,9 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 
 	// Validate DNSSEC if enabled and validator is available
 	if r.cfg.Validate && r.validator != nil && len(request.Req.Question) > 0 {
-		// Only public-upstream answers carry a chain of trust in the public DNS hierarchy and
-		// form the GHSA-x845 attack surface, so validate exactly those: RESOLVED, plus cached
-		// upstream answers re-served as CACHED (re-validated on every hit). Every other response
-		// type that can reach this resolver from below is trusted-local or synthesized -
-		// conditional-upstream private/split-horizon zones (CONDITIONAL), special-use names like
-		// localhost (SPECIAL), DNS64-synthesized AAAA (SYNTHESIZED). Those are inherently unsigned
-		// with no public chain of trust, so the post-GHSA-x845 handling would classify them bogus
-		// - the whole namespace sits under the default root trust anchor - and turn every such
-		// lookup into SERVFAIL (#2126). Mirror the rebinding resolver's response-type whitelist
-		// and skip validation for them, clearing AD since we have not authenticated them. The
-		// RType is assigned by blocky's own resolvers, never by the (attacker-controlled) upstream
-		// answer, so a poisoned public answer cannot mislabel itself out of validation.
-		if response != nil && response.Res != nil &&
-			response.RType != model.ResponseTypeRESOLVED && response.RType != model.ResponseTypeCACHED {
+		if reason := skipValidationReason(request, response); reason != "" {
 			response.Res.AuthenticatedData = false
-			logger.Debugf("skipping DNSSEC validation for trusted-local/synthesized response (%s): %s",
-				response.RType, request.Req.Question[0].Name)
+			logger.Debugf("skipping DNSSEC validation for %s: %s", reason, request.Req.Question[0].Name)
 
 			return response, nil
 		}
@@ -157,6 +143,42 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 	}
 
 	return response, nil
+}
+
+// skipValidationReason returns why a response is passed on without validation (with AD cleared,
+// since it wasn't authenticated), or "" if it must be validated.
+func skipValidationReason(request *model.Request, response *model.Response) string {
+	if response == nil || response.Res == nil {
+		return ""
+	}
+
+	// Only public-upstream answers carry a chain of trust in the public DNS hierarchy and
+	// form the GHSA-x845 attack surface, so validate exactly those: RESOLVED, plus cached
+	// upstream answers re-served as CACHED (re-validated on every hit). Every other response
+	// type that can reach this resolver from below is trusted-local or synthesized -
+	// conditional-upstream private/split-horizon zones (CONDITIONAL), special-use names like
+	// localhost (SPECIAL), DNS64-synthesized AAAA (SYNTHESIZED). Those are inherently unsigned
+	// with no public chain of trust, so the post-GHSA-x845 handling would classify them bogus
+	// - the whole namespace sits under the default root trust anchor - and turn every such
+	// lookup into SERVFAIL (#2126). Mirror the rebinding resolver's response-type whitelist
+	// and skip validation for them, clearing AD since we have not authenticated them. The
+	// RType is assigned by blocky's own resolvers, never by the (attacker-controlled) upstream
+	// answer, so a poisoned public answer cannot mislabel itself out of validation.
+	if response.RType != model.ResponseTypeRESOLVED && response.RType != model.ResponseTypeCACHED {
+		return fmt.Sprintf("trusted-local/synthesized response (%s)", response.RType)
+	}
+
+	// A client that sets CD (Checking Disabled) does its own validation and asks for the data as
+	// is, so it gets the data even if Blocky's validation would reject it (RFC 4035 §3.2.2,
+	// RFC 6840 §5.9) - otherwise a validating stub couldn't even fetch the records it needs to
+	// validate. The CD bit is forwarded upstream with the request. Clients without CD still
+	// never get such data: the cache below doesn't store positive answers with CD set, and
+	// whatever it does serve them (e.g. a negative answer) is re-validated as CACHED.
+	if request.Req.CheckingDisabled {
+		return "query with CD bit set"
+	}
+
+	return ""
 }
 
 // upstreamGroup returns the upstream group that answers the DNSSEC sub-queries of a request

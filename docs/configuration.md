@@ -1485,6 +1485,7 @@ When DNSSEC validation is enabled, Blocky will:
 - Validate authenticated denial of existence using NSEC/NSEC3 records for NXDOMAIN and NODATA responses
 - Validate wildcard expansions according to RFC 4035 §5.3.4
 - Return SERVFAIL for responses with invalid DNSSEC signatures (Bogus)
+- Return the data without validating it, and without the AD flag, to a client that set the Checking Disabled (CD) bit, since that client validates itself (RFC 4035 §3.2.2)
 - Set the Authenticated Data (AD) flag only after successful validation
 - Add Extended DNS Error (EDE) codes per RFC 8914 when validation fails
 

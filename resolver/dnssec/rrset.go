@@ -143,11 +143,12 @@ func (v *Validator) sortRRSIGsByStrength(rrsigs []*dns.RRSIG) []*dns.RRSIG {
 // Per RFC 4035: An RRSIG covers an RRset if:
 // 1. The RRSIG's owner name equals the RRset's owner name
 // 2. The RRSIG's Type Covered field equals the RRset's type
+// Owner names are compared in canonical (case-insensitive) form per RFC 4034 §6.
 func findMatchingRRSIGs(sigs []*dns.RRSIG, ownerName string, rrType uint16) []*dns.RRSIG {
-	ownerName = dns.Fqdn(ownerName)
+	ownerName = dns.CanonicalName(ownerName)
 	var matchingRRSIGs []*dns.RRSIG
 	for _, sig := range sigs {
-		sigOwnerName := dns.Fqdn(sig.Header().Name)
+		sigOwnerName := dns.CanonicalName(sig.Header().Name)
 		if sig.TypeCovered == rrType && sigOwnerName == ownerName {
 			matchingRRSIGs = append(matchingRRSIGs, sig)
 		}
