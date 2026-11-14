@@ -13,8 +13,9 @@ var _ = Describe("MetricsConfig", func() {
 
 	BeforeEach(func() {
 		cfg = Metrics{
-			Enable: true,
-			Path:   "/custom/path",
+			Enable:            true,
+			Path:              "/custom/path",
+			EnableClientLabel: true,
 		}
 	})
 
@@ -41,12 +42,28 @@ var _ = Describe("MetricsConfig", func() {
 		})
 	})
 
+	Describe("EnableClientLabel", func() {
+		It("should be true by default", func() {
+			cfg := Metrics{}
+			Expect(defaults.Set(&cfg)).Should(Succeed())
+
+			Expect(cfg.EnableClientLabel).Should(BeTrue())
+		})
+
+		When("disabled", func() {
+			It("should be false", func() {
+				Expect(Metrics{EnableClientLabel: false}.EnableClientLabel).Should(BeFalse())
+			})
+		})
+	})
+
 	Describe("LogConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).Should(HaveLen(1))
+			Expect(hook.Calls).Should(HaveLen(2))
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("url path: /custom/path")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("enable client label: true")))
 		})
 	})
 })
