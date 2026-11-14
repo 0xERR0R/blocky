@@ -28,6 +28,10 @@ const (
 	// response at all. It is not part of the model.ResponseType enum, so metrics using
 	// the response_type label can carry it in addition to the enum values.
 	responseTypeErr = "err"
+
+	// clientLabelUnknown is the constant "client" label value used when
+	// enableClientLabel is disabled, collapsing all clients into a single bounded series.
+	clientLabelUnknown = "unknown"
 )
 
 // MetricsResolver resolver that records metrics about requests/response
@@ -52,6 +56,9 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 	}
 
 	clientLabel := strings.Join(request.ClientNames, ",")
+	if !r.cfg.EnableClientLabel {
+		clientLabel = clientLabelUnknown
+	}
 
 	// WithLabelValues is used instead of With(prometheus.Labels{...}) throughout: the map
 	// literal costs an allocation per query on the hot path. The value order must match the

@@ -1125,10 +1125,11 @@ Synchronization is disabled if no address is configured.
 Blocky can expose various metrics for prometheus. To use the prometheus feature, the HTTP listener must be enabled (
 see [Basic Configuration](#basic-configuration)).
 
-| Parameter         | Mandatory | Default value | Description                         |
-| ----------------- | --------- | ------------- | ----------------------------------- |
-| prometheus.enable | no        | false         | If true, enables prometheus metrics |
-| prometheus.path   | no        | /metrics      | URL path to the metrics endpoint    |
+| Parameter                    | Mandatory | Default value | Description                         |
+| ---------------------------- | --------- | ------------- | ----------------------------------- |
+| prometheus.enable            | no        | false         | If true, enables prometheus metrics |
+| prometheus.path              | no        | /metrics      | URL path to the metrics endpoint    |
+| prometheus.enableClientLabel | no        | true          | If true, the client name (or IP) is used as the `client` label on `blocky_query_total` and `blocky_client_response_total`. Set to `false` to collapse the label to a single `unknown` value (see [Prometheus](prometheus_grafana.md#prometheus-export)). |
 
 !!! example
 
@@ -1136,6 +1137,7 @@ see [Basic Configuration](#basic-configuration)).
     prometheus:
       enable: true
       path: /metrics
+      enableClientLabel: true
     ```
 
 ## Statistics

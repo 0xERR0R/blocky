@@ -244,6 +244,10 @@ prometheus:
   enable: true
   # url path, optional (default '/metrics')
   path: /metrics
+  # use the client name (or IP) as the "client" label on blocky_query_total and
+  # blocky_client_response_total. Set to false to collapse the label to a single
+  # "unknown" value and bound metric cardinality (default: true)
+  enableClientLabel: true
 
 # optional: serve the Go profiler (pprof) endpoints under /debug on the HTTP(S) listeners
 pprof:
