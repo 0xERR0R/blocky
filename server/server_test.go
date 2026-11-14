@@ -1868,3 +1868,23 @@ func writeKeyPem(tmpDir *TmpFolder) *TmpFile {
 		"EHK784GIxwVXKej/",
 		"-----END PRIVATE KEY-----")
 }
+
+type shutdownRecorder struct {
+	calls int
+}
+
+func (r *shutdownRecorder) Shutdown(context.Context) error {
+	r.calls++
+
+	return nil
+}
+
+var _ = Describe("Stopping the server", func() {
+	It("shuts down the resolvers that hold work", func(ctx context.Context) {
+		recorder := &shutdownRecorder{}
+		srv := &Server{shutdowners: []resolver.Shutdowner{recorder}}
+
+		Expect(srv.Stop(ctx)).Should(Succeed())
+		Expect(recorder.calls).Should(Equal(1))
+	})
+})

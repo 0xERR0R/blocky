@@ -43,6 +43,9 @@ type QueryLoggingResolver struct {
 	writer        querylog.Writer
 	instanceID    string
 	ignoreDomains stringcache.GroupedStringCache
+
+	stopWriteLog context.CancelFunc
+	writeLogDone chan struct{}
 }
 
 func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog, instanceID string) (querylog.Writer, error) {
@@ -158,6 +161,8 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 
 	ignoreDomains := newIgnoreDomainsMatcher(cfg.Ignore.Domains, logger)
 
+	writeLogCtx, stopWriteLog := context.WithCancel(ctx)
+
 	resolver := QueryLoggingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(queryLoggingResolverType),
@@ -166,9 +171,12 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 		writer:        writer,
 		instanceID:    instanceID,
 		ignoreDomains: ignoreDomains,
+
+		stopWriteLog: stopWriteLog,
+		writeLogDone: make(chan struct{}),
 	}
 
-	go resolver.writeLog(ctx)
+	go resolver.writeLog(writeLogCtx)
 
 	// Timescale uses database features for retention
 	if cfg.LogRetentionDays > 0 &&
@@ -237,6 +245,7 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	select {
 	case r.logChan <- entry:
 	default:
+		querylog.CountDropped(querylog.DropReasonQueueFull, 1)
 		logger.Error("query log writer is too slow, log entry will be dropped")
 	}
 
@@ -323,6 +332,8 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 
 // write entry: if log directory is configured, write to log file
 func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
+	defer close(r.writeLogDone)
+
 	ctx, logger := r.log(ctx)
 
 	for {
@@ -341,22 +352,72 @@ func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
 					Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 			}
 		case <-ctx.Done():
-			r.closeWriter()
-
 			return
 		}
 	}
 }
 
-// closeWriter lets writers that hold external resources (e.g. the dnstap socket)
-// flush and release them on shutdown. Writers without a Close — the DB/CSV/console
-// retention writers — are unaffected.
-func (r *QueryLoggingResolver) closeWriter() {
-	if c, ok := r.writer.(io.Closer); ok {
-		if err := c.Close(); err != nil {
-			log.PrefixedLog(queryLoggingResolverType).WithError(err).Warn("failed to close query log writer")
+// Shutdowner is implemented by resolvers, and query log writers, that hold work in
+// memory: Shutdown finishes it, giving up when ctx is done.
+type Shutdowner interface {
+	Shutdown(ctx context.Context) error
+}
+
+// Shutdown writes the entries still queued and shuts the writer down, giving up when
+// ctx is done. Call it once the DNS listeners have stopped. DoH is served over HTTP,
+// which isn't waited for: an entry a late DoH request adds is lost.
+func (r *QueryLoggingResolver) Shutdown(ctx context.Context) error {
+	r.stopWriteLog()
+
+	// As in Server.Stop, a context that's already done leaves no deadline to enforce.
+	deadline := ctx.Done()
+	if ctx.Err() != nil {
+		deadline = nil
+	}
+
+	// The queue is drained on a goroutine of its own: a write can block (file writers),
+	// and that mustn't hold Stop past its deadline.
+	drained := make(chan struct{})
+
+	go func() {
+		<-r.writeLogDone
+
+		for {
+			select {
+			case <-deadline:
+				return
+			case entry := <-r.logChan:
+				r.writer.Write(entry)
+			default:
+				close(drained)
+
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-drained:
+	case <-deadline:
+		select {
+		case <-drained: // it finished just as the deadline passed
+		default:
+			// A write may still be running, so the writer can't be shut down under it.
+			querylog.CountDropped(querylog.DropReasonShutdown, len(r.logChan))
+
+			return ctx.Err()
 		}
 	}
+
+	switch w := r.writer.(type) {
+	case Shutdowner:
+		return w.Shutdown(ctx)
+	case io.Closer:
+		// e.g. the dnstap socket
+		return w.Close()
+	}
+
+	return nil
 }
 
 func readInstanceID(file string) (string, error) {
