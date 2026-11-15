@@ -58,33 +58,6 @@ func (m *ShutdownRecordingWriter) Shutdown(context.Context) error {
 	return nil
 }
 
-type StuckWriter struct {
-	release chan struct{}
-}
-
-func (m *StuckWriter) Write(*querylog.LogEntry) {
-	<-m.release
-}
-
-func (m *StuckWriter) CleanUp() {
-}
-
-type ClosingWriter struct {
-	closed bool
-}
-
-func (m *ClosingWriter) Write(*querylog.LogEntry) {
-}
-
-func (m *ClosingWriter) CleanUp() {
-}
-
-func (m *ClosingWriter) Close() error {
-	m.closed = true
-
-	return nil
-}
-
 func droppedEntries(reason querylog.DropReason) float64 {
 	families, err := metrics.Reg.Gather()
 	Expect(err).Should(Succeed())
@@ -502,92 +475,48 @@ var _ = Describe("QueryLoggingResolver", func() {
 				CreationCooldown: config.Duration(time.Millisecond),
 			}
 		})
-		It("writes the entries queued after the background context ended, then shuts the writer down", func() {
-			writer := &ShutdownRecordingWriter{}
-			sut.writer = writer
-
-			// as in blocky's shutdown, the background context ends first, while DNS still answers
+		// queue fills the queue once the background context has ended, as in blocky's
+		// shutdown, where DNS still answers then.
+		queue := func(n int) {
 			cancelFn()
 			Eventually(sut.writeLogDone).Should(BeClosed())
 
-			for range 50 {
+			for range n {
 				_, ierr := sut.Resolve(context.Background(), newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
 				Expect(ierr).Should(Succeed())
 			}
+		}
 
-			// ctx is done: no deadline left to enforce, so Shutdown still drains
-			Expect(sut.Shutdown(ctx)).Should(Succeed())
+		It("writes the queued entries, then shuts the writer down", func() {
+			writer := &ShutdownRecordingWriter{}
+			sut.writer = writer
+
+			queue(50)
+
+			Expect(sut.Shutdown(context.Background())).Should(Succeed())
 			Expect(writer.entries).Should(HaveLen(50))
 			Expect(writer.shutdown).Should(BeTrue())
 		})
 
-		It("gives up at the deadline when a write is stuck", func() {
-			writer := &StuckWriter{release: make(chan struct{})}
-			DeferCleanup(func() { close(writer.release) })
+		It("stops at the deadline and counts what is left in the queue", func() {
+			writer := &ShutdownRecordingWriter{}
 			sut.writer = writer
 
-			_, ierr := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
-			Expect(ierr).Should(Succeed())
-			Eventually(func() int { return len(sut.logChan) }).Should(BeZero())
-
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-			DeferCleanup(cancel)
-
-			Expect(sut.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
-		})
-
-		It("stops draining the queue at the deadline and counts what is left", func() {
-			sut.writer = &SlowMockWriter{} // 100 ms a write
-
-			cancelFn()
-			Eventually(sut.writeLogDone).Should(BeClosed())
-
-			for range 20 {
-				_, ierr := sut.Resolve(context.Background(), newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
-				Expect(ierr).Should(Succeed())
-			}
+			queue(20)
 
 			before := droppedEntries(querylog.DropReasonShutdown)
 
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-			DeferCleanup(cancel)
-
-			start := time.Now()
-
-			Expect(sut.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
-			Expect(time.Since(start)).Should(BeNumerically("<", time.Second))
-			Expect(droppedEntries(querylog.DropReasonShutdown) - before).Should(BeNumerically(">", 10))
+			Expect(sut.Shutdown(ctx)).Should(MatchError(context.Canceled)) // ctx is done already
+			Expect(writer.entries).Should(BeEmpty())
+			Expect(writer.shutdown).Should(BeTrue())
+			Expect(droppedEntries(querylog.DropReasonShutdown) - before).Should(BeNumerically("==", 20))
 		})
 
-		It("gives up at the deadline when a write blocks while the queue is drained", func() {
-			writer := &StuckWriter{release: make(chan struct{})}
-			DeferCleanup(func() { close(writer.release) })
-			sut.writer = writer
-
-			cancelFn()
-			Eventually(sut.writeLogDone).Should(BeClosed())
-
-			for range 3 {
-				_, ierr := sut.Resolve(context.Background(), newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
-				Expect(ierr).Should(Succeed())
-			}
-
-			before := droppedEntries(querylog.DropReasonShutdown)
-
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-			DeferCleanup(cancel)
-
-			Expect(sut.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
-			// 2 if the stuck write had already taken its entry from the queue, 3 if not yet
-			Expect(droppedEntries(querylog.DropReasonShutdown) - before).Should(BeElementOf(2.0, 3.0))
-		})
-
-		It("closes a writer that only has Close, like dnstap's", func() {
-			writer := &ClosingWriter{}
-			sut.writer = writer
+		It("leaves a writer that holds nothing in memory alone", func() {
+			queue(3) // the console writer
 
 			Expect(sut.Shutdown(context.Background())).Should(Succeed())
-			Expect(writer.closed).Should(BeTrue())
+			Expect(sut.logChan).Should(HaveLen(3))
 		})
 	})
 

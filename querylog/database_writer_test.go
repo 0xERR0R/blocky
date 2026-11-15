@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net"
 	"path/filepath"
 	"regexp"
@@ -86,6 +87,9 @@ func (f *flakyDialector) Initialize(db *gorm.DB) error {
 
 	return f.Dialector.Initialize(db)
 }
+
+// errRefused is a server's answer about the rows of a statement.
+var errRefused = &mysqldriver.MySQLError{Number: 1366, Message: "Incorrect string value"}
 
 // mockConnector hands out the connection of a sqlmock database.
 type mockConnector struct {
@@ -274,7 +278,7 @@ var _ = Describe("DatabaseWriter", func() {
 			})
 		})
 
-		When("a lone row's write fails once", func() {
+		When("the database refuses a lone row once", func() {
 			It("writes it on the second try", func() {
 				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Hour, config.QueryLogTypeSqlite)
 				db := connected(writer)
@@ -284,7 +288,36 @@ var _ = Describe("DatabaseWriter", func() {
 				failures.Store(1)
 				onInsert(db, func(tx *gorm.DB) {
 					if insertedRows(tx) != nil && failures.Add(-1) >= 0 {
-						_ = tx.AddError(errors.New("connection reset by peer"))
+						_ = tx.AddError(errRefused)
+					}
+				})
+
+				before := droppedCount(DropReasonRejected)
+
+				writer.Write(&LogEntry{Start: time.Now()})
+
+				Expect(writer.Shutdown(ctx)).Should(Succeed())
+				Expect(countLogEntries(db)).Should(BeNumerically("==", 1))
+				Expect(droppedCount(DropReasonRejected) - before).Should(BeZero())
+			})
+		})
+
+		When("a lone row fails some other way, then is refused once", func() {
+			It("isn't dropped", func() {
+				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Hour, config.QueryLogTypeSqlite)
+				db := connected(writer)
+
+				failures := []error{errors.New("connection reset by peer"), errRefused}
+
+				var tries atomic.Int32
+
+				onInsert(db, func(tx *gorm.DB) {
+					if insertedRows(tx) == nil {
+						return
+					}
+
+					if try := int(tries.Add(1)); try <= len(failures) {
+						_ = tx.AddError(failures[try-1])
 					}
 				})
 
@@ -323,33 +356,19 @@ var _ = Describe("DatabaseWriter", func() {
 			})
 		})
 
-		DescribeTable("a lone row the server twice gave up on, while it takes a plain row",
-			func(serverErr error) {
-				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Hour, config.QueryLogTypeSqlite)
-				db := connected(writer)
-
-				var failures atomic.Int32
-
-				failures.Store(2)
-				onInsert(db, func(tx *gorm.DB) {
-					if insertedRows(tx) != nil && failures.Add(-1) >= 0 {
-						_ = tx.AddError(serverErr)
-					}
-				})
-
-				before := droppedCount(DropReasonRejected)
-
-				writer.Write(&LogEntry{Start: time.Now()})
-
-				Expect(writer.Shutdown(ctx)).Should(Succeed())
-				Expect(countLogEntries(db)).Should(BeNumerically("==", 1))
-				Expect(droppedCount(DropReasonRejected) - before).Should(BeZero())
+		DescribeTable("only the server's answer about a statement counts as a refusal",
+			func(err error, refused bool) {
+				Expect(refusedByServer(fmt.Errorf("insert: %w", err))).Should(Equal(refused))
 			},
-			Entry("MySQL lock wait timeout", &mysqldriver.MySQLError{Number: 1205, Message: "Lock wait timeout exceeded"}),
-			Entry("MySQL deadlock", &mysqldriver.MySQLError{Number: 1213, Message: "Deadlock found when trying to get lock"}),
-			Entry("PostgreSQL lock_timeout", &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}),
-			Entry("PostgreSQL statement_timeout", &pgconn.PgError{Code: "57014", Message: "canceling statement due to statement timeout"}),
-			Entry("PostgreSQL deadlock", &pgconn.PgError{Code: "40P01", Message: "deadlock detected"}),
+			Entry("MySQL incorrect string value", errRefused, true),
+			Entry("PostgreSQL invalid byte sequence", &pgconn.PgError{Code: "22021"}, true),
+			Entry("MySQL lock wait timeout", &mysqldriver.MySQLError{Number: 1205}, false),
+			Entry("MySQL deadlock", &mysqldriver.MySQLError{Number: 1213}, false),
+			Entry("PostgreSQL lock_timeout", &pgconn.PgError{Code: "55P03"}, false),
+			Entry("PostgreSQL statement_timeout", &pgconn.PgError{Code: "57014"}, false),
+			Entry("PostgreSQL deadlock", &pgconn.PgError{Code: "40P01"}, false),
+			Entry("a lost connection", mysqldriver.ErrInvalidConn, false),
+			Entry("a timeout", context.DeadlineExceeded, false),
 		)
 
 		When("a batch is too slow to write whole", func() {
@@ -377,7 +396,7 @@ var _ = Describe("DatabaseWriter", func() {
 		})
 
 		When("a client name isn't valid UTF-8, holds NUL or is too long", func() {
-			It("stores what every target can", func() {
+			It("stores it as valid UTF-8, cut to the column's size", func() {
 				Expect(storableClientName("a\xffb\x00c\nd")).Should(Equal("a\uFFFDbcd"))
 				Expect(storableClientName(strings.Repeat("é", 200))).Should(Equal(strings.Repeat("é", 191)))
 				Expect(storableClientName("laptop; phone")).Should(Equal("laptop; phone"))
@@ -416,7 +435,7 @@ var _ = Describe("DatabaseWriter", func() {
 				onInsert(db, func(tx *gorm.DB) {
 					for _, e := range insertedRows(tx) {
 						if e.QuestionName == "refused.example" {
-							_ = tx.AddError(errors.New("refused"))
+							_ = tx.AddError(errRefused)
 						}
 					}
 				})
@@ -467,6 +486,43 @@ var _ = Describe("DatabaseWriter", func() {
 				}
 
 				Expect(droppedCount(DropReasonBufferFull) - before).Should(BeNumerically("==", 5))
+			})
+
+			It("takes entries again once the pending ones are written", func() {
+				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Millisecond, config.QueryLogTypeSqlite)
+				writer.maxPendingBytes = 10 * (&logEntry{}).size()
+				db := connected(writer)
+
+				before := droppedCount(DropReasonBufferFull)
+
+				for i := range 30 {
+					writer.Write(&LogEntry{Start: time.Now()})
+					Eventually(countLogEntries, "5s").WithArguments(db).Should(BeNumerically("==", i+1))
+				}
+
+				Expect(droppedCount(DropReasonBufferFull) - before).Should(BeZero())
+			})
+		})
+
+		When("entries keep arriving while the pending ones are written", func() {
+			It("leaves them for the next flush", func() {
+				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, 100*time.Millisecond, config.QueryLogTypeSqlite)
+				db := connected(writer)
+
+				var inserts atomic.Int32
+
+				onInsert(db, func(tx *gorm.DB) {
+					if insertedRows(tx) != nil {
+						inserts.Add(1)
+						writer.Write(&LogEntry{Start: time.Now()}) // one arrives during every write
+					}
+				})
+
+				writer.Write(&LogEntry{Start: time.Now()})
+
+				// one write a flush period, not back to back
+				Eventually(inserts.Load, "5s").Should(BeNumerically(">=", 2))
+				Consistently(inserts.Load, "300ms").Should(BeNumerically("<", 10))
 			})
 		})
 
@@ -531,7 +587,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 					for _, e := range rows {
 						if e.QuestionName == "refused.example" {
-							_ = tx.AddError(errors.New("refused"))
+							_ = tx.AddError(errRefused)
 						}
 					}
 				})
@@ -549,7 +605,7 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(droppedCount(DropReasonShutdown) - before).Should(BeNumerically("==", 2))
 			})
 
-			It("counts what is written after a Shutdown that timed out on a stuck write", func() {
+			It("gives up at the deadline on a stuck write, and counts the entry once", func() {
 				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Millisecond, config.QueryLogTypeSqlite)
 				db := connected(writer)
 
@@ -576,12 +632,34 @@ var _ = Describe("DatabaseWriter", func() {
 
 				Expect(writer.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
 
-				writer.Write(&LogEntry{Start: time.Now()}) // a late DoH request, say
-
-				close(release)
+				close(release) // the write then finishes: its entry isn't counted a second time
 				Eventually(writer.runDone, "5s").Should(BeClosed())
 
-				Expect(droppedCount(DropReasonShutdown) - before).Should(BeNumerically("==", 2))
+				Expect(droppedCount(DropReasonShutdown) - before).Should(BeNumerically("==", 1))
+			})
+
+			It("gives up at the deadline when its own write is stuck", func() {
+				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, time.Hour, config.QueryLogTypeSqlite)
+				db := connected(writer)
+
+				release := make(chan struct{})
+				DeferCleanup(func() { close(release) })
+
+				onInsert(db, func(*gorm.DB) { <-release })
+
+				before := droppedCount(DropReasonShutdown)
+
+				writer.Write(&LogEntry{Start: time.Now()})
+
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				DeferCleanup(cancel)
+
+				done := make(chan error, 1)
+
+				go func() { done <- writer.Shutdown(shutdownCtx) }()
+
+				Eventually(done, "5s").Should(Receive(MatchError(context.DeadlineExceeded)))
+				Expect(droppedCount(DropReasonShutdown) - before).Should(BeNumerically("==", 1))
 			})
 
 			It("gives up at the deadline and counts what it drops", func() {
@@ -693,7 +771,7 @@ var _ = Describe("DatabaseWriter", func() {
 				done := make(chan error, 1)
 
 				go func() {
-					_, err := openDatabase(ctx, mysqlDialect(connector, dsn)(dialCtx), config.QueryLogTypeMysql, 7)
+					_, err := openDatabase(dialCtx, mysqlDialect(connector, dsn), config.QueryLogTypeMysql, 7)
 					done <- err
 				}()
 
@@ -729,8 +807,10 @@ var _ = Describe("DatabaseWriter", func() {
 
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT VERSION()")).WillDelayFor(time.Minute).
 					WillReturnRows(sqlmock.NewRows([]string{"VERSION()"}).AddRow("8.4.0"))
+				mock.ExpectClose()
 
 				Eventually(opening(mockConnector{db, mock}, ""), "5s").Should(Receive(MatchError(sqlmock.ErrCancelled)))
+				Expect(mock.ExpectationsWereMet()).Should(Succeed()) // the attempt's pool is closed
 			})
 		})
 
@@ -830,7 +910,7 @@ var _ = Describe("DatabaseWriter", func() {
 					mock.ExpectExec(`ALTER TABLE log_entries ADD column if not exists id bigserial primary key`).WillReturnResult(sqlmock.NewResult(0, 0))
 				})
 
-				_, err = openDatabase(context.Background(), dlc, config.QueryLogTypePostgresql, 1)
+				_, err = openDatabase(context.Background(), fixedDialect(dlc), config.QueryLogTypePostgresql, 1)
 				Expect(err).Should(Succeed())
 			})
 		})
@@ -861,7 +941,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnResult(sqlmock.NewResult(0, 0))
 					})
 
-					_, err = openDatabase(context.Background(), dlc, config.QueryLogTypeMysql, 1)
+					_, err = openDatabase(context.Background(), fixedDialect(dlc), config.QueryLogTypeMysql, 1)
 					Expect(err).Should(Succeed())
 				})
 			})
@@ -876,7 +956,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(errors.New("error 1060: duplicate column name"))
 					})
 
-					_, err = openDatabase(context.Background(), dlc, config.QueryLogTypeMysql, 1)
+					_, err = openDatabase(context.Background(), fixedDialect(dlc), config.QueryLogTypeMysql, 1)
 					Expect(err).Should(Succeed())
 				})
 
@@ -889,7 +969,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(errors.New("error XXX: some index error"))
 					})
 
-					_, err = openDatabase(context.Background(), dlc, config.QueryLogTypeMysql, 1)
+					_, err = openDatabase(context.Background(), fixedDialect(dlc), config.QueryLogTypeMysql, 1)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("error XXX: some index error"))
 				})
@@ -901,7 +981,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("CREATE TABLE `log_entries`").WillReturnError(errors.New("error XXX: some db error"))
 					})
 
-					_, err = openDatabase(context.Background(), dlc, config.QueryLogTypeMysql, 1)
+					_, err = openDatabase(context.Background(), fixedDialect(dlc), config.QueryLogTypeMysql, 1)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("error XXX: some db error"))
 				})

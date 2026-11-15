@@ -352,72 +352,52 @@ func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
 					Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 			}
 		case <-ctx.Done():
+			r.closeWriter()
+
 			return
 		}
 	}
 }
 
-// Shutdowner is implemented by resolvers, and query log writers, that hold work in
-// memory: Shutdown finishes it, giving up when ctx is done.
-type Shutdowner interface {
-	Shutdown(ctx context.Context) error
+// closeWriter lets writers that hold external resources (e.g. the dnstap socket)
+// flush and release them on shutdown. Writers without a Close — the DB/CSV/console
+// retention writers — are unaffected.
+func (r *QueryLoggingResolver) closeWriter() {
+	if c, ok := r.writer.(io.Closer); ok {
+		if err := c.Close(); err != nil {
+			log.PrefixedLog(queryLoggingResolverType).WithError(err).Warn("failed to close query log writer")
+		}
+	}
 }
 
-// Shutdown writes the entries still queued and shuts the writer down, giving up when
-// ctx is done. Call it once the DNS listeners have stopped. DoH is served over HTTP,
-// which isn't waited for: an entry a late DoH request adds is lost.
+// Shutdown hands the writer the entries still queued and shuts it down, giving up when
+// ctx is done. Only a writer with a Shutdown of its own takes part: its Write just
+// buffers, so the loop keeps to the deadline. With the other writers, what is still
+// queued is lost, as before. Call it once the DNS listeners have stopped. DoH is served
+// over HTTP, which isn't waited for: an entry a late DoH request adds is lost.
 func (r *QueryLoggingResolver) Shutdown(ctx context.Context) error {
+	w, ok := r.writer.(Shutdowner)
+	if !ok {
+		return nil
+	}
+
 	r.stopWriteLog()
+	<-r.writeLogDone
 
-	// As in Server.Stop, a context that's already done leaves no deadline to enforce.
-	deadline := ctx.Done()
-	if ctx.Err() != nil {
-		deadline = nil
-	}
-
-	// The queue is drained on a goroutine of its own: a write can block (file writers),
-	// and that mustn't hold Stop past its deadline.
-	drained := make(chan struct{})
-
-	go func() {
-		<-r.writeLogDone
-
-		for {
-			select {
-			case <-deadline:
-				return
-			case entry := <-r.logChan:
-				r.writer.Write(entry)
-			default:
-				close(drained)
-
-				return
-			}
-		}
-	}()
-
-	select {
-	case <-drained:
-	case <-deadline:
+	for len(r.logChan) > 0 {
 		select {
-		case <-drained: // it finished just as the deadline passed
+		case <-ctx.Done():
+			n := len(r.logChan)
+			querylog.CountDropped(querylog.DropReasonShutdown, n)
+
+			return errors.Join(fmt.Errorf("dropped %d queued query log entries: %w", n, ctx.Err()), w.Shutdown(ctx))
 		default:
-			// A write may still be running, so the writer can't be shut down under it.
-			querylog.CountDropped(querylog.DropReasonShutdown, len(r.logChan))
-
-			return ctx.Err()
 		}
+
+		r.writer.Write(<-r.logChan)
 	}
 
-	switch w := r.writer.(type) {
-	case Shutdowner:
-		return w.Shutdown(ctx)
-	case io.Closer:
-		// e.g. the dnstap socket
-		return w.Close()
-	}
-
-	return nil
+	return w.Shutdown(ctx)
 }
 
 func readInstanceID(file string) (string, error) {

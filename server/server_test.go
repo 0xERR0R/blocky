@@ -1870,21 +1870,34 @@ func writeKeyPem(tmpDir *TmpFolder) *TmpFile {
 }
 
 type shutdownRecorder struct {
-	calls int
+	calls atomic.Int32
 }
 
 func (r *shutdownRecorder) Shutdown(context.Context) error {
-	r.calls++
+	r.calls.Add(1)
 
 	return nil
 }
 
 var _ = Describe("Stopping the server", func() {
-	It("shuts down the resolvers that hold work", func(ctx context.Context) {
+	It("finds the resolvers that hold work in the chain", func() {
+		Expect(sut.shutdowners).Should(ContainElement(BeAssignableToTypeOf(&resolver.QueryLoggingResolver{})))
+	})
+
+	It("shuts down the resolvers that hold work, once the DNS listeners have stopped", func(ctx context.Context) {
 		recorder := &shutdownRecorder{}
 		srv := &Server{shutdowners: []resolver.Shutdowner{recorder}}
+		srv.dnsServeWG.Add(1) // a listener that is still serving
 
-		Expect(srv.Stop(ctx)).Should(Succeed())
-		Expect(recorder.calls).Should(Equal(1))
+		stopped := make(chan error, 1)
+
+		go func() { stopped <- srv.Stop(ctx) }()
+
+		Consistently(recorder.calls.Load, "100ms").Should(BeZero())
+
+		srv.dnsServeWG.Done()
+
+		Eventually(stopped).Should(Receive(BeNil()))
+		Expect(recorder.calls.Load()).Should(BeNumerically("==", 1))
 	})
 })

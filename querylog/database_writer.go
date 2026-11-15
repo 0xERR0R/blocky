@@ -42,9 +42,11 @@ const (
 	// dbMaxPendingBytes bounds the memory entries hold while the database is slow or down.
 	dbMaxPendingBytes = 32 << 20
 
-	// dbClientNameMaxRunes is the size of the indexed client_name column GORM creates on MySQL.
+	// dbClientNameMaxRunes cuts client names, for every database, to the size of the
+	// indexed client_name column GORM creates on MySQL: the smallest any of them takes.
 	dbClientNameMaxRunes = 191
 
+	// dbWriteTimeout bounds one write, and one attempt to connect.
 	dbWriteTimeout  = 30 * time.Second
 	dbRetryDelay    = time.Second
 	dbRetryMaxDelay = 30 * time.Second
@@ -82,13 +84,15 @@ type DatabaseWriter struct {
 	db atomic.Pointer[gorm.DB]
 
 	// pending holds the entries not yet written, including the batch being written.
-	// Once closed by Shutdown, nothing more is kept.
+	// Shutdown drops what is left of them and sets closed.
 	lock         sync.Mutex
 	pending      []*logEntry
 	pendingBytes int
 	closed       bool
-	dropped      atomic.Uint64
-	refused      atomic.Uint64
+
+	// dropped and refused count what the log reports, at every power of ten.
+	dropped atomic.Uint64
+	refused atomic.Uint64
 
 	// wake tells the background goroutine a full batch is pending.
 	wake chan struct{}
@@ -156,10 +160,15 @@ type mysqlDialector struct {
 }
 
 func (d mysqlDialector) Initialize(db *gorm.DB) error {
-	err := d.Dialector.Initialize(db)
+	if err := d.Dialector.Initialize(db); err != nil {
+		_ = d.pool.Close()
+
+		return err
+	}
+
 	db.ConnPool = d.pool
 
-	return err
+	return nil
 }
 
 // attemptPool runs GORM's version query under the connection attempt's context.
@@ -202,9 +211,12 @@ func dbLogger() *logrus.Entry {
 // openDatabase connects to the database, giving up after dbWriteTimeout, and migrates
 // the schema, giving up when ctx is done.
 func openDatabase(
-	ctx context.Context, target gorm.Dialector, dbType config.QueryLogType, logRetentionDays uint64,
+	ctx context.Context, target dialect, dbType config.QueryLogType, logRetentionDays uint64,
 ) (*gorm.DB, error) {
-	db, err := gorm.Open(target, &gorm.Config{
+	connectCtx, cancel := context.WithTimeout(ctx, dbWriteTimeout)
+	defer cancel()
+
+	db, err := gorm.Open(target(connectCtx), &gorm.Config{
 		// Its ping has no context; the PingContext below does the same with a deadline.
 		DisableAutomaticPing: true,
 		// The writer logs failures itself; GORM's logger would print every failed
@@ -229,10 +241,7 @@ func openDatabase(
 		sqlDB.SetMaxOpenConns(1)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, dbWriteTimeout)
-	defer cancel()
-
-	if err := sqlDB.PingContext(pingCtx); err != nil {
+	if err := sqlDB.PingContext(connectCtx); err != nil {
 		_ = sqlDB.Close()
 
 		return nil, fmt.Errorf("can't create database connection: %w", err)
@@ -311,10 +320,7 @@ func (d *DatabaseWriter) run(ctx context.Context) {
 	defer close(d.runDone)
 
 	err := retry.Do(func() error {
-		dialectCtx, cancel := context.WithTimeout(ctx, dbWriteTimeout)
-		defer cancel()
-
-		db, err := openDatabase(ctx, d.dialect(dialectCtx), d.dbType, d.logRetentionDays)
+		db, err := openDatabase(ctx, d.dialect, d.dbType, d.logRetentionDays)
 		if err == nil {
 			d.db.Store(db)
 		}
@@ -340,9 +346,9 @@ func (d *DatabaseWriter) run(ctx context.Context) {
 	}
 }
 
-// flush writes pending entries in batches until none are left or, with fullOnly,
-// until less than a full batch is. Entries stay pending until they're written, so
-// whatever is left when ctx ends is still there for Shutdown.
+// flush writes the pending entries in full batches and, unless fullOnly, one last
+// smaller batch; what arrives meanwhile waits for the next flush. Entries stay pending
+// until they're written, so whatever is left when ctx ends is still there for Shutdown.
 func (d *DatabaseWriter) flush(ctx context.Context, fullOnly bool) error {
 	for {
 		d.lock.Lock()
@@ -356,7 +362,7 @@ func (d *DatabaseWriter) flush(ctx context.Context, fullOnly bool) error {
 		done, err := d.ship(ctx, batch)
 		d.removeDone(done)
 
-		if err != nil {
+		if err != nil || len(batch) < dbBatchSize {
 			return err
 		}
 	}
@@ -428,19 +434,28 @@ func (d *DatabaseWriter) ship(ctx context.Context, batch []*logEntry) (int, erro
 	return mid + done, err
 }
 
-// write tries batch once. Its error is unrecoverable when the database takes a plain
-// row but not this batch: a larger batch is to be split, and a lone row is refused,
-// having failed twice for a reason other than a timeout or a lock.
+// write tries batch once. Its error is unrecoverable when a larger batch is to be
+// split, or a lone row dropped.
 func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
 	err := d.insert(ctx, batch)
-	if err == nil || !d.acceptsPlainRow(ctx) {
-		return err
-	}
 
-	if len(batch) == 1 {
-		// One more try at once, in case the failure was passing (e.g. a stale
-		// connection). A timeout or a lock says nothing about the row: retry it.
-		if err = d.insert(ctx, batch); err == nil || errors.Is(err, errInconclusive) || !d.acceptsPlainRow(ctx) {
+	switch {
+	case err == nil:
+		return nil
+	case len(batch) > 1:
+		// The batch is at fault, not the database, when a plain row still goes in.
+		if !d.acceptsPlainRow(ctx) {
+			return err
+		}
+	default:
+		// A lone row is at fault when the server refuses it, twice: one more try at
+		// once, in case the refusal was passing (e.g. a server restarting). Failing any
+		// other way (no connection, a timeout, a lock) says nothing about the row.
+		if !d.refuses(ctx, err) {
+			return err
+		}
+
+		if err = d.insert(ctx, batch); !d.refuses(ctx, err) {
 			return err
 		}
 	}
@@ -448,28 +463,23 @@ func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
 	return retry.Unrecoverable(err)
 }
 
-// errInconclusive marks a write that ran out of time or lost a lock, here or on the
-// server: that says nothing about its rows. It is set whatever error the driver
-// reports (GORM may keep only the rollback's error, not the context's).
-var errInconclusive = errors.New("query log write timed out or lost a lock")
+// refuses reports whether err is the server refusing rows while it takes a plain one.
+func (d *DatabaseWriter) refuses(ctx context.Context, err error) bool {
+	return refusedByServer(err) && d.acceptsPlainRow(ctx)
+}
 
 func (d *DatabaseWriter) insert(ctx context.Context, batch []*logEntry) error {
 	ctx, cancel := context.WithTimeout(ctx, d.writeTimeout)
 	defer cancel()
 
 	// GORM runs the INSERTs in one transaction: the batch is written whole or not at all.
-	err := d.db.Load().WithContext(ctx).CreateInBatches(batch, dbStatementRows).Error
-	if err != nil && (ctx.Err() != nil || serverTimedOut(err)) {
-		return fmt.Errorf("%w: %w", errInconclusive, err)
-	}
-
-	return err
+	return d.db.Load().WithContext(ctx).CreateInBatches(batch, dbStatementRows).Error
 }
 
-// serverTimedOut reports whether the server gave up on a lock wait or a deadlock, or
-// (PostgreSQL) cancelled the statement. A row another session has locked can fail
-// like this while a plain row still goes in.
-func serverTimedOut(err error) bool {
+// refusedByServer reports whether err is the server's own answer to a statement,
+// other than that it gave up on a lock or cancelled the statement. Only such an answer
+// can be about the rows; a failed connection or a timeout isn't.
+func refusedByServer(err error) bool {
 	var (
 		pgErr *pgconn.PgError
 		myErr *mysqldriver.MySQLError
@@ -478,11 +488,11 @@ func serverTimedOut(err error) bool {
 	switch {
 	case errors.As(err, &pgErr):
 		// lock_not_available, query_canceled, and class 40 (transaction rollback: deadlock, ...)
-		return pgErr.Code == "55P03" || pgErr.Code == "57014" || strings.HasPrefix(pgErr.Code, "40")
+		return pgErr.Code != "55P03" && pgErr.Code != "57014" && !strings.HasPrefix(pgErr.Code, "40")
 	case errors.As(err, &myErr):
 		const lockWaitTimeout, deadlock = 1205, 1213
 
-		return myErr.Number == lockWaitTimeout || myErr.Number == deadlock
+		return myErr.Number != lockWaitTimeout && myErr.Number != deadlock
 	}
 
 	return false
@@ -505,20 +515,21 @@ func (d *DatabaseWriter) acceptsPlainRow(ctx context.Context) bool {
 func retryOptions(ctx context.Context, action string) []retry.Option {
 	return []retry.Option{
 		retry.Context(ctx),
-		retry.Attempts(0),
+		retry.UntilSucceeded(),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(dbRetryDelay),
 		retry.MaxDelay(dbRetryMaxDelay),
-		retry.WrapContextErrorWithLastError(true),
 		retry.OnRetry(func(_ uint, err error) {
-			dbLogger().Errorf("can't %s, retrying: %v", action, err)
+			if ctx.Err() == nil { // else there is no retry
+				dbLogger().Warnf("can't %s, retrying: %v", action, err)
+			}
 		}),
 	}
 }
 
-// storableClientName returns name as every target can store and index it: valid
-// UTF-8 without control characters (NUL among them), at most dbClientNameMaxRunes
-// long. A DoH client ID, for one, reaches it as raw bytes from the URL.
+// storableClientName returns name as valid UTF-8 without control characters (NUL
+// among them), at most dbClientNameMaxRunes long: what PostgreSQL and a utf8mb4 MySQL
+// store and index. A client ID is the client's to choose: a DoH path, a DoT server name.
 func storableClientName(name string) string {
 	name = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -558,19 +569,12 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 
 	d.lock.Lock()
 
-	if d.closed {
-		d.lock.Unlock()
-		CountDropped(DropReasonShutdown, 1)
-
-		return
-	}
-
 	if d.pendingBytes+size > d.maxPendingBytes {
 		d.lock.Unlock()
 		CountDropped(DropReasonBufferFull, 1)
 
 		if n := d.dropped.Add(1); isPowerOfTen(n) {
-			dbLogger().Errorf("query log buffer (%d bytes) full (database slow or unreachable), dropped %d entries so far",
+			dbLogger().Warnf("query log buffer (%d bytes) full (database slow or unreachable), dropped %d entries so far",
 				d.maxPendingBytes, n)
 		}
 
@@ -607,27 +611,37 @@ func (d *DatabaseWriter) CleanUp() {
 }
 
 // Shutdown stops the background goroutine and writes the pending entries, retrying
-// until ctx ends; with ctx already done, it writes nothing more. Entries left
-// unwritten are dropped and counted.
+// until ctx ends. Entries left unwritten are dropped and counted.
 func (d *DatabaseWriter) Shutdown(ctx context.Context) error {
 	d.stopRun()
 
+	// On a goroutine: a write the driver can't interrupt (a MySQL COMMIT, say) mustn't
+	// hold Shutdown past ctx.
+	flushed := make(chan error, 1)
+
+	go func() {
+		<-d.runDone
+
+		// Don't start connecting now: the background goroutine has been retrying all along.
+		if d.db.Load() == nil {
+			flushed <- errors.New("never connected to the database")
+
+			return
+		}
+
+		flushed <- d.flush(ctx, false)
+	}()
+
 	select {
-	case <-d.runDone:
+	case err := <-flushed:
+		return d.close(err)
 	case <-ctx.Done():
 		return d.close(ctx.Err())
 	}
-
-	// Don't start connecting now: the background goroutine has been retrying all along.
-	if d.db.Load() == nil {
-		return d.close(errors.New("never connected to the database"))
-	}
-
-	return d.close(d.flush(ctx, false))
 }
 
-// close drops and counts the entries still pending, and any written from now on.
-// It returns an error if it dropped any.
+// close drops and counts the entries still pending. It returns an error if it
+// dropped any.
 func (d *DatabaseWriter) close(cause error) error {
 	d.lock.Lock()
 	n := len(d.pending)
