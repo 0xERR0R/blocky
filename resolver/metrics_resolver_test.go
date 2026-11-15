@@ -37,7 +37,7 @@ var _ = Describe("MetricResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut = NewMetricsResolver(config.Metrics{Enable: true})
+		sut = NewMetricsResolver(config.Metrics{Enable: true, EnableClientLabel: true})
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -175,6 +175,35 @@ var _ = Describe("MetricResolver", func() {
 					})
 					Expect(err).Should(Succeed())
 					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
+				})
+			})
+			When("Client label is disabled", func() {
+				BeforeEach(func() {
+					sut = NewMetricsResolver(config.Metrics{Enable: true, EnableClientLabel: false})
+					sut.Next(m)
+				})
+				It("collapses the client label to \"unknown\"", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
+					Expect(err).Should(Succeed())
+
+					cnt, err := sut.totalQueries.GetMetricWith(prometheus.Labels{"client": "unknown", "type": "A"})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(cnt)).Should(BeNumerically("==", 1))
+
+					clientCnt, err := sut.totalClientResponse.GetMetricWith(prometheus.Labels{
+						"client":        "unknown",
+						"response_type": "RESOLVED",
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
+				})
+				It("does not emit the resolved client name as a label", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
+					Expect(err).Should(Succeed())
+
+					cnt, err := sut.totalQueries.GetMetricWith(prometheus.Labels{"client": "client", "type": "A"})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(cnt)).Should(BeZero())
 				})
 			})
 			When("Metrics are disabled", func() {

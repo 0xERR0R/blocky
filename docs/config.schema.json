@@ -169,7 +169,7 @@
         },
         "zone": {
           "type": "string",
-          "description": "DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV).",
+          "description": "DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV, HTTPS, SVCB).",
           "default": ""
         },
         "filterUnmappedTypes": {
@@ -795,6 +795,11 @@
           "type": "string",
           "description": "URL path under which the Prometheus metrics are served.",
           "default": "/metrics"
+        },
+        "enableClientLabel": {
+          "type": "boolean",
+          "description": "If true, the client name (or IP) is used as the \"client\" label on\nblocky_query_total and blocky_client_response_total. Disable to collapse the\nlabel to a single \"unknown\" value and avoid unbounded metric cardinality when\nblocky serves many distinct or client-controlled names (e.g. an internet-facing DoH).",
+          "default": true
         }
       },
       "additionalProperties": false,

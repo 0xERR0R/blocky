@@ -53,8 +53,16 @@ Following metrics will be exported:
     the set of `client` label values can grow effectively unbounded over time. Consider this before
     scraping/retaining these metrics on such networks.
 
-    Blocky has no option to drop the label yet, so the mitigation is on the Prometheus side: drop the
-    affected metrics at scrape time when you do not need the per-client breakdown.
+    When DoH is enabled, the client name is also taken directly from the request URL (the path
+    segment in `/dns-query/<clientID>` or the `id-` host prefix) and is therefore client-controlled:
+    any client that can reach the DoH endpoint can mint arbitrary `client` label values. Set
+    `prometheus.enableClientLabel: false` (see [Prometheus](configuration.md#prometheus)) to collapse
+    the label to a single `unknown` value, keeping the metric names and label keys intact while
+    bounding cardinality. This is recommended when blocky is reachable from untrusted networks or
+    serves an unbounded set of clients.
+
+    Alternatively, the mitigation is on the Prometheus side: drop the affected metrics at scrape time
+    when you do not need the per-client breakdown.
 
     ```yaml
     metric_relabel_configs:
@@ -96,14 +104,16 @@ The dashboard is organized in sections (overview, traffic, latency, blocking & l
 rate limiting, Go runtime) and uses only Grafana core panels, so no additional plugins are needed. The "Blocking
 control" buttons in the overview section enable or temporarily disable blocking via the blocky API.
 
+Client filtering is available in the **Traffic** section using the new `blocky_client_response_total` metric.
+The dashboard has been converted to Grafana's v2 format to support the section-level client selector.
+
 When importing the dashboard, set the "blocky API URL" input to the address under which your browser can reach the
 blocky HTTP API (e.g. `https://blocky.example.com` or `http://192.168.1.2:4000`) — it is used by the blocking
 control buttons.
 
 ### Requirements
 
-- Grafana 10.2 or newer: the blocking control buttons use canvas button elements with API calls. All other panels
-  also work with older Grafana versions.
+- Grafana 13 or higher for the v2 dashboard and client filtering in the Traffic section.
 - blocky newer than v0.31 if Grafana is served from a different origin than the blocky API: older blocky versions
   reject the CORS preflight which Grafana sends for the blocking control buttons. Alternatively, expose the blocky
   API on the same origin as Grafana through your reverse proxy.

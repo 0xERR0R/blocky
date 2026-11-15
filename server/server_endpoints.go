@@ -171,11 +171,13 @@ func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 }
 
 func getSmallestTTLFromAnswer(msg *dns.Msg) uint32 {
-	var ttl uint32 = 0
-	for _, a := range msg.Answer {
-		if a.Header().Ttl < ttl || ttl == 0 {
-			ttl = a.Header().Ttl
-		}
+	if len(msg.Answer) == 0 {
+		return 0
+	}
+
+	ttl := msg.Answer[0].Header().Ttl
+	for _, a := range msg.Answer[1:] {
+		ttl = min(ttl, a.Header().Ttl)
 	}
 
 	return ttl

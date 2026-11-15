@@ -435,6 +435,26 @@ var _ = Describe("Running DNS server", func() {
 					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", A, "123.124.122.122"))
 				})
 			})
+			When("DOH get request with a non-UTF-8 client ID in the URL is performed", func() {
+				It("should still get a valid response", func() {
+					resp, err := http.Get(queryURL + "/a%FFb?dns=AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")
+					Expect(err).Should(Succeed())
+					DeferCleanup(resp.Body.Close)
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
+
+					rawMsg, err := io.ReadAll(resp.Body)
+					Expect(err).Should(Succeed())
+
+					msg := new(dns.Msg)
+					err = msg.Unpack(rawMsg)
+					Expect(err).Should(Succeed())
+
+					Expect(msg.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", A, "123.124.122.122"))
+				})
+			})
 			When("Request does not contain a valid DNS message", func() {
 				It("should return 'Bad Request'", func() {
 					resp, err := http.Get(queryURL + "?dns=xxxx")
