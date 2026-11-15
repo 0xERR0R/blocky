@@ -506,19 +506,20 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("entries keep arriving while the pending ones are written", func() {
 			It("leaves them for the next flush", func() {
-				writer = newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, 100*time.Millisecond, config.QueryLogTypeSqlite)
-				db := connected(writer)
+				// a variable of its own: the callback runs on the writer's goroutine, which may outlive the spec
+				w := newDatabaseWriter(ctx, fixedDialect(sqliteDB), 7, 100*time.Millisecond, config.QueryLogTypeSqlite)
+				db := connected(w)
 
 				var inserts atomic.Int32
 
 				onInsert(db, func(tx *gorm.DB) {
 					if insertedRows(tx) != nil {
 						inserts.Add(1)
-						writer.Write(&LogEntry{Start: time.Now()}) // one arrives during every write
+						w.Write(&LogEntry{Start: time.Now()}) // one arrives during every write
 					}
 				})
 
-				writer.Write(&LogEntry{Start: time.Now()})
+				w.Write(&LogEntry{Start: time.Now()})
 
 				// one write a flush period, not back to back
 				Eventually(inserts.Load, "5s").Should(BeNumerically(">=", 2))
