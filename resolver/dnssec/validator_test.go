@@ -950,6 +950,83 @@ var _ = Describe("DNSSECValidator", func() {
 		})
 	})
 
+	Context("RSA keys with large exponents (issue #2364)", func() {
+		It("validates a zone whose DS names a published 2^32+1 key and an unpublished key as Secure", func() {
+			// nic.safety / nic.bradesco sign with an RSA key whose exponent is 2^32+1, and their
+			// DS RRset names a second key that is not published. The published key must still
+			// validate the zone (RFC 6840 §5.11), and the unpublished key is a rollover state
+			// (RFC 6781 §4.1.2), not a stripped key.
+			chain := newSignedChain()
+
+			bigKSK, _, n, d := generateBigExponentRSAKey(chain.child)
+			dnsKeySig := signRRsetWithBigExponent(
+				[]dns.RR{bigKSK, chain.childKey}, dns.TypeDNSKEY, bigKSK, n, d)
+
+			absentKey, _, _ := newSignedZoneKey(chain.child)
+			dsRRset := make([]dns.RR, 0, 3)
+			dsRRset = append(dsRRset, bigKSK.ToDS(dns.SHA256), absentKey.ToDS(dns.SHA256))
+			dsReply := &dns.Msg{Answer: append(dsRRset,
+				signRRset(dsRRset, dns.TypeDS, chain.parentKey, chain.parentPriv, chain.parent))}
+
+			question := dns.Question{Name: "www." + chain.child, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			response := signedA(question.Name, "192.0.2.1", chain.childKey, chain.childPriv, chain.child)
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				switch q := req.Req.Question[0]; {
+				case q.Qtype == dns.TypeDS && q.Name == chain.child:
+					return &model.Response{Res: dsReply}, nil
+				case q.Qtype == dns.TypeDNSKEY && q.Name == chain.child:
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{bigKSK, chain.childKey, dnsKeySig}}}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+
+			v := NewValidator(ctx, chain.anchors, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(ValidationResultSecure))
+		})
+
+		It("validates an RRset signed by a 2^32+1 key as Secure", func() {
+			// A large-exponent key may also sign non-DNSKEY RRsets (e.g. a ZSK). verifyWithSignerKeys
+			// must route such signatures through the math/big fallback rather than degrading the zone
+			// to Insecure before verifyRRSIG is reached.
+			chain := newSignedChain()
+
+			bigKey, _, n, d := generateBigExponentRSAKey(chain.child)
+			dnsKeySig := signRRsetWithBigExponent([]dns.RR{bigKey}, dns.TypeDNSKEY, bigKey, n, d)
+			dsRRset := make([]dns.RR, 0, 2)
+			dsRRset = append(dsRRset, bigKey.ToDS(dns.SHA256))
+			dsReply := &dns.Msg{Answer: append(dsRRset,
+				signRRset(dsRRset, dns.TypeDS, chain.parentKey, chain.parentPriv, chain.parent))}
+
+			question := dns.Question{Name: "www." + chain.child, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: question.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("192.0.2.1"),
+			}
+			response := &dns.Msg{Answer: []dns.RR{
+				a,
+				signRRsetWithBigExponent([]dns.RR{a}, dns.TypeA, bigKey, n, d),
+			}}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				switch q := req.Req.Question[0]; {
+				case q.Qtype == dns.TypeDS && q.Name == chain.child:
+					return &model.Response{Res: dsReply}, nil
+				case q.Qtype == dns.TypeDNSKEY && q.Name == chain.child:
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{bigKey, dnsKeySig}}}, nil
+				}
+
+				return chain.resolve(ctx, req)
+			}
+
+			v := NewValidator(ctx, chain.anchors, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.ValidateResponse(ctx, response, question)).Should(Equal(ValidationResultSecure))
+		})
+	})
+
 	Context("mixed-case owner names (issue #2361)", func() {
 		// DNS names are case-insensitive, and RFC 4034 §6.2 defines the canonical (lowercase)
 		// form used for DNSSEC. A DNSKEY answer whose owner name is mixed-case - as upstreams
