@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/0xERR0R/blocky/config"
-	goredis "github.com/go-redis/redis/v8"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 // New creates a new Redis connection. Returns nil if Redis is not configured.
@@ -39,11 +39,9 @@ func New(ctx context.Context, cfg *config.Redis) (*goredis.Client, error) {
 		})
 	}
 
-	rdb := client.WithContext(ctx)
-
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
-		return rdb, fmt.Errorf("failed to connect to Redis at '%s': %w", cfg.Address, err)
+	if _, err := client.Ping(ctx).Result(); err != nil {
+		return client, fmt.Errorf("failed to connect to Redis at '%s': %w", cfg.Address, err)
 	}
 
-	return rdb, nil
+	return client, nil
 }
