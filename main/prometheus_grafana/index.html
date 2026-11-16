@@ -828,6 +828,10 @@
 <td>blocky_dnstap_frames_dropped_total</td>
 <td>Counter of dnstap frames dropped because the internal buffer is full - non-zero values indicate the collector is slow or unreachable</td>
 </tr>
+<tr>
+<td>blocky_query_log_entries_dropped_total</td>
+<td>Counter of query log entries dropped instead of written, partitioned by reason: <code>queue_full</code> (the writer fell behind), <code>buffer_full</code> (the database was slow or unreachable for too long), <code>rejected</code> (the database refused the row), <code>shutdown</code> (not written before blocky stopped; logged too, since nothing scrapes it by then)</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">

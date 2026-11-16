@@ -956,6 +956,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#database-query-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database query log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sqlite-query-log" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2259,6 +2270,17 @@
   
     <nav class="md-nav" aria-label="Query log types">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#database-query-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database query log
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#sqlite-query-log" class="md-nav__link">
@@ -5060,6 +5082,16 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <li><code>dnstap</code>: export client <abbr title="Domain Name System">DNS</abbr> query/response events via <a href="https://dnstap.info/">dnstap</a> (Frame Streams over Unix socket or <abbr title="Transmission Control Protocol">TCP</abbr>)</li>
 <li><code>none</code>: do not log any queries</li>
 </ul>
+<h4 id="database-query-log">Database query log</h4>
+<p>The database targets (<code>mysql</code>, <code>postgresql</code>, <code>timescale</code> and <code>sqlite</code>) buffer entries in memory and write them in batches, so <abbr title="Domain Name System">DNS</abbr> answers never wait on the database.</p>
+<ul>
+<li>If the database is slow or can't be opened (unreachable, wrong credentials, a schema that can't be migrated), blocky keeps the entries and retries in the background until they are written. This includes startup: such a database doesn't make blocky fall back to the console, though a malformed <code>target</code> still does.</li>
+<li>On shutdown, blocky writes what is left within its 10-second shutdown timeout, and logs how many entries it had to drop.</li>
+<li>A write that fails at commit is retried, although the database may have stored it: those entries are then stored again.</li>
+<li>Client names are stored as valid UTF-8 without control characters, cut to 191 characters. On MySQL and MariaDB, give the database the <code>utf8mb4</code> character set, which the table inherits; names it can't store are refused, and finding refused rows takes extra writes.</li>
+<li>On MySQL and MariaDB the driver sets no time limit on a commit. Add <code>readTimeout</code> to the <code>target</code> (e.g. <code>readTimeout=1m</code>) to have a connection that stops answering dropped and retried; no statement can then run longer than that, the retention cleanup included.</li>
+<li>Blocky holds about 32 MiB of entries in memory at most. Entries beyond that, and rows the database refuses, are dropped and counted in <code>blocky_query_log_entries_dropped_total</code> (see <a href="../prometheus_grafana/">Prometheus</a>).</li>
+</ul>
 <h4 id="sqlite-query-log">SQLite query log</h4>
 <p>The <code>sqlite</code> target stores the query log in a single local file (set via <code>queryLog.target</code>, e.g. <code>/var/lib/blocky/querylog.db</code>) — no external database is required. Blocky creates the file and its parent directory automatically.</p>
 <div class="admonition note">
@@ -5155,7 +5187,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>int</td>
 <td>no</td>
 <td>3</td>
-<td>Max attempts to create specific query log writer</td>
+<td>Max attempts to create specific query log writer; an unreachable database is retried in the background instead (see <a href="#database-query-log">Database query log</a>)</td>
 </tr>
 <tr>
 <td>queryLog.creationCooldown</td>
@@ -5176,7 +5208,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
 <td>no</td>
 <td>30s</td>
-<td>Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite) or dnstap socket batching</td>
+<td>Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite; also as soon as 1,000 are buffered) or dnstap socket batching</td>
 </tr>
 <tr>
 <td>queryLog.ignore.sudn</td>
