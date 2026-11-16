@@ -397,7 +397,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("a client name isn't valid UTF-8, holds NUL or is too long", func() {
 			It("stores it as valid UTF-8, cut to the column's size", func() {
-				Expect(storableClientName("a\xffb\x00c\nd")).Should(Equal("a\uFFFDbcd"))
+				Expect(storableClientName("a\xffb\x00c\nd")).Should(Equal("abcd"))
 				Expect(storableClientName(strings.Repeat("é", 200))).Should(Equal(strings.Repeat("é", 191)))
 				Expect(storableClientName("laptop; phone")).Should(Equal("laptop; phone"))
 
@@ -409,7 +409,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 				var name string
 				Expect(db.Model(&logEntry{}).Select("client_name").Scan(&name).Error).Should(Succeed())
-				Expect(name).Should(Equal("a\uFFFDbc"))
+				Expect(name).Should(Equal("abc"))
 			})
 		})
 
@@ -633,7 +633,10 @@ var _ = Describe("DatabaseWriter", func() {
 
 				Expect(writer.Shutdown(shutdownCtx)).Should(MatchError(context.DeadlineExceeded))
 
-				close(release) // the write then finishes: its entry isn't counted a second time
+				// a write that still finishes finds nothing left to remove
+				Expect(func() { writer.removeDone(1) }).ShouldNot(Panic())
+
+				close(release) // the stuck write then ends: its entry isn't counted a second time
 				Eventually(writer.runDone, "5s").Should(BeClosed())
 
 				Expect(droppedCount(DropReasonShutdown) - before).Should(BeNumerically("==", 1))

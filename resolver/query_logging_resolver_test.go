@@ -619,6 +619,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(err).Should(Succeed())
 			Expect(writer).ShouldNot(BeNil())
 			Expect(writer).Should(BeAssignableToTypeOf(&querylog.DatabaseWriter{}))
+
+			// it connects in the background: stop it before the directory is removed
+			DeferCleanup(func() { _ = writer.(*querylog.DatabaseWriter).Shutdown(ctx) })
 		})
 
 		It("creates a dnstap writer", func() {

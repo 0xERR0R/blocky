@@ -119,7 +119,10 @@ func NewDatabaseWriter(ctx context.Context, dbType config.QueryLogType, target s
 			return nil, fmt.Errorf("can't create database connection: %w", err)
 		}
 
-		return newDatabaseWriter(ctx, fixedDialect(postgres.Open(target)), logRetentionDays, dbFlushPeriod, dbType), nil
+		// A dialector for each attempt: GORM's keeps what it adds to its options while opening.
+		perAttempt := func(context.Context) gorm.Dialector { return postgres.Open(target) }
+
+		return newDatabaseWriter(ctx, perAttempt, logRetentionDays, dbFlushPeriod, dbType), nil
 	case config.QueryLogTypeSqlite:
 		dialector, err := newSQLiteDialector(target)
 		if err != nil {
@@ -404,7 +407,7 @@ func sizeOf(entries []*logEntry) int {
 // found, so they can't hold up the rest.
 func (d *DatabaseWriter) ship(ctx context.Context, batch []*logEntry) (int, error) {
 	err := retry.Do(func() error {
-		return d.write(ctx, batch)
+		return d.attempt(ctx, batch)
 	}, retryOptions(ctx, fmt.Sprintf("write %d query log entries", len(batch)))...)
 
 	switch {
@@ -434,9 +437,9 @@ func (d *DatabaseWriter) ship(ctx context.Context, batch []*logEntry) (int, erro
 	return mid + done, err
 }
 
-// write tries batch once. Its error is unrecoverable when a larger batch is to be
-// split, or a lone row dropped.
-func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
+// attempt tries to write batch once. Its error is unrecoverable when a larger batch is
+// to be split, or a lone row dropped.
+func (d *DatabaseWriter) attempt(ctx context.Context, batch []*logEntry) error {
 	err := d.insert(ctx, batch)
 
 	switch {
@@ -448,24 +451,20 @@ func (d *DatabaseWriter) write(ctx context.Context, batch []*logEntry) error {
 			return err
 		}
 	default:
-		// A lone row is at fault when the server refuses it, twice: one more try at
-		// once, in case the refusal was passing (e.g. a server restarting). Failing any
-		// other way (no connection, a timeout, a lock) says nothing about the row.
-		if !d.refuses(ctx, err) {
+		// A lone row is at fault when the server refuses it twice, the second time at
+		// once in case the first refusal was passing (e.g. a server restarting), and
+		// still takes a plain row. Failing any other way (no connection, a timeout, a
+		// lock) says nothing about the row.
+		if !refusedByServer(err) {
 			return err
 		}
 
-		if err = d.insert(ctx, batch); !d.refuses(ctx, err) {
+		if err = d.insert(ctx, batch); !refusedByServer(err) || !d.acceptsPlainRow(ctx) {
 			return err
 		}
 	}
 
 	return retry.Unrecoverable(err)
-}
-
-// refuses reports whether err is the server refusing rows while it takes a plain one.
-func (d *DatabaseWriter) refuses(ctx context.Context, err error) bool {
-	return refusedByServer(err) && d.acceptsPlainRow(ctx)
 }
 
 func (d *DatabaseWriter) insert(ctx context.Context, batch []*logEntry) error {
@@ -530,6 +529,7 @@ func retryOptions(ctx context.Context, action string) []retry.Option {
 // storableClientName returns name as valid UTF-8 without control characters (NUL
 // among them), at most dbClientNameMaxRunes long: what PostgreSQL and a utf8mb4 MySQL
 // store and index. A client ID is the client's to choose: a DoH path, a DoT server name.
+// The result is a copy, so that a short name doesn't keep a long server name in memory.
 func storableClientName(name string) string {
 	name = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -537,13 +537,13 @@ func storableClientName(name string) string {
 		}
 
 		return r
-	}, strings.ToValidUTF8(name, "\uFFFD"))
+	}, strings.ToValidUTF8(name, ""))
 
 	if utf8.RuneCountInString(name) > dbClientNameMaxRunes {
 		name = string([]rune(name)[:dbClientNameMaxRunes])
 	}
 
-	return name
+	return strings.Clone(name)
 }
 
 func (d *DatabaseWriter) Write(entry *LogEntry) {
@@ -634,15 +634,15 @@ func (d *DatabaseWriter) Shutdown(ctx context.Context) error {
 
 	select {
 	case err := <-flushed:
-		return d.close(err)
+		return d.dropPending(err)
 	case <-ctx.Done():
-		return d.close(ctx.Err())
+		return d.dropPending(ctx.Err())
 	}
 }
 
-// close drops and counts the entries still pending. It returns an error if it
-// dropped any.
-func (d *DatabaseWriter) close(cause error) error {
+// dropPending drops and counts the entries still pending, and closes the writer. It
+// returns an error if it dropped any.
+func (d *DatabaseWriter) dropPending(cause error) error {
 	d.lock.Lock()
 	n := len(d.pending)
 	d.pending, d.pendingBytes, d.closed = nil, 0, true

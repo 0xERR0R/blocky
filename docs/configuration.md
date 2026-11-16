@@ -1245,7 +1245,7 @@ You can select one of following query log types:
 The database targets (`mysql`, `postgresql`, `timescale` and `sqlite`) buffer entries in memory and write them in batches, so DNS answers never wait on the database.
 
 - If the database is slow or can't be opened (unreachable, wrong credentials, a schema that can't be migrated), blocky keeps the entries and retries in the background until they are written. This includes startup: such a database doesn't make blocky fall back to the console, though a malformed `target` still does.
-- On shutdown, blocky writes what is left until the shutdown timeout, and logs how many entries it had to drop.
+- On shutdown, blocky writes what is left within its 10-second shutdown timeout, and logs how many entries it had to drop.
 - A write that fails at commit is retried, although the database may have stored it: those entries are then stored again.
 - Client names are stored as valid UTF-8 without control characters, cut to 191 characters. On MySQL and MariaDB, give the database the `utf8mb4` character set, which the table inherits; names it can't store are refused, and finding refused rows takes extra writes.
 - On MySQL and MariaDB the driver sets no time limit on a commit. Add `readTimeout` to the `target` (e.g. `readTimeout=1m`) to have a connection that stops answering dropped and retried; no statement can then run longer than that, the retention cleanup included.
