@@ -668,11 +668,13 @@ func (v *Validator) verifyWithSignerKeys(
 			matchingSig.KeyTag, matchingSig.Algorithm, matchingSig.SignerName)
 	}
 
-	// Check for unsupported RSA exponents (Go crypto limitation)
-	if hasUnsupportedRSAExponent(matchingKey) {
+	// Check for unsupported RSA exponents (Go crypto limitation). RSA/SHA-256 and RSA/SHA-512
+	// keys with an exponent above 2^31-1 are verified by the math/big fallback in verifyRRSIG;
+	// only RSA/SHA-1 (deprecated) remains unsupported and degrades the zone to Insecure.
+	if hasUnsupportedRSAExponent(matchingKey) && !rsaKeyNeedsBigMath(matchingKey) {
 		v.logger.Debugf(
-			"DNSKEY for %s (algorithm=%d, keytag=%d) has unsupported RSA exponent "+
-				"(exceeds 2^31-1, Go crypto limitation) - treating zone as Insecure per RFC 4035 §2.2",
+			"DNSKEY for %s (algorithm=%d, keytag=%d) has an RSA exponent that neither Go crypto "+
+				"nor the math/big fallback can verify - treating zone as Insecure per RFC 4035 §2.2",
 			domain, matchingSig.Algorithm, matchingSig.KeyTag)
 
 		return false, errUnsupportedRSAExponent

@@ -137,7 +137,7 @@ var _ = Describe("Query functions", func() {
 			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Truncated: true}}}, nil
+				return &model.Response{Res: &dns.Msg{Truncated: true}}, nil
 			}
 
 			_, err := sut.queryRecords(ctx, "example.com", dns.TypeDS)
@@ -236,7 +236,7 @@ var _ = Describe("Query functions", func() {
 			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}}}, nil
+				return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeServerFailure}}, nil
 			}
 
 			_, _, err := sut.queryDNSKEY(ctx, "example.com")
@@ -247,7 +247,7 @@ var _ = Describe("Query functions", func() {
 			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError}}}, nil
+				return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeNameError}}, nil
 			}
 
 			_, _, err := sut.queryDNSKEY(ctx, "example.com")
