@@ -18,7 +18,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -222,14 +222,7 @@ func createWriterWithRetry(ctx context.Context, cfg config.QueryLog, instanceID 
 ) (querylog.Writer, error) {
 	var writer querylog.Writer
 
-	err := retry.Do(
-		func() error {
-			var err error
-
-			writer, err = GetQueryLoggingWriter(ctx, cfg, instanceID)
-
-			return err
-		},
+	err := retry.New(
 		retry.Attempts(uint(cfg.CreationAttempts)),
 		retry.DelayType(retry.FixedDelay),
 		retry.Delay(cfg.CreationCooldown.ToDuration()),
@@ -237,7 +230,14 @@ func createWriterWithRetry(ctx context.Context, cfg config.QueryLog, instanceID 
 			logger.Warnf(
 				"Error occurred on query writer creation, retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err,
 			)
-		}))
+		})).Do(
+		func() error {
+			var err error
+
+			writer, err = GetQueryLoggingWriter(ctx, cfg, instanceID)
+
+			return err
+		})
 
 	return writer, err
 }

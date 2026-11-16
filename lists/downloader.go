@@ -11,7 +11,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 )
 
 // cacheDirPermission is used when creating the on-disk download cache directory.
@@ -109,7 +109,12 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 func (d *httpDownloader) download(ctx context.Context, link string, reqHeader http.Header) (*downloadResponse, error) {
 	var result *downloadResponse
 
-	err := retry.Do(
+	err := retry.New(
+		retry.Attempts(d.cfg.Attempts),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(d.cfg.Cooldown.ToDuration()),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(d.logRetry(link))).Do(
 		func() error {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 			if err != nil {
@@ -151,12 +156,7 @@ func (d *httpDownloader) download(ctx context.Context, link string, reqHeader ht
 			}
 
 			return fmt.Errorf("HTTP request to '%s' failed: %w", link, httpErr)
-		},
-		retry.Attempts(d.cfg.Attempts),
-		retry.DelayType(retry.FixedDelay),
-		retry.Delay(d.cfg.Cooldown.ToDuration()),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(d.logRetry(link)))
+		})
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file from '%s': %w", link, err)
 	}
