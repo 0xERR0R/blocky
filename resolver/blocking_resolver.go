@@ -489,7 +489,7 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
-		logger := logger.WithField(logFieldDomain, domain)
+		logger := withDebugField(logger, logFieldDomain, domain)
 
 		if matches := r.matches(groupsToCheck, r.allowlistMatcher, domain); len(matches) > 0 {
 			logger.WithField("matches", matches).Debug("domain is allowlisted")
@@ -547,7 +547,7 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 		for _, rr := range respFromNext.Res.Answer {
 			entryToCheck, tName := extractEntryToCheckFromResponse(rr)
 			if len(entryToCheck) > 0 {
-				logger := logger.WithField("response_entry", entryToCheck)
+				logger := withDebugField(logger, "response_entry", entryToCheck)
 
 				if matches := r.matches(groupsToCheck, r.allowlistMatcher, entryToCheck); len(matches) > 0 {
 					logger.WithField("matches", matches).Debugf("%s is allowlisted", tName)
@@ -615,13 +615,18 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) ([]str
 		}
 	}
 
-	now := time.Now()
+	// read the clock for the first group that has a schedule: most have none
+	var now time.Time
 
 	var result []string
 
 	for _, sg := range groups {
 		if slices.Contains(disabledGroups, sg.group) {
 			continue
+		}
+
+		if sg.hasScheduleMapping && now.IsZero() {
+			now = time.Now()
 		}
 
 		// Skip groups whose schedule is not currently active.
@@ -730,26 +735,50 @@ func formatBlockReasonLabel(matches map[string]string, typeName string) string {
 	return renderBlockReason(matches, typeName, false)
 }
 
+// renderBlockReason runs twice for every blocked query, so it writes the reason
+// into one buffer instead of formatting and joining its parts.
 func renderBlockReason(matches map[string]string, typeName string, includeRules bool) string {
-	reason := "BLOCKED"
+	const typicalLen = 64
+
+	var reason strings.Builder
+
+	reason.Grow(typicalLen)
+	reason.WriteString("BLOCKED")
+
 	if typeName != "" {
-		reason += " " + typeName
+		reason.WriteByte(' ')
+		reason.WriteString(typeName)
 	}
 
 	if len(matches) == 0 {
-		return reason
+		return reason.String()
 	}
 
-	entries := make([]string, 0, len(matches))
-	for _, group := range slices.Sorted(maps.Keys(matches)) {
-		if includeRules {
-			entries = append(entries, fmt.Sprintf("%s: %s", group, matches[group]))
+	groups := make([]string, 0, len(matches))
+	for group := range matches {
+		groups = append(groups, group)
+	}
+
+	slices.Sort(groups)
+
+	for i, group := range groups {
+		if i == 0 {
+			reason.WriteString(" (")
 		} else {
-			entries = append(entries, group)
+			reason.WriteString(", ")
+		}
+
+		reason.WriteString(group)
+
+		if includeRules {
+			reason.WriteString(": ")
+			reason.WriteString(matches[group])
 		}
 	}
 
-	return fmt.Sprintf("%s (%s)", reason, strings.Join(entries, ", "))
+	reason.WriteByte(')')
+
+	return reason.String()
 }
 
 type blockHandler interface {
@@ -819,9 +848,7 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 }
 
 func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifier string) (*[]net.IP, time.Duration) {
-	ctx, logger := r.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		return log.WithPrefix(logger, "client_id_cache")
-	})
+	ctx, logger := r.logWithFields(ctx, log.PrefixFields(r.Type()+".client_id_cache"))
 
 	var result []net.IP
 

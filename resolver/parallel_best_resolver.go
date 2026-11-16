@@ -21,6 +21,10 @@ const (
 	parallelResolverType      = "parallel_best"
 	randomResolverType        = "random"
 	parallelBestResolverCount = 2
+
+	// upstreamStackSize is the call frame the goroutine of a raced upstream makes room
+	// for, see util.GrowStack. It gives the goroutine an 8 KiB stack.
+	upstreamStackSize = 4 << 10
 )
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
@@ -74,6 +78,9 @@ func (r *upstreamResolverStatus) resolve(ctx context.Context, req *model.Request
 }
 
 func (r *upstreamResolverStatus) resolveToChan(ctx context.Context, req *model.Request, ch chan<- requestResponse) {
+	// The goroutine is new: asking an upstream needs a deeper stack than it starts with.
+	util.GrowStack[[upstreamStackSize]byte]()
+
 	resp, err := r.resolve(ctx, req)
 
 	ch <- requestResponse{
@@ -145,7 +152,9 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 
 	if len(allResolvers) == 1 {
 		resolver := allResolvers[0]
-		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
+		if isDebugEnabled(logger) {
+			logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
+		}
 
 		return resolver.resolve(ctx, request)
 	}
@@ -164,7 +173,9 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 	ch := make(chan requestResponse, len(resolvers))
 
 	for _, resolver := range resolvers {
-		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
+		if isDebugEnabled(logger) {
+			logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
+		}
 
 		go resolver.resolveToChan(ctx, request, ch)
 	}
@@ -188,7 +199,12 @@ func evaluateResponses(
 
 	for len(collectedErrors) < len(resolvers) {
 		result := <-ch
-		logger := logger.WithField("resolver", *result.resolver)
+
+		// only debug lines are logged with the resolver
+		logger := logger
+		if isDebugEnabled(logger) {
+			logger = logger.WithField("resolver", *result.resolver)
+		}
 
 		if result.err != nil {
 			logger.Debug("resolution failed from resolver, cause: ", result.err)

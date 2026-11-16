@@ -26,6 +26,8 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -1134,6 +1136,32 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("newRequest", func() {
+		It("logs the request at trace level with what identifies it", func() {
+			logger, entries := test.NewNullLogger()
+			logger.SetLevel(logrus.TraceLevel)
+
+			ctx, _ = NewCtx(ctx, logrus.NewEntry(logger))
+
+			msg := util.NewMsgWithQuestion("example.com.", A)
+			msg.Id = 4711
+			clientIP := net.ParseIP("192.168.178.1")
+
+			_, _ = newRequest(ctx, clientIP, "client123", model.RequestProtocolUDP, msg)
+
+			Expect(entries.AllEntries()).Should(HaveLen(1))
+			Expect(entries.LastEntry().Message).Should(Equal("new incoming request"))
+			Expect(entries.LastEntry().Data).Should(SatisfyAll(
+				HaveKey("req_id"),
+				HaveKeyWithValue("question", util.QuestionToString(msg.Question)),
+				HaveKeyWithValue("client_ip", clientIP),
+				HaveKeyWithValue("client_request_id", msg.Id),
+				HaveKeyWithValue("client_id", "client123"),
+				HaveKeyWithValue("protocol", model.RequestProtocolUDP),
+			))
+		})
+	})
+
 	Describe("Query", func() {
 		It("should resolve a query", func() {
 			resp, err := sut.Query(ctx, "host.example.com", net.ParseIP("192.168.178.1"), "google.de.", dns.Type(dns.TypeA))
@@ -1888,3 +1916,36 @@ func writeKeyPem(tmpDir *TmpFolder) *TmpFile {
 		"EHK784GIxwVXKej/",
 		"-----END PRIVATE KEY-----")
 }
+
+type shutdownRecorder struct {
+	calls atomic.Int32
+}
+
+func (r *shutdownRecorder) Shutdown(context.Context) error {
+	r.calls.Add(1)
+
+	return nil
+}
+
+var _ = Describe("Stopping the server", func() {
+	It("finds the resolvers that hold work in the chain", func() {
+		Expect(sut.shutdowners).Should(ContainElement(BeAssignableToTypeOf(&resolver.QueryLoggingResolver{})))
+	})
+
+	It("shuts down the resolvers that hold work, once the DNS listeners have stopped", func(ctx context.Context) {
+		recorder := &shutdownRecorder{}
+		srv := &Server{shutdowners: []resolver.Shutdowner{recorder}}
+		srv.dnsServeWG.Add(1) // a listener that is still serving
+
+		stopped := make(chan error, 1)
+
+		go func() { stopped <- srv.Stop(ctx) }()
+
+		Consistently(recorder.calls.Load, "100ms").Should(BeZero())
+
+		srv.dnsServeWG.Done()
+
+		Eventually(stopped).Should(Receive(BeNil()))
+		Expect(recorder.calls.Load()).Should(BeNumerically("==", 1))
+	})
+})

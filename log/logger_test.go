@@ -2,10 +2,12 @@ package log
 
 import (
 	"bytes"
+	"context"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 )
 
 var _ = Describe("Logger", func() {
@@ -50,6 +52,21 @@ var _ = Describe("Logger", func() {
 			logger.Warn("still here")
 
 			Expect(out.String()).Should(ContainSubstring("still here"))
+		})
+	})
+
+	Describe("Silence", func() {
+		It("leaves a logger that still logs the fields of a context", func() {
+			original := logger
+			DeferCleanup(func() { logger = original })
+
+			Silence()
+
+			hook := test.NewLocal(logger)
+
+			FromCtx(CtxWithFields(context.Background(), logrus.Fields{"a": 1})).Info("message")
+
+			Expect(hook.LastEntry().Data).Should(Equal(logrus.Fields{"a": 1}))
 		})
 	})
 })

@@ -78,7 +78,9 @@ func (r *ClientNamesResolver) Resolve(ctx context.Context, request *model.Reques
 	clientNames := r.getClientNames(ctx, request)
 
 	request.ClientNames = clientNames
-	ctx, _ = log.CtxWithFields(ctx, logrus.Fields{"client_names": strings.Join(clientNames, "; ")})
+	ctx = log.CtxWithLazyFields(ctx, func() logrus.Fields {
+		return logrus.Fields{"client_names": strings.Join(clientNames, "; ")}
+	})
 
 	return r.next.Resolve(ctx, request)
 }

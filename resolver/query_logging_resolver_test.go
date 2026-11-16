@@ -12,6 +12,7 @@ import (
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/querylog"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -37,6 +38,43 @@ func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 }
 
 func (m *SlowMockWriter) CleanUp() {
+}
+
+type ShutdownRecordingWriter struct {
+	entries  []*querylog.LogEntry
+	shutdown bool
+}
+
+func (m *ShutdownRecordingWriter) Write(entry *querylog.LogEntry) {
+	m.entries = append(m.entries, entry)
+}
+
+func (m *ShutdownRecordingWriter) CleanUp() {
+}
+
+func (m *ShutdownRecordingWriter) Shutdown(context.Context) error {
+	m.shutdown = true
+
+	return nil
+}
+
+func droppedEntries(reason querylog.DropReason) float64 {
+	families, err := metrics.Reg.Gather()
+	Expect(err).Should(Succeed())
+
+	for _, family := range families {
+		if family.GetName() != "blocky_query_log_entries_dropped_total" {
+			continue
+		}
+
+		for _, m := range family.GetMetric() {
+			if m.GetLabel()[0].GetValue() == string(reason) {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+
+	return 0
 }
 
 var _ = Describe("QueryLoggingResolver", func() {
@@ -443,17 +481,72 @@ var _ = Describe("QueryLoggingResolver", func() {
 					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
-			It("should drop messages", func() {
+			It("should drop messages and count them", func() {
 				mockWriter := &SlowMockWriter{}
 				sut.writer = mockWriter
 
-				Eventually(func() int {
+				before := droppedEntries(querylog.DropReasonQueueFull)
+
+				Eventually(func() float64 {
 					_, ierr := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
 					Expect(ierr).Should(Succeed())
 
-					return len(sut.logChan)
-				}, "3s", "1µs").Should(Equal(cap(sut.logChan)))
+					return droppedEntries(querylog.DropReasonQueueFull) - before
+				}, "3s", "1µs").Should(BeNumerically(">", 0))
 			})
+		})
+	})
+
+	Describe("Shutdown", func() {
+		BeforeEach(func() {
+			sutConfig = config.QueryLog{
+				Type:             config.QueryLogTypeConsole,
+				CreationAttempts: 1,
+				CreationCooldown: config.Duration(time.Millisecond),
+			}
+		})
+		// queue fills the queue once the background context has ended, as in blocky's
+		// shutdown, where DNS still answers then.
+		queue := func(n int) {
+			cancelFn()
+			Eventually(sut.writeLogDone).Should(BeClosed())
+
+			for range n {
+				_, ierr := sut.Resolve(context.Background(), newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+				Expect(ierr).Should(Succeed())
+			}
+		}
+
+		It("writes the queued entries, then shuts the writer down", func() {
+			writer := &ShutdownRecordingWriter{}
+			sut.writer = writer
+
+			queue(50)
+
+			Expect(sut.Shutdown(context.Background())).Should(Succeed())
+			Expect(writer.entries).Should(HaveLen(50))
+			Expect(writer.shutdown).Should(BeTrue())
+		})
+
+		It("stops at the deadline and counts what is left in the queue", func() {
+			writer := &ShutdownRecordingWriter{}
+			sut.writer = writer
+
+			queue(20)
+
+			before := droppedEntries(querylog.DropReasonShutdown)
+
+			Expect(sut.Shutdown(ctx)).Should(MatchError(context.Canceled)) // ctx is done already
+			Expect(writer.entries).Should(BeEmpty())
+			Expect(writer.shutdown).Should(BeTrue())
+			Expect(droppedEntries(querylog.DropReasonShutdown) - before).Should(BeNumerically("==", 20))
+		})
+
+		It("leaves a writer that holds nothing in memory alone", func() {
+			queue(3) // the console writer
+
+			Expect(sut.Shutdown(context.Background())).Should(Succeed())
+			Expect(sut.logChan).Should(HaveLen(3))
 		})
 	})
 
@@ -556,6 +649,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(err).Should(Succeed())
 			Expect(writer).ShouldNot(BeNil())
 			Expect(writer).Should(BeAssignableToTypeOf(&querylog.DatabaseWriter{}))
+
+			// it connects in the background: stop it before the directory is removed
+			DeferCleanup(func() { _ = writer.(*querylog.DatabaseWriter).Shutdown(ctx) })
 		})
 
 		It("creates a dnstap writer", func() {

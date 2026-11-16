@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,6 +58,10 @@ type Server struct {
 	http3PacketConns []net.PacketConn // one per address in ports.https
 	closers          []io.Closer
 	redisCancel      context.CancelFunc
+
+	// shutdowners are the resolvers holding work in memory, like the query log;
+	// Stop lets them finish it once the DNS listeners have stopped.
+	shutdowners []resolver.Shutdowner
 
 	// dnsStartCancels holds the cancel funcs of every DNS startup context
 	// created by Start; Stop cancels all of them to abort bind retries and
@@ -202,6 +207,14 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, queryError
 	}
 
+	var shutdowners []resolver.Shutdowner
+
+	resolver.ForEach(queryResolver, func(res resolver.Resolver) {
+		if sd, ok := res.(resolver.Shutdowner); ok {
+			shutdowners = append(shutdowners, sd)
+		}
+	})
+
 	server = &Server{
 		dnsServers:       dnsServers,
 		queryResolver:    queryResolver,
@@ -210,6 +223,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		http3PacketConns: http3PacketConns,
 		redisCancel:      redisCancel,
 		closers:          redisClosers,
+		shutdowners:      shutdowners,
 	}
 
 	server.printConfiguration()
@@ -407,6 +421,7 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 
 	if network == networkUDP {
 		srv.UDPSize = maxUDPBufferSize
+		srv.MsgAcceptFunc = acceptUDPQuery
 	}
 
 	if tlsCfg != nil {
@@ -466,6 +481,28 @@ func attachListener(ctx context.Context, srv *dns.Server, network, address strin
 	}
 
 	return nil
+}
+
+// queryStackSize is the call frame the goroutine of a UDP query makes room for, see
+// util.GrowStack. The runtime doubles the 2 KiB stack the goroutine starts with until
+// the frame fits, which gives it 16 KiB: enough to answer a query without growing the
+// stack again.
+const queryStackSize = 8 << 10
+
+// acceptUDPQuery is the first code that runs on the goroutine of a UDP query, before the
+// query is unpacked.
+//
+// Each UDP query gets a new goroutine. Without growing its stack here, the runtime
+// doubles it up to three times per query: to unpack the query, inside the resolver
+// chain, and when the query is sent to an upstream. The goroutine of a packet the
+// server ignores or rejects keeps its stack.
+func acceptUDPQuery(dh dns.Header) dns.MsgAcceptAction {
+	action := dns.DefaultMsgAcceptFunc(dh)
+	if action == dns.MsgAccept {
+		util.GrowStack[[queryStackSize]byte]()
+	}
+
+	return action
 }
 
 func createTLSServer(ctx context.Context, address string, tlsCfg *tls.Config, opts listenerOptions,
@@ -797,11 +834,22 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Wait for the DNS serve goroutines to finish, bounded by the shutdown
-	// timeout carried by ctx. When the caller's context is already done there
-	// is no deadline left to enforce; the serve goroutines were already told
-	// to stop above and are shutdown-safe, so wait for them to finish rather
-	// than failing immediately.
+	errs := []error{s.waitForDNSServe(ctx)}
+
+	// After the DNS listeners, so the query log can write what they handed it.
+	for _, sd := range s.shutdowners {
+		errs = append(errs, sd.Shutdown(ctx))
+	}
+
+	return errors.Join(errs...)
+}
+
+// waitForDNSServe waits for the DNS serve goroutines to finish, bounded by the
+// shutdown timeout carried by ctx. When the caller's context is already done there
+// is no deadline left to enforce; the serve goroutines were already told
+// to stop and are shutdown-safe, so wait for them to finish rather
+// than failing immediately.
+func (s *Server) waitForDNSServe(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {
 		s.dnsServeWG.Wait()
@@ -837,17 +885,27 @@ func newRequest(
 	clientIP net.IP, clientID string,
 	protocol model.RequestProtocol, request *dns.Msg,
 ) (context.Context, *model.Request) {
-	ctx, logger := log.CtxWithFields(ctx, logrus.Fields{
-		"req_id":    uuid.New().String(),
-		"question":  util.QuestionToString(request.Question),
-		"client_ip": clientIP,
+	// The chain may rename the question in place (see ConditionalUpstreamResolver),
+	// the log entries of the request name what the client asked.
+	questions := slices.Clone(request.Question)
+
+	// Most requests log nothing, so the fields of their log entries are built when the
+	// first one is logged.
+	ctx = log.CtxWithLazyFields(ctx, func() logrus.Fields {
+		return logrus.Fields{
+			"req_id":    uuid.New().String(),
+			"question":  util.QuestionToString(questions),
+			"client_ip": clientIP,
+		}
 	})
 
-	logger.WithFields(logrus.Fields{
-		"client_request_id": request.Id,
-		"client_id":         clientID,
-		"protocol":          protocol,
-	}).Trace("new incoming request")
+	if log.IsLevelEnabled(ctx, logrus.TraceLevel) {
+		log.FromCtx(ctx).WithFields(logrus.Fields{
+			"client_request_id": request.Id,
+			"client_id":         clientID,
+			"protocol":          protocol,
+		}).Trace("new incoming request")
+	}
 
 	req := model.Request{
 		ClientIP:        clientIP,
@@ -928,7 +986,8 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 	contextUpstreamTimeoutMultiplier := 100
 	timeoutDuration := time.Duration(contextUpstreamTimeoutMultiplier) * s.cfg.Upstreams.Timeout.ToDuration()
 
-	ctx, cancel := context.WithTimeout(ctx, timeoutDuration)
+	// most queries are answered before anything waits on their context
+	ctx, cancel := util.WithLazyTimeout(ctx, timeoutDuration)
 
 	defer cancel()
 
