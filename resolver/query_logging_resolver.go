@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -43,6 +45,97 @@ type QueryLoggingResolver struct {
 	writer        querylog.Writer
 	instanceID    string
 	ignoreDomains stringcache.GroupedStringCache
+	ignoreClients *ignoredClients
+}
+
+// ignoredClients matches the queryLog.ignore.clients entries against the client
+// of a request, the same way blocking.clientGroupsBlock identifies clients.
+type ignoredClients struct {
+	// exact holds the lowercased literal entries: IPs (normalized) and client
+	// names. It is checked against the client IP and every client name.
+	exact map[string]struct{}
+	// cidrs holds the entries that parse as a CIDR.
+	cidrs []*net.IPNet
+	// globs holds the lowercased client name patterns, matched with filepath.Match.
+	globs []string
+}
+
+// newIgnoredClients builds a matcher for the queryLog.ignore.clients rules.
+// Returns nil when no clients are configured, so the per-query path stays free.
+func newIgnoredClients(clients []string, logger *logrus.Entry) *ignoredClients {
+	if len(clients) == 0 {
+		return nil
+	}
+
+	m := &ignoredClients{exact: make(map[string]struct{}, len(clients))}
+
+	for _, c := range clients {
+		id := strings.ToLower(strings.TrimSpace(c))
+
+		if id == "" {
+			logger.Warnf("ignoring invalid queryLog.ignore.clients entry: %q", c)
+
+			continue
+		}
+
+		if isClientNameGlob(id) {
+			if _, err := filepath.Match(id, ""); err != nil {
+				logger.Warnf("ignoring invalid queryLog.ignore.clients entry: %q", c)
+
+				continue
+			}
+
+			m.globs = append(m.globs, id)
+
+			continue
+		}
+
+		if _, ipNet, err := net.ParseCIDR(id); err == nil {
+			m.cidrs = append(m.cidrs, ipNet)
+
+			continue
+		}
+
+		// Normalize IPs, so that an IPv4-mapped IPv6 address matches the IPv4 entry
+		if ip := net.ParseIP(id); ip != nil {
+			id = ip.String()
+		}
+
+		m.exact[id] = struct{}{}
+	}
+
+	return m
+}
+
+// matches reports whether the request comes from an ignored client.
+func (m *ignoredClients) matches(request *model.Request) bool {
+	if request.ClientIP != nil {
+		if _, ok := m.exact[request.ClientIP.String()]; ok {
+			return true
+		}
+
+		for _, ipNet := range m.cidrs {
+			if ipNet.Contains(request.ClientIP) {
+				return true
+			}
+		}
+	}
+
+	for _, name := range request.ClientNames {
+		name = strings.ToLower(name)
+
+		if _, ok := m.exact[name]; ok {
+			return true
+		}
+
+		for _, pattern := range m.globs {
+			if matched, _ := filepath.Match(pattern, name); matched {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog, instanceID string) (querylog.Writer, error) {
@@ -166,6 +259,7 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 		writer:        writer,
 		instanceID:    instanceID,
 		ignoreDomains: ignoreDomains,
+		ignoreClients: newIgnoredClients(cfg.Ignore.Clients, logger),
 	}
 
 	go resolver.writeLog(ctx)
@@ -247,6 +341,10 @@ func (r *QueryLoggingResolver) ignore(request *model.Request, response *model.Re
 	cfg := r.cfg.Ignore
 
 	if cfg.SUDN && response.RType == model.ResponseTypeSPECIAL {
+		return true
+	}
+
+	if r.ignoreClients != nil && r.ignoreClients.matches(request) {
 		return true
 	}
 

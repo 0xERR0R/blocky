@@ -1317,6 +1317,7 @@ Configuration parameters:
 | queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite) or dnstap socket batching |
 | queryLog.ignore.sudn      | bool                                                                                 | no        | false         | if true, queries answered as Special Use Domain Names (SUDN) are not logged                   |
 | queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is matched against the query name as an exact domain, a `*.wildcard`, or a `/regex/` (exact domains and wildcards are stored as hashes, see [Storage of entries](#storage-of-entries)) |
+| queryLog.ignore.clients   | list of string                                                                       | no        |               | clients excluded from the query log; each entry is a client IP, a CIDR, or a client name, which can use `*` and `?` wildcards as in `clientGroupsBlock`. Their queries are still resolved, filtered and counted in the metrics |
 
 !!! hint
 
@@ -1390,6 +1391,23 @@ Parsing is handled not by Blocky, but third-party libraries, therefore the full 
           - "db._dns-sd._udp.home"
           - "/\\.in-addr\\.arpa$/"
           - "apple.com"
+    ```
+
+!!! example
+    **Ignore noisy clients**
+
+    A router or access point that checks its internet connection every few seconds can fill the log.
+    Its queries are still answered and filtered as usual; they just aren't written to the log.
+
+    ```yaml
+    queryLog:
+      type: mysql
+      target: 'username:password@tcp(localhost:3306)/blocky_query_log'
+      ignore:
+        clients:
+          - 192.168.178.1      # client IP
+          - 192.168.178.64/28  # CIDR
+          - "*-ap"             # client name, wildcards allowed
     ```
 
 ## Hosts file
