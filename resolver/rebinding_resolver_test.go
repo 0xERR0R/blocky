@@ -185,14 +185,14 @@ var _ = Describe("RebindingProtectionResolver", func() {
 		)
 
 		It("filters HTTPS answers with a private ipv4hint", func() {
-			https := &dns.HTTPS{SVCB: dns.SVCB{
+			https := &dns.HTTPS{
 				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
 				Priority: 1,
 				Target:   ".",
 				Value: []dns.SVCBKeyValue{
 					&dns.SVCBIPv4Hint{Hint: []net.IP{net.ParseIP("192.168.1.100")}},
 				},
-			}}
+			}
 			mockAnswer.Answer = []dns.RR{https}
 
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
@@ -221,7 +221,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 		})
 
 		It("filters HTTPS answers where only a later hint is private", func() {
-			https := &dns.HTTPS{SVCB: dns.SVCB{
+			https := &dns.HTTPS{
 				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
 				Priority: 1,
 				Target:   ".",
@@ -229,7 +229,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 					&dns.SVCBIPv4Hint{Hint: []net.IP{net.ParseIP("1.2.3.4"), net.ParseIP("192.168.1.100")}},
 					&dns.SVCBIPv6Hint{Hint: []net.IP{net.ParseIP("fd00::1")}},
 				},
-			}}
+			}
 			mockAnswer.Answer = []dns.RR{https}
 
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
@@ -285,11 +285,11 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			// per RFC 9460 §5 an upstream may attach the HTTPS/SVCB TargetName's
 			// address records in the additional section; they must be inspected
 			// like answer records
-			https := &dns.HTTPS{SVCB: dns.SVCB{
+			https := &dns.HTTPS{
 				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
 				Priority: 1,
 				Target:   "target.example.com.",
-			}}
+			}
 			mockAnswer.Answer = []dns.RR{https}
 			mockAnswer.Extra = []dns.RR{rebindTestA("target.example.com.", "192.168.1.1")}
 
@@ -557,9 +557,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 		JustBeforeEach(func() {
 			customDNS := NewCustomDNSResolver(config.CustomDNS{
-				RewriterConfig: config.RewriterConfig{
-					Rewrite: map[string]string{"source.test": "target.test"},
-				},
+				Rewrite: map[string]string{"source.test": "target.test"},
 				// the rewritten name is not in the mapping, so the query continues
 				// down the chain and reaches the rebinding protection
 				Mapping: config.CustomDNSMapping{"unrelated.lan": nil},

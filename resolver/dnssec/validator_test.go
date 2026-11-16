@@ -55,8 +55,8 @@ func unsignedDSDenial(name string) *model.Response {
 	}
 
 	return &model.Response{Res: &dns.Msg{
-		MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-		Ns:     []dns.RR{nsec},
+		Rcode: dns.RcodeSuccess,
+		Ns:    []dns.RR{nsec},
 	}}
 }
 
@@ -119,13 +119,13 @@ func authenticatedInsecureDelegation(
 		switch {
 		case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == dns.Fqdn(childName):
 			return &model.Response{Res: &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-				Ns:     []dns.RR{nsec, nsecSig},
+				Rcode: dns.RcodeSuccess,
+				Ns:    []dns.RR{nsec, nsecSig},
 			}}, nil
 		case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == dns.Fqdn(parentZone):
 			return &model.Response{Res: &dns.Msg{Answer: []dns.RR{key, dnskeySig}}}, nil
 		default:
-			return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+			return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeSuccess}}, nil
 		}
 	}
 
@@ -167,13 +167,13 @@ func authenticatedOptOutDelegation(
 		switch {
 		case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == dns.Fqdn(childName):
 			return &model.Response{Res: &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-				Ns:     []dns.RR{nsec3, nsec3Sig},
+				Rcode: dns.RcodeSuccess,
+				Ns:    []dns.RR{nsec3, nsec3Sig},
 			}}, nil
 		case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == dns.Fqdn(parentZone):
 			return &model.Response{Res: &dns.Msg{Answer: []dns.RR{key, dnskeySig}}}, nil
 		default:
-			return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+			return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeSuccess}}, nil
 		}
 	}
 
@@ -193,7 +193,7 @@ func dummyAnchorStore() *TrustAnchorStore {
 // benignEmptyResolve is a ResolveFn that returns an empty NOERROR for any query, so the
 // validator's sub-queries do not panic an unconfigured testify mock.
 func benignEmptyResolve(_ context.Context, _ *model.Request) (*model.Response, error) {
-	return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+	return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeSuccess}}, nil
 }
 
 // signedChain is a signed zone delegated from a trust-anchored parent zone.
@@ -478,7 +478,7 @@ var _ = Describe("DNSSECValidator", func() {
 				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "signed.example.":
 					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childKey, childDNSKEYSig}}}, nil
 				default:
-					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+					return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeSuccess}}, nil
 				}
 			}
 
@@ -522,7 +522,7 @@ var _ = Describe("DNSSECValidator", func() {
 				case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == "signed.example.":
 					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childDS, childDSSig}}}, nil
 				default:
-					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+					return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeSuccess}}, nil
 				}
 			}
 
@@ -567,7 +567,7 @@ var _ = Describe("DNSSECValidator", func() {
 				case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == "signed.example.":
 					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childDS, childDSSig}}}, nil
 				default:
-					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+					return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeSuccess}}, nil
 				}
 			}
 
@@ -882,8 +882,8 @@ var _ = Describe("DNSSECValidator", func() {
 				TypeBitMap: []uint16{dns.TypeNS, dns.TypeSOA, dns.TypeRRSIG, dns.TypeDNSKEY, dns.TypeNSEC3PARAM},
 			}
 			nxdomain := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{nsec3, signRRset([]dns.RR{nsec3}, dns.TypeNSEC3, chain.parentKey, chain.parentPriv, chain.parent)},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{nsec3, signRRset([]dns.RR{nsec3}, dns.TypeNSEC3, chain.parentKey, chain.parentPriv, chain.parent)},
 			}
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				if q := req.Req.Question[0]; q.Qtype == dns.TypeDS && q.Name == ghost {
@@ -1503,8 +1503,8 @@ var _ = Describe("DNSSECValidator", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{nsec3},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{nsec3},
 			}
 
 			question := dns.Question{
@@ -1550,8 +1550,8 @@ var _ = Describe("DNSSECValidator", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{nsec3a, nsec3b},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{nsec3a, nsec3b},
 			}
 
 			question := dns.Question{
@@ -1582,8 +1582,8 @@ var _ = Describe("DNSSECValidator", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{nsec3},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{nsec3},
 			}
 
 			question := dns.Question{
@@ -1598,8 +1598,8 @@ var _ = Describe("DNSSECValidator", func() {
 
 		It("should return Insecure when no NSEC3 records present", func() {
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{},
 			}
 
 			question := dns.Question{
@@ -1633,8 +1633,8 @@ var _ = Describe("DNSSECValidator", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{nsec3},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{nsec3},
 			}
 
 			question := dns.Question{
@@ -1760,8 +1760,8 @@ var _ = Describe("DNSSECValidator", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
-				Ns:     []dns.RR{nsec3},
+				Rcode: dns.RcodeNameError,
+				Ns:    []dns.RR{nsec3},
 			}
 
 			question := dns.Question{
@@ -1962,9 +1962,7 @@ var _ = Describe("DNSSECValidator", func() {
 		It("should detect NODATA response correctly", func() {
 			// Test NODATA detection (Success + empty answer)
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeSuccess,
-				},
+				Rcode:  dns.RcodeSuccess,
 				Answer: []dns.RR{}, // No records in answer
 			}
 
@@ -2275,9 +2273,7 @@ var _ = Describe("DNSSECValidator", func() {
 			mockUpstream.On("Resolve", mock.Anything, mock.Anything).Return(
 				&model.Response{
 					Res: &dns.Msg{
-						MsgHdr: dns.MsgHdr{
-							Rcode: dns.RcodeServerFailure,
-						},
+						Rcode: dns.RcodeServerFailure,
 					},
 				}, nil)
 
@@ -2385,9 +2381,7 @@ var _ = Describe("DNSSECValidator", func() {
 			mockUpstream.On("Resolve", mock.Anything, mock.Anything).Return(
 				&model.Response{
 					Res: &dns.Msg{
-						MsgHdr: dns.MsgHdr{
-							Rcode: dns.RcodeServerFailure,
-						},
+						Rcode: dns.RcodeServerFailure,
 					},
 				}, nil)
 
@@ -3035,7 +3029,7 @@ var _ = Describe("DNSSECValidator", func() {
 			mockUpstream.On("Resolve", mock.Anything, mock.Anything).Return(
 				&model.Response{
 					Res: &dns.Msg{
-						MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+						Rcode: dns.RcodeSuccess,
 					},
 				}, nil)
 
@@ -3312,9 +3306,7 @@ var _ = Describe("DNSSECValidator", func() {
 		When("response is NXDOMAIN with NSEC records", func() {
 			It("should validate denial of existence", func() {
 				response := &dns.Msg{
-					MsgHdr: dns.MsgHdr{
-						Rcode: dns.RcodeNameError,
-					},
+					Rcode: dns.RcodeNameError,
 					Ns: []dns.RR{
 						&dns.NSEC{
 							Hdr: dns.RR_Header{
@@ -3373,9 +3365,7 @@ var _ = Describe("DNSSECValidator", func() {
 		When("response is NXDOMAIN without signatures", func() {
 			It("should return Insecure", func() {
 				response := &dns.Msg{
-					MsgHdr: dns.MsgHdr{
-						Rcode: dns.RcodeNameError,
-					},
+					Rcode: dns.RcodeNameError,
 					Ns: []dns.RR{
 						&dns.SOA{
 							Hdr: dns.RR_Header{
@@ -3404,9 +3394,7 @@ var _ = Describe("DNSSECValidator", func() {
 			It("should validate denial of type existence", func() {
 				question.Qtype = dns.TypeAAAA
 				response := &dns.Msg{
-					MsgHdr: dns.MsgHdr{
-						Rcode: dns.RcodeSuccess,
-					},
+					Rcode:    dns.RcodeSuccess,
 					Question: []dns.Question{question},
 					Ns: []dns.RR{
 						&dns.NSEC{
@@ -3476,9 +3464,7 @@ var _ = Describe("DNSSECValidator", func() {
 		When("NSEC records prove NXDOMAIN", func() {
 			It("should return Secure when properly validated", func() {
 				response := &dns.Msg{
-					MsgHdr: dns.MsgHdr{
-						Rcode: dns.RcodeNameError,
-					},
+					Rcode: dns.RcodeNameError,
 					Ns: []dns.RR{
 						&dns.NSEC{
 							Hdr: dns.RR_Header{
@@ -3535,9 +3521,7 @@ var _ = Describe("DNSSECValidator", func() {
 		When("no NSEC/NSEC3 records present", func() {
 			It("should return Insecure", func() {
 				response := &dns.Msg{
-					MsgHdr: dns.MsgHdr{
-						Rcode: dns.RcodeNameError,
-					},
+					Rcode: dns.RcodeNameError,
 					Ns: []dns.RR{
 						&dns.SOA{
 							Hdr: dns.RR_Header{
@@ -3984,9 +3968,7 @@ var _ = Describe("DNSSECValidator", func() {
 	Describe("isNegativeResponse", func() {
 		It("should return true for NXDOMAIN", func() {
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeNameError,
-				},
+				Rcode: dns.RcodeNameError,
 			}
 
 			result := sut.isNegativeResponse(response)
@@ -3995,9 +3977,7 @@ var _ = Describe("DNSSECValidator", func() {
 
 		It("should return true for NODATA (success with no answer)", func() {
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeSuccess,
-				},
+				Rcode:  dns.RcodeSuccess,
 				Answer: []dns.RR{}, // Empty answer
 			}
 
@@ -4007,9 +3987,7 @@ var _ = Describe("DNSSECValidator", func() {
 
 		It("should return false for successful response with answer", func() {
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeSuccess,
-				},
+				Rcode: dns.RcodeSuccess,
 				Answer: []dns.RR{
 					&dns.A{
 						Hdr: dns.RR_Header{
@@ -4029,9 +4007,7 @@ var _ = Describe("DNSSECValidator", func() {
 
 		It("should return false for SERVFAIL", func() {
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeServerFailure,
-				},
+				Rcode: dns.RcodeServerFailure,
 			}
 
 			result := sut.isNegativeResponse(response)
@@ -4194,9 +4170,7 @@ var _ = Describe("Additional Validator Coverage", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeSuccess,
-				},
+				Rcode:    dns.RcodeSuccess,
 				Question: []dns.Question{question},
 				Answer:   []dns.RR{cname},
 			}
@@ -4251,9 +4225,7 @@ var _ = Describe("Additional Validator Coverage", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeSuccess,
-				},
+				Rcode:    dns.RcodeSuccess,
 				Question: []dns.Question{question},
 				Answer:   []dns.RR{cname, a},
 			}
@@ -4334,9 +4306,7 @@ var _ = Describe("Additional Validator Coverage", func() {
 			}
 
 			response := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Rcode: dns.RcodeNameError,
-				},
+				Rcode: dns.RcodeNameError,
 				Question: []dns.Question{
 					{
 						Name:   "nonexistent.example.com.",
