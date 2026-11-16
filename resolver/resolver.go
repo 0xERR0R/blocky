@@ -112,6 +112,12 @@ type NamedResolver interface {
 	Name() string
 }
 
+// Shutdowner is implemented by resolvers, and query log writers, that hold work in
+// memory: Shutdown finishes it, giving up when ctx is done.
+type Shutdowner interface {
+	Shutdown(ctx context.Context) error
+}
+
 // Chain creates a chain of resolvers
 func Chain(resolvers ...Resolver) ChainedResolver {
 	for i, res := range resolvers {

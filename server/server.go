@@ -58,6 +58,10 @@ type Server struct {
 	closers          []io.Closer
 	redisCancel      context.CancelFunc
 
+	// shutdowners are the resolvers holding work in memory, like the query log;
+	// Stop lets them finish it once the DNS listeners have stopped.
+	shutdowners []resolver.Shutdowner
+
 	// dnsStartCancels holds the cancel funcs of every DNS startup context
 	// created by Start; Stop cancels all of them to abort bind retries and
 	// stop the serve loops. A slice (rather than a single func) is kept so a
@@ -202,6 +206,14 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, queryError
 	}
 
+	var shutdowners []resolver.Shutdowner
+
+	resolver.ForEach(queryResolver, func(res resolver.Resolver) {
+		if sd, ok := res.(resolver.Shutdowner); ok {
+			shutdowners = append(shutdowners, sd)
+		}
+	})
+
 	server = &Server{
 		dnsServers:       dnsServers,
 		queryResolver:    queryResolver,
@@ -210,6 +222,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		http3PacketConns: http3PacketConns,
 		redisCancel:      redisCancel,
 		closers:          redisClosers,
+		shutdowners:      shutdowners,
 	}
 
 	server.printConfiguration()
@@ -797,11 +810,22 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Wait for the DNS serve goroutines to finish, bounded by the shutdown
-	// timeout carried by ctx. When the caller's context is already done there
-	// is no deadline left to enforce; the serve goroutines were already told
-	// to stop above and are shutdown-safe, so wait for them to finish rather
-	// than failing immediately.
+	errs := []error{s.waitForDNSServe(ctx)}
+
+	// After the DNS listeners, so the query log can write what they handed it.
+	for _, sd := range s.shutdowners {
+		errs = append(errs, sd.Shutdown(ctx))
+	}
+
+	return errors.Join(errs...)
+}
+
+// waitForDNSServe waits for the DNS serve goroutines to finish, bounded by the
+// shutdown timeout carried by ctx. When the caller's context is already done there
+// is no deadline left to enforce; the serve goroutines were already told
+// to stop and are shutdown-safe, so wait for them to finish rather
+// than failing immediately.
+func (s *Server) waitForDNSServe(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {
 		s.dnsServeWG.Wait()
