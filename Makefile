@@ -91,7 +91,7 @@ ifdef BIN_AUTOCAB
 endif
 
 test: check-go ## run tests
-	go tool ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
+	go tool ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS} --timeout 5m --flake-attempts=1
 	go tool cover -html coverage.txt -o coverage.html
 
 fuzz: check-go ## run each fuzz target for FUZZ_TIME (default 30s); e.g. make fuzz FUZZ_TIME=2m

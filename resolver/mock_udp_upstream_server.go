@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
 )
@@ -83,10 +82,10 @@ func (t *MockUDPUpstreamServer) Close() {
 
 func createConnection() *net.UDPConn {
 	a, err := net.ResolveUDPAddr("udp4", ":0")
-	util.FatalOnError("can't resolve address: ", err)
+	panicOnError("can't resolve address: ", err)
 
 	ln, err := net.ListenUDP("udp4", a)
-	util.FatalOnError("can't create connection: ", err)
+	panicOnError("can't create connection: ", err)
 
 	return ln
 }
@@ -98,7 +97,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 	host, portStr, _ := strings.Cut(ladr, ":")
 	p, err := config.ConvertPort(portStr)
 
-	util.FatalOnError("can't convert port: ", err)
+	panicOnError("can't convert port: ", err)
 
 	port := p
 	t.ln = ln
@@ -120,7 +119,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 				msg := new(dns.Msg)
 				err = msg.Unpack(buffer[0:n])
 
-				util.FatalOnError("can't deserialize message: ", err)
+				panicOnError("can't deserialize message: ", err)
 
 				t.callCount.Add(1)
 
@@ -133,7 +132,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 				}
 
 				b, err := mockReply(msg, response).Pack()
-				util.FatalOnError("can't serialize message: ", err)
+				panicOnError("can't serialize message: ", err)
 
 				_, _ = ln.WriteToUDP(b, addr)
 			}()
