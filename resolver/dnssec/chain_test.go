@@ -737,7 +737,7 @@ var _ = Describe("Chain of trust validation", func() {
 				if q := req.Req.Question[0]; q.Qtype == dns.TypeDNSKEY && q.Name == chain.parent && truncate {
 					truncate = false
 
-					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Truncated: true}}}, nil
+					return &model.Response{Res: &dns.Msg{Truncated: true}}, nil
 				}
 
 				return chain.resolve(ctx, req)
@@ -1435,7 +1435,7 @@ var _ = Describe("Chain of trust validation", func() {
 		It("should return Indeterminate when the DNSKEY query is answered with an error RCODE", func() {
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
-					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}}}, nil
+					return &model.Response{Res: &dns.Msg{Rcode: dns.RcodeServerFailure}}, nil
 				}
 
 				return chain.resolve(ctx, req)

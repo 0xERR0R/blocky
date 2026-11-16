@@ -343,6 +343,14 @@ func (v *Validator) verifyRRSIG(
 
 	// Use miekg/dns to verify the signature (expensive crypto operation)
 	if err := rrsig.Verify(key, rrset); err != nil {
+		// Go's crypto/rsa cannot load exponents >= 2^31-1, so miekg/dns reports "dns: bad key"
+		// for an otherwise valid RSA/SHA-256 or RSA/SHA-512 key (e.g. exponent 2^32+1). Verify
+		// such signatures with math/big so these zones validate Secure instead of being
+		// degraded (issue #2364).
+		if rsaKeyNeedsBigMath(key) && verifyRSAWithBigExponent(rrset, rrsig, key) == nil {
+			return nil
+		}
+
 		// Debug: log RRset details on failure
 		v.logger.Debugf("Signature verification failed for RRset with %d records:", len(rrset))
 		for i, rr := range rrset {
