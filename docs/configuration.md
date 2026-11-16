@@ -1240,6 +1240,17 @@ You can select one of following query log types:
 - `dnstap`: export client DNS query/response events via [dnstap](https://dnstap.info/) (Frame Streams over Unix socket or TCP)
 - `none`: do not log any queries
 
+#### Database query log
+
+The database targets (`mysql`, `postgresql`, `timescale` and `sqlite`) buffer entries in memory and write them in batches, so DNS answers never wait on the database.
+
+- If the database is slow or can't be opened (unreachable, wrong credentials, a schema that can't be migrated), blocky keeps the entries and retries in the background until they are written. This includes startup: such a database doesn't make blocky fall back to the console, though a malformed `target` still does.
+- On shutdown, blocky writes what is left within its 10-second shutdown timeout, and logs how many entries it had to drop.
+- A write that fails at commit is retried, although the database may have stored it: those entries are then stored again.
+- Client names are stored as valid UTF-8 without control characters, cut to 191 characters. On MySQL and MariaDB, give the database the `utf8mb4` character set, which the table inherits; names it can't store are refused, and finding refused rows takes extra writes.
+- On MySQL and MariaDB the driver sets no time limit on a commit. Add `readTimeout` to the `target` (e.g. `readTimeout=1m`) to have a connection that stops answering dropped and retried; no statement can then run longer than that, the retention cleanup included.
+- Blocky holds about 32 MiB of entries in memory at most. Entries beyond that, and rows the database refuses, are dropped and counted in `blocky_query_log_entries_dropped_total` (see [Prometheus](prometheus_grafana.md)).
+
 #### SQLite query log
 
 The `sqlite` target stores the query log in a single local file (set via `queryLog.target`, e.g. `/var/lib/blocky/querylog.db`) — no external database is required. Blocky creates the file and its parent directory automatically.
@@ -1311,10 +1322,10 @@ Configuration parameters:
 | queryLog.type             | enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, dnstap, none (see above)) | no        |               | Type of logging target. Console if empty                                                      |
 | queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv), database file path (for sqlite), database url (for mysql, postgresql or timescale), or dnstap socket address (`unix:…`, `tcp://…`, or bare `/path`); supports `file:` for database URLs — see [Redis tip](#redis) |
 | queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days; not used for dnstap   |
-| queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                              |
+| queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer; an unreachable database is retried in the background instead (see [Database query log](#database-query-log)) |
 | queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |
 | queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged; ignored for dnstap                                        |
-| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite) or dnstap socket batching |
+| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite; also as soon as 1,000 are buffered) or dnstap socket batching |
 | queryLog.ignore.sudn      | bool                                                                                 | no        | false         | if true, queries answered as Special Use Domain Names (SUDN) are not logged                   |
 | queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is matched against the query name as an exact domain, a `*.wildcard`, or a `/regex/` (exact domains and wildcards are stored as hashes, see [Storage of entries](#storage-of-entries)) |
 
