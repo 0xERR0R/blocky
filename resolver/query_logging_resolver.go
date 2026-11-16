@@ -216,18 +216,13 @@ func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache
 	return matcher
 }
 
-// NewQueryLoggingResolver returns a new resolver instance
-func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLoggingResolver, error) {
-	logger := log.PrefixedLog(queryLoggingResolverType)
-
+// createWriterWithRetry creates the query log writer, retrying on failure.
+func createWriterWithRetry(ctx context.Context, cfg config.QueryLog, instanceID string,
+	logger *logrus.Entry,
+) (querylog.Writer, error) {
 	var writer querylog.Writer
 
-	instanceID, err := readInstanceID("/etc/hostname")
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine instance ID for query logging: %w", err)
-	}
-
-	err = retry.Do(
+	err := retry.Do(
 		func() error {
 			var err error
 
@@ -243,6 +238,20 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 				"Error occurred on query writer creation, retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err,
 			)
 		}))
+
+	return writer, err
+}
+
+// NewQueryLoggingResolver returns a new resolver instance
+func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLoggingResolver, error) {
+	logger := log.PrefixedLog(queryLoggingResolverType)
+
+	instanceID, err := readInstanceID("/etc/hostname")
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine instance ID for query logging: %w", err)
+	}
+
+	writer, err := createWriterWithRetry(ctx, cfg, instanceID, logger)
 	if err != nil {
 		logger.Error("can't create query log writer, using console as fallback: ", err)
 
