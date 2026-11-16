@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	cache "github.com/0xERR0R/expiration-cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -50,9 +49,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 		Context("Prefetching", func() {
 			It("Should prefetch element", func() {
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: cache.Options{
-						CleanupInterval: 100 * time.Millisecond,
-					},
+					CleanupInterval:   100 * time.Millisecond,
 					PrefetchThreshold: 2,
 					PrefetchExpires:   100 * time.Millisecond,
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
@@ -82,9 +79,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 			})
 			It("Should not prefetch element", func() {
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: cache.Options{
-						CleanupInterval: 100 * time.Millisecond,
-					},
+					CleanupInterval:   100 * time.Millisecond,
 					PrefetchThreshold: 2,
 					PrefetchExpires:   100 * time.Millisecond,
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
@@ -111,9 +106,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 			})
 			It("With default config (threshold = 0) should always prefetch", func() {
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: cache.Options{
-						CleanupInterval: 100 * time.Millisecond,
-					},
+					CleanupInterval: 100 * time.Millisecond,
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
@@ -139,9 +132,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 				publishedVal := make(chan string, 1)
 
 				c := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: cache.Options{
-						CleanupInterval: 100 * time.Millisecond,
-					},
+					CleanupInterval: 100 * time.Millisecond,
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
@@ -175,9 +166,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 
 			It("Should not panic when the reload publisher is cleared with nil", func() {
 				c := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: cache.Options{
-						CleanupInterval: 100 * time.Millisecond,
-					},
+					CleanupInterval: 100 * time.Millisecond,
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
@@ -213,9 +202,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 				onPrefetchEntryReloaded := make(chan string, 10)
 				onnPrefetchCacheHit := make(chan string, 10)
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: cache.Options{
-						CleanupInterval: 100 * time.Millisecond,
-					},
+					CleanupInterval:   100 * time.Millisecond,
 					PrefetchThreshold: 2,
 					PrefetchExpires:   100 * time.Millisecond,
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
