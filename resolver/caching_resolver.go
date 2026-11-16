@@ -226,9 +226,14 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
 		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
-		logger := logger.WithField(logFieldDomain, util.Obfuscate(domain))
 
-		val, ttl := r.getFromCache(logger, cacheKey)
+		// only debug lines are logged with the domain, which is not free to obfuscate
+		logger := logger
+		if isDebugEnabled(logger) {
+			logger = logger.WithField(logFieldDomain, util.Obfuscate(domain))
+		}
+
+		val, ttl := r.getFromCache(logger, domain, cacheKey)
 
 		if val != nil {
 			logger.Debug("domain is cached")
@@ -245,7 +250,10 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
-		logger.WithField("next_resolver", Name(r.next)).Trace("not in cache: go to next resolver")
+		if isTraceEnabled(logger) {
+			logger.WithField("next_resolver", Name(r.next)).Trace("not in cache: go to next resolver")
+		}
+
 		response, err = r.next.Resolve(ctx, request)
 
 		if err == nil {
@@ -259,7 +267,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	return response, nil
 }
 
-func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.Msg, time.Duration) {
+func (r *CachingResolver) getFromCache(logger *logrus.Entry, domain, key string) (*dns.Msg, time.Duration) {
 	val, ttl := r.resultCache.Get(key)
 	if val == nil {
 		return nil, 0
@@ -269,7 +277,8 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.M
 
 	err := res.Unpack(*val)
 	if err != nil {
-		logger.Error("can't unpack cached entry. Cache malformed?", err)
+		logger.WithField(logFieldDomain, util.Obfuscate(domain)).
+			Error("can't unpack cached entry. Cache malformed?", err)
 
 		return nil, 0
 	}

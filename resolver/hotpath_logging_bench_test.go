@@ -61,7 +61,7 @@ func BenchmarkChainLoggingPlumbing(b *testing.B) {
 
 	// seed the request context with the same fields the server attaches per request
 	// (req_id / question / client_ip), so the cloned Data map has a realistic size.
-	baseCtx, _ := log.CtxWithFields(context.Background(), logrus.Fields{
+	baseCtx := log.CtxWithFields(context.Background(), logrus.Fields{
 		"req_id":    "00000000-0000-0000-0000-000000000000",
 		"question":  "A (example.com.)",
 		"client_ip": "192.168.1.100",

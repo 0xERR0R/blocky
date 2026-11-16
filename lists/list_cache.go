@@ -123,6 +123,12 @@ func logger() *logrus.Entry {
 // Returns a map of matching group -> the rule that matched, or nil/empty when
 // the domain is not in any of the groups.
 func (b *ListCache) Match(domain string, groupsToCheck []string) (matches map[string]string) {
+	// Without lists nothing matches. That is the usual state of the allowlist cache,
+	// which is asked about every query and every address of its answer.
+	if len(b.groupSources) == 0 {
+		return nil
+	}
+
 	return b.groupedCache.Contains(domain, groupsToCheck)
 }
 
