@@ -320,11 +320,17 @@ func (v *Validator) checkWildcardNSEC3Match(nsec3Records []*dns.NSEC3, qname str
 			// NODATA proof only proves an insecure delegation when the NSEC3 asserts a
 			// delegation - NS bit set, SOA and DS bits clear. Without it, a missing-DS answer
 			// for an in-zone name is bogus, not insecure (GHSA-x845-2f78-7v36 finding 4).
+			//
+			// However, the wildcard NSEC3 may double as the NSEC3 that covers the "next
+			// closer" name of an unsigned delegation in an Opt-Out zone (RFC 5155 §8.6). The
+			// Opt-Out flag, not the NS bit, then proves the delegation is insecure. Fall
+			// through to the Opt-Out check below instead of returning Bogus (issue #2365);
+			// that check still returns Bogus when no Opt-Out record covers the name.
 			if qtype == dns.TypeDS && !nsec3AssertsDelegation(nsec3) {
-				v.logger.Warnf("NSEC3 wildcard DS-absence proof for %s does not assert an insecure "+
-					"delegation (NS bit clear or SOA bit set)", qname)
+				v.logger.Debugf("NSEC3 wildcard DS-absence proof for %s does not assert an insecure "+
+					"delegation (NS bit clear or SOA bit set) - checking Opt-Out", qname)
 
-				return ValidationResultBogus
+				break
 			}
 
 			v.logger.Debugf("NSEC3 wildcard NODATA proof validated for %s type %d", qname, qtype)
