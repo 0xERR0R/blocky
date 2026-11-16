@@ -263,6 +263,36 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Expect(ignored.Calls).Should(BeEmpty())
 				})
 			})
+
+			Describe("Clients", func() {
+				BeforeEach(func() {
+					sutConfig.Ignore.Clients = []string{"192.168.178.1", "10.0.0.0/24", "printer", "*-ap"}
+				})
+
+				DescribeTable("should not log queries from a matching client",
+					func(ip string, names ...string) {
+						_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, ip, names...))
+						Expect(err).Should(Succeed())
+
+						Expect(sut.logChan).Should(BeEmpty())
+						Expect(ignored.Messages).Should(ContainElement(ContainSubstring("ignored querylog entry")))
+					},
+					Entry("by IP", "192.168.178.1", "router"),
+					Entry("by CIDR", "10.0.0.7", "laptop"),
+					Entry("by client name, case-insensitive", "192.168.178.30", "Printer"),
+					Entry("by client name wildcard", "192.168.178.31", "kitchen-ap"),
+					Entry("by any of the client names", "192.168.178.32", "laptop", "printer"),
+				)
+
+				It("should log queries from other clients", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).ShouldNot(BeEmpty())
+					Expect(ignored.Calls).Should(BeEmpty())
+				})
+			})
 		})
 
 		When("Configuration with logging per client", func() {
@@ -706,6 +736,45 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(matcher.Contains("unrelated.example.net", groups)).Should(BeEmpty())
 			Expect(matcher.Contains("example.com", groups)).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
+		})
+	})
+
+	Describe("newIgnoredClients", func() {
+		It("returns nil for an empty list", func() {
+			logger, _ := log.NewMockEntry()
+			Expect(newIgnoredClients(nil, logger)).Should(BeNil())
+		})
+
+		It("matches IPs, CIDRs, client names and wildcards", func() {
+			logger, _ := log.NewMockEntry()
+			m := newIgnoredClients([]string{"192.0.2.10", "2001:DB8::1", "192.0.2.64/28", " NAS ", "*-ap"}, logger)
+
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.10"))).Should(BeTrue())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "::ffff:192.0.2.10"))).Should(BeTrue())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "2001:db8::1"))).Should(BeTrue())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.70"))).Should(BeTrue())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.80", "nas"))).Should(BeTrue())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.80", "Office-AP"))).Should(BeTrue())
+
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.80", "laptop"))).Should(BeFalse())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.11"))).Should(BeFalse())
+		})
+
+		It("matches a CIDR entry only against the client IP", func() {
+			logger, _ := log.NewMockEntry()
+			m := newIgnoredClients([]string{"192.0.2.0/24"}, logger)
+
+			Expect(m.matches(newRequestWithClient("example.com.", A, "198.51.100.1", "192.0.2.0/24"))).Should(BeFalse())
+		})
+
+		It("warns and skips invalid entries but keeps valid ones", func() {
+			logger, hook := log.NewMockEntry()
+			m := newIgnoredClients([]string{"[", "  ", "printer"}, logger)
+
+			Expect(m.globs).Should(BeEmpty())
+			Expect(m.matches(newRequestWithClient("example.com.", A, "192.0.2.1", "printer"))).Should(BeTrue())
+			Expect(hook.Messages).Should(HaveEach(ContainSubstring("invalid")))
+			Expect(hook.Messages).Should(HaveLen(2))
 		})
 	})
 })
