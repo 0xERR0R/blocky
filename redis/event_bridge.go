@@ -9,8 +9,8 @@ import (
 
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
-	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 )
 
