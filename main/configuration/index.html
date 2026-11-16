@@ -5224,6 +5224,13 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td></td>
 <td>domains excluded from the query log; each entry is matched against the query name as an exact domain, a <code>*.wildcard</code>, or a <code>/regex/</code> (exact domains and wildcards are stored as hashes, see <a href="#storage-of-entries">Storage of entries</a>)</td>
 </tr>
+<tr>
+<td>queryLog.ignore.clients</td>
+<td>list of string</td>
+<td>no</td>
+<td></td>
+<td>clients excluded from the query log; each entry is a client IP, a <abbr title="Classless Inter-Domain Routing">CIDR</abbr>, or a client name, which can use <code>*</code> and <code>?</code> wildcards as in <code>clientGroupsBlock</code>. Their queries are still resolved, filtered and counted in the metrics</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition hint">
@@ -5317,6 +5324,21 @@ queryLog:
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"db._dns-sd._udp.home"</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"/\\.in-addr\\.arpa$/"</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"apple.com"</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<p><strong>Ignore noisy clients</strong></p>
+<p>A router or access point that checks its internet connection every few seconds can fill the log.
+Its queries are still answered and filtered as usual; they just aren't written to the log.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">queryLog</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">'username:password@tcp(localhost:3306)/blocky_query_log'</span>
+<span class="w">  </span><span class="nt">ignore</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">clients</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.1</span><span class="w">      </span><span class="c1"># client IP</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.64/28</span><span class="w">  </span><span class="c1"># CIDR</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"*-ap"</span><span class="w">             </span><span class="c1"># client name, wildcards allowed</span>
 </code></pre></div>
 </div>
 <h2 id="hosts-file">Hosts file</h2>

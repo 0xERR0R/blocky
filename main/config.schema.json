@@ -773,6 +773,13 @@
               },
               "type": "array",
               "description": "Domains whose queries are not logged. Each entry is matched against the\nquery name as an exact domain, a *.wildcard, or a /regex/."
+            },
+            "clients": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Clients whose queries are not logged. Each entry is a client IP, a CIDR, or\na client name, which can use * and ? wildcards as in clientGroupsBlock."
             }
           },
           "additionalProperties": false,
