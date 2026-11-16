@@ -26,9 +26,9 @@ import (
 	"github.com/0xERR0R/blocky/server/freebind"
 
 	"github.com/0xERR0R/blocky/util"
-	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"

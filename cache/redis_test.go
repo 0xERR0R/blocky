@@ -10,9 +10,9 @@ import (
 
 	expirationcache "github.com/0xERR0R/expiration-cache"
 	"github.com/alicebob/miniredis/v2"
-	goredis "github.com/go-redis/redis/v8"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 // testValue is a simple string wrapper used as cache value type in tests.

@@ -9,30 +9,32 @@ import (
 
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/alicebob/miniredis/v2"
-	goredis "github.com/go-redis/redis/v8"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 type bridgePublishHook struct {
 	before func(context.Context) error
 }
 
-func (h *bridgePublishHook) BeforeProcess(ctx context.Context, cmd goredis.Cmder) (context.Context, error) {
-	if cmd.Name() == "publish" {
-		return ctx, h.before(ctx)
+func (h *bridgePublishHook) ProcessHook(next goredis.ProcessHook) goredis.ProcessHook {
+	return func(ctx context.Context, cmd goredis.Cmder) error {
+		if cmd.Name() == "publish" {
+			if err := h.before(ctx); err != nil {
+				return err
+			}
+		}
+
+		return next(ctx, cmd)
 	}
-
-	return ctx, nil
 }
 
-func (*bridgePublishHook) AfterProcess(context.Context, goredis.Cmder) error { return nil }
+func (*bridgePublishHook) DialHook(next goredis.DialHook) goredis.DialHook { return next }
 
-func (*bridgePublishHook) BeforeProcessPipeline(ctx context.Context, _ []goredis.Cmder) (context.Context, error) {
-	return ctx, nil
+func (*bridgePublishHook) ProcessPipelineHook(next goredis.ProcessPipelineHook) goredis.ProcessPipelineHook {
+	return next
 }
-
-func (*bridgePublishHook) AfterProcessPipeline(context.Context, []goredis.Cmder) error { return nil }
 
 var _ = Describe("EventBusBridge background publication", func() {
 	var (

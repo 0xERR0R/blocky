@@ -10,9 +10,9 @@ import (
 
 	// goredis is the client lib; redismod is the testcontainers module —
 	// aliased to avoid the two "redis" package names colliding.
-	goredis "github.com/go-redis/redis/v8"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
 	redismod "github.com/testcontainers/testcontainers-go/modules/redis"
 )
