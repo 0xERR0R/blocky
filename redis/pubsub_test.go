@@ -9,9 +9,9 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/alicebob/miniredis/v2"
 	miniserver "github.com/alicebob/miniredis/v2/server"
-	goredis "github.com/go-redis/redis/v8"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 // newSlowCancelClient returns a client whose dials block until cancelled and

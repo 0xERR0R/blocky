@@ -15,7 +15,6 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	miniserver "github.com/alicebob/miniredis/v2/server"
 	"github.com/creasty/defaults"
-	goredis "github.com/go-redis/redis/v8"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -111,9 +110,12 @@ var _ = Describe("Optional Redis recovery", func() {
 		ctx, cancel := context.WithCancel(specCtx)
 		DeferCleanup(cancel)
 		redisServer.Server().SetPreHook(func(peer *miniserver.Peer, command string, _ ...string) bool {
-			if command == "PING" {
+			switch command {
+			case "PING":
 				peer.WriteError("ERR unavailable")
-			} else {
+			case "HELLO", "CLIENT":
+				return false
+			default:
 				<-ctx.Done()
 			}
 
@@ -166,17 +168,7 @@ var _ = Describe("Optional Redis recovery", func() {
 		DeferCleanup(func() { Expect(srv.Stop(ctx)).Should(Succeed()) })
 		Eventually(func() int { return redisServer.Publish("blocky_cache_sync", "") }).Should(Equal(1))
 		Eventually(func() int { return redisServer.Publish(redis.EventBridgeChannel, "") }).Should(Equal(1))
-		var redisCtx context.Context
-		for _, closer := range srv.closers {
-			if client, ok := closer.(*goredis.Client); ok {
-				redisCtx = client.Context()
-			}
-		}
-		Expect(redisCtx).ShouldNot(BeNil())
-		Expect(redisCtx.Err()).ShouldNot(HaveOccurred())
-
 		Expect(srv.Stop(ctx)).Should(Succeed())
-		Expect(redisCtx.Err()).Should(MatchError(context.Canceled))
 		Expect(ctx.Err()).ShouldNot(HaveOccurred())
 		Eventually(redisServer.CurrentConnectionCount).Should(BeZero())
 	})

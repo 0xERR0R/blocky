@@ -2231,6 +2231,52 @@ var _ = Describe("NSEC3 validation", func() {
 			Expect(result).Should(Equal(ValidationResultSecure),
 				"valid insecure-delegation wildcard NSEC3 was wrongly rejected as a DS-absence proof")
 		})
+
+		It("treats an opt-out wildcard NSEC3 covering the next closer as an insecure delegation", func() {
+			// issue #2365: nic.merck is an unsigned delegation under merck, an NSEC3
+			// opt-out zone with an apex wildcard. The DS answer carries the RFC 5155
+			// §8.6 opt-out proof: merck is the closest encloser and the NSEC3 covering
+			// the next closer (nic.merck) has Opt-Out set. That covering NSEC3 happens
+			// to be owned by *.merck, so the wildcard-NODATA path must not short-circuit
+			// the opt-out check.
+			zoneName := "merck."
+			qname := "nic.merck."
+
+			hashZone, err := sut.computeNSEC3Hash(zoneName, dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			hashWildcard, err := sut.computeNSEC3Hash("*.merck.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			hashQuery, err := sut.computeNSEC3Hash(qname, dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: hashZone + ".merck.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			// The wildcard NSEC3 doubles as the §8.6 cover for nic.merck: it has Opt-Out
+			// set and its span (owner, NextDomain] includes the next closer's hash.
+			nsec3Wildcard := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: hashWildcard + ".merck.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				Flags:      0x01,                               // Opt-Out
+				NextDomain: hashQuery,                          // covers hashQuery (range is (owner, next])
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG}, // in-zone wildcard: no NS bit
+			}
+
+			result := sut.checkWildcardNSEC3Match(
+				[]*dns.NSEC3{nsec3Zone, nsec3Wildcard}, qname, dns.TypeDS,
+				zoneName, dns.SHA1, "", 0, hashQuery,
+			)
+
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
 	})
 
 	Describe("validateNSEC3NXDOMAIN - extended error paths", func() {
