@@ -115,6 +115,9 @@ var _ = BeforeSuite(func() {
 				"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
 				"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
 			},
+			ClientMapping: config.CustomDNSClientMapping{
+				"clSplit": {"split.blocky-test.org": {&dns.A{A: net.ParseIP("192.168.178.60")}}},
+			},
 		},
 		Conditional: config.ConditionalUpstream{
 			Mapping: config.ConditionalUpstreamMapping{
@@ -229,6 +232,35 @@ var _ = Describe("Running DNS server", func() {
 							BeDNSRecord("host.lan.home.", A, "192.168.178.56"),
 							HaveTTL(BeNumerically("==", 3600)),
 						))
+			})
+		})
+		Context("Custom DNS entry of one client", func() {
+			It("is answered for that client only, and never through the shared cache", func() {
+				clientNamesResolver, err := resolver.GetFromChainWithType[*resolver.ClientNamesResolver](sut.queryResolver)
+				Expect(err).Should(Succeed())
+
+				asClient := func(name string) {
+					mockClientName.Store(name)
+					clientNamesResolver.FlushCache()
+				}
+
+				query := func() *dns.Msg {
+					return requestServer(ctx, util.NewMsgWithQuestion("split.blocky-test.org.", A))
+				}
+
+				own := BeDNSRecord("split.blocky-test.org.", A, "192.168.178.60")
+				upstream := BeDNSRecord("split.blocky-test.org.", A, "123.124.122.122")
+
+				asClient("clSplit")
+				Expect(query()).Should(own)
+
+				asClient("clOther")
+				Expect(query()).Should(upstream)
+				// from the cache now
+				Expect(query()).Should(upstream)
+
+				asClient("clSplit")
+				Expect(query()).Should(own)
 			})
 		})
 		Context("Conditional upstream", func() {
