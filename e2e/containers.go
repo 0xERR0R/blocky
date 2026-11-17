@@ -16,7 +16,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 	"github.com/miekg/dns"
 	"github.com/moby/moby/api/types/container"
 	. "github.com/onsi/ginkgo/v2"
@@ -420,7 +420,13 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 
 	const retryAttempts = 3
 
-	err = retry.Do(
+	err = retry.New(
+		retry.OnRetry(func(n uint, err error) {
+			log.Infof("Performing retry DNS request #%d: %s\n", n, err)
+		}),
+		retry.Attempts(retryAttempts),
+		retry.DelayType(retry.BackOffDelay),
+		retry.Delay(time.Second)).Do(
 		func() error {
 			_, err = doDNSRequest(ctx, container, util.NewMsgWithQuestion("healthcheck.blocky.", dns.Type(dns.TypeA)))
 			if err != nil {
@@ -428,13 +434,7 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 			}
 
 			return nil
-		},
-		retry.OnRetry(func(n uint, err error) {
-			log.Infof("Performing retry DNS request #%d: %s\n", n, err)
-		}),
-		retry.Attempts(retryAttempts),
-		retry.DelayType(retry.BackOffDelay),
-		retry.Delay(time.Second))
+		})
 	if err != nil {
 		return fmt.Errorf("can't perform the DNS healthcheck request: %w", err)
 	}
@@ -443,16 +443,16 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 		parts := strings.Split(httpPort, ":")
 		port := parts[len(parts)-1]
 
-		err = retry.Do(
-			func() error {
-				return doHTTPRequest(ctx, container, port)
-			},
+		err = retry.New(
 			retry.OnRetry(func(n uint, err error) {
 				log.Infof("Performing retry HTTP request #%d: %s\n", n, err)
 			}),
 			retry.Attempts(retryAttempts),
 			retry.DelayType(retry.BackOffDelay),
-			retry.Delay(time.Second))
+			retry.Delay(time.Second)).Do(
+			func() error {
+				return doHTTPRequest(ctx, container, port)
+			})
 		if err != nil {
 			return fmt.Errorf("can't perform the HTTP request: %w", err)
 		}

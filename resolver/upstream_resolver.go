@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
@@ -651,7 +651,23 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 		ip   net.IP
 	)
 
-	err = retry.Do(
+	err = retry.New(
+		retry.Context(ctx),
+		retry.Attempts(retryAttempts),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(1*time.Millisecond),
+		retry.LastErrorOnly(true),
+		retry.RetryIf(isTimeout),
+		retry.OnRetry(func(n uint, err error) {
+			logger.WithFields(logrus.Fields{
+				logFieldUpstream: r.cfg.String(),
+				"upstream_ip":    ip.String(),
+				"question":       util.QuestionToString(request.Req.Question),
+				"attempt":        fmt.Sprintf("%d/%d", n+1, retryAttempts),
+			}).Debugf("%s, retrying...", err)
+
+			ips.Next()
+		})).Do(
 		func() error {
 			ip = ips.Current()
 			upstreamURL := r.upstreamClient.fmtURL(ip, r.cfg.Port, r.cfg.Path)
@@ -668,23 +684,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 			r.logResponse(logger, request, response, ip, rtt)
 
 			return nil
-		},
-		retry.Context(ctx),
-		retry.Attempts(retryAttempts),
-		retry.DelayType(retry.FixedDelay),
-		retry.Delay(1*time.Millisecond),
-		retry.LastErrorOnly(true),
-		retry.RetryIf(isTimeout),
-		retry.OnRetry(func(n uint, err error) {
-			logger.WithFields(logrus.Fields{
-				logFieldUpstream: r.cfg.String(),
-				"upstream_ip":    ip.String(),
-				"question":       util.QuestionToString(request.Req.Question),
-				"attempt":        fmt.Sprintf("%d/%d", n+1, retryAttempts),
-			}).Debugf("%s, retrying...", err)
-
-			ips.Next()
-		}))
+		})
 	if err != nil {
 		return nil, fmt.Errorf("all %d attempts to resolve via upstream %s failed: %w", retryAttempts, r.cfg.String(), err)
 	}

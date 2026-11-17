@@ -16,7 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -322,14 +322,16 @@ func databaseMigration(db *gorm.DB, dbType config.QueryLogType, logRetentionDays
 func (d *DatabaseWriter) run(ctx context.Context) {
 	defer close(d.runDone)
 
-	err := retry.Do(func() error {
-		db, err := openDatabase(ctx, d.dialect, d.dbType, d.logRetentionDays)
-		if err == nil {
-			d.db.Store(db)
-		}
+	err := retry.New(retryOptions(ctx, "connect to the query log database")...).Do(
+		func() error {
+			db, err := openDatabase(ctx, d.dialect, d.dbType, d.logRetentionDays)
+			if err == nil {
+				d.db.Store(db)
+			}
 
-		return err
-	}, retryOptions(ctx, "connect to the query log database")...)
+			return err
+		},
+	)
 	if err != nil {
 		return // ctx is done
 	}
@@ -406,9 +408,11 @@ func sizeOf(entries []*logEntry) int {
 // plain row but not this batch, ship splits the batch until the rows it refuses are
 // found, so they can't hold up the rest.
 func (d *DatabaseWriter) ship(ctx context.Context, batch []*logEntry) (int, error) {
-	err := retry.Do(func() error {
-		return d.attempt(ctx, batch)
-	}, retryOptions(ctx, fmt.Sprintf("write %d query log entries", len(batch)))...)
+	err := retry.New(retryOptions(ctx, fmt.Sprintf("write %d query log entries", len(batch)))...).Do(
+		func() error {
+			return d.attempt(ctx, batch)
+		},
+	)
 
 	switch {
 	case err == nil:

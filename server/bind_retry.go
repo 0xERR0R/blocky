@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 	"github.com/miekg/dns"
 )
 
@@ -50,14 +50,15 @@ func listenTCPRetry(ctx context.Context, address string) (net.Listener, error) {
 
 	var listener net.Listener
 
-	err := retry.Do(
+	err := retry.New(
+		bindRetryOptions(ctx, networkTCP, address)...,
+	).Do(
 		func() error {
 			var err error
 			listener, err = lc.Listen(ctx, networkTCP, address)
 
 			return err
 		},
-		bindRetryOptions(ctx, networkTCP, address)...,
 	)
 
 	return listener, err
@@ -70,14 +71,15 @@ func listenPacketRetry(ctx context.Context, address string) (net.PacketConn, err
 
 	var pc net.PacketConn
 
-	err := retry.Do(
+	err := retry.New(
+		bindRetryOptions(ctx, networkUDP, address)...,
+	).Do(
 		func() error {
 			var err error
 			pc, err = lc.ListenPacket(ctx, networkUDP, address)
 
 			return err
 		},
-		bindRetryOptions(ctx, networkUDP, address)...,
 	)
 
 	return pc, err
