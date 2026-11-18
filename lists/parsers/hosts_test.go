@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"regexp"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -133,6 +134,86 @@ var _ = Describe("Hosts", func() {
 		})
 	})
 
+	When("parsing hosts lines with patterns", func() {
+		BeforeEach(func() {
+			sutReader = linesReader(
+				// the example from the Acrylic DNS Proxy request
+				"0.0.0.0 www.blockads.com *.blockads2.com >blockads3.com *.ru otherads*.com www.*moreads.com manyads.com",
+				"127.0.0.1 ad.* Ads?.example.com",
+				`0.0.0.0 /^ads?\..*$`,
+				`::1 /^tracker\./ >müller.de >example.org.`,
+				// a plain line still goes to the hosts file parser
+				"192.168.10.2 server dbserver.lan",
+			)
+		})
+
+		It("turns each name into the matching entry", func() {
+			it, err := sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{
+				"www.blockads.com",
+				"*.blockads2.com",
+				"*.blockads3.com",
+				"*.ru",
+				`/^otherads.*\.com$/`,
+				`/^www\..*moreads\.com$/`,
+				"manyads.com",
+			}))
+			Expect(sut.Position()).Should(Equal("line 1"))
+
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`/^ad\..*$/`, `/^ads.\.example\.com$/`}))
+			Expect(sut.Position()).Should(Equal("line 2"))
+
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`/^ads?\..*$/`}))
+			Expect(sut.Position()).Should(Equal("line 3"))
+
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`/^tracker\./`, "*.xn--mller-kva.de", "*.example.org"}))
+			Expect(sut.Position()).Should(Equal("line 4"))
+
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(it.hostsIterator).Should(BeAssignableToTypeOf(&HostsFileEntry{}))
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{"server", "dbserver.lan"}))
+			Expect(sut.Position()).Should(Equal("line 5"))
+
+			_, err = sut.Next(context.Background())
+			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(MatchError(io.EOF))
+		})
+
+		It("makes regexes that match the whole name", func() {
+			cases := []struct {
+				pattern string
+				match   []string
+				noMatch []string
+			}{
+				{"otherads*.com", []string{"otherads.com", "otherads1.com", "otherads.x.com"}, []string{"www.otherads.com", "otherads.com.evil.net"}},
+				{"ad.*", []string{"ad.example.com", "ad.net"}, []string{"bad.net", "ad"}},
+				{"ads?.example.com", []string{"ads1.example.com"}, []string{"ads.example.com", "ads12.example.com"}},
+			}
+
+			for _, c := range cases {
+				entry, err := globToRegex(c.pattern)
+				Expect(err).Should(Succeed(), c.pattern)
+
+				re := regexp.MustCompile(entry[1 : len(entry)-1])
+				for _, name := range c.match {
+					Expect(re.MatchString(name)).Should(BeTrue(), "%s should match %s", entry, name)
+				}
+
+				for _, name := range c.noMatch {
+					Expect(re.MatchString(name)).Should(BeFalse(), "%s should not match %s", entry, name)
+				}
+			}
+		})
+	})
+
 	When("parsing invalid lines", func() {
 		It("fails", func() {
 			lines := []string{
@@ -174,6 +255,17 @@ var _ = Describe("Hosts", func() {
 				"example.com..",
 				"0.0.0.0 example.com..",
 				"*.example.com..",
+				// names with patterns are validated like the other entries
+				"0.0.0.0 >",
+				"0.0.0.0 >*.example.com",
+				"0.0.0.0 >example..com",
+				"0.0.0.0 //",
+				"0.0.0.0 /(",
+				"0.0.0.0 ads*..com",
+				"0.0.0.0 ads*.com/path",
+				"0.0.0.0 *.com.xn--",
+				"0.0.0.0 ok.example.com bad*name!.com",
+				"invalidIP *.example.com",
 			}
 
 			for _, line := range lines {

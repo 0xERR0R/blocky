@@ -825,6 +825,7 @@ The supported list formats are:
 2. one domain per line (plain domain list)
 3. one wildcard per line
 4. one regex per line
+5. hosts lines with patterns, as in the hosts file of [Acrylic DNS Proxy](#hosts-lines-with-patterns)
 
 !!! example
 
@@ -884,6 +885,29 @@ Examples:
 
 !!! warning
     Regexes use more a lot more memory and are much slower than wildcards, you should use them as a last resort.
+
+#### Hosts lines with patterns
+
+A hosts line (an IP followed by names) can also list patterns, as in the hosts file of
+[Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Hosts.htm). The IP is ignored and each name
+becomes an entry:
+
+| Name in the line   | Entry                       | Blocks                                        |
+|--------------------|-----------------------------|-----------------------------------------------|
+| `example.com`      | `example.com`               | the domain                                    |
+| `>example.com`     | `*.example.com`             | the domain and all its subdomains             |
+| `*.example.com`    | `*.example.com`             | the domain and all its subdomains, as any [wildcard](#wildcard-support) here (Acrylic leaves out the domain itself) |
+| `ads*.example.com` | `/^ads.*\.example\.com$/`   | names matching the pattern: `*` is any run of characters, dots included, and `?` is one character |
+| `/^ads?\.`         | `/^ads?\./`                 | names matching the regex (Acrylic leaves out the closing slash) |
+
+!!! example
+
+    ```text
+    0.0.0.0 ads.example.com >tracker.example.net *.ads.example.org adserver?.example.com
+    ```
+
+Patterns other than `*.` wildcards become regexes, which are much slower than wildcards. Acrylic's `NX`, `FW`
+and `@` lines are not supported and count as invalid lines.
 
 #### Storage of entries
 
