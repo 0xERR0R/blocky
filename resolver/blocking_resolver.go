@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"net"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -145,84 +144,12 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	return cgb
 }
 
-// clientGroupsIndex pre-classifies the client→group mapping once at config load
-// so per-query resolution avoids re-parsing CIDRs and re-lowercasing identifiers
-// on every request (see PERFORMANCE.md, finding #8). It is immutable after
-// construction.
-type clientGroupsIndex struct {
-	// byID maps an exact, already-lowercased identifier (IP literal, FQDN, literal
-	// client name or "default") to its groups. Used for exact ClientIP, "default"
-	// and literal client-name lookups. Identifiers containing glob metacharacters
-	// are not kept here; they live in names and are matched via filepath.Match.
-	byID map[string][]scheduledGroup
-	// cidrs holds identifiers that parse as a CIDR, with the network pre-parsed.
-	cidrs []cidrGroups
-	// fqdns holds identifiers classified as FQDN candidates (resolved via the
-	// fqdnIPCache at query time).
-	fqdns []fqdnGroups
-	// names holds identifiers containing glob metacharacters, matched against
-	// client names with filepath.Match. This is usually a tiny set, so literal
-	// client names avoid scanning it via the byID exact lookup.
-	names []nameGlob
-}
-
-type cidrGroups struct {
-	ipNet  *net.IPNet
-	groups []scheduledGroup
-}
-
-type fqdnGroups struct {
-	identifier string
-	groups     []scheduledGroup
-}
-
-type nameGlob struct {
-	pattern string
-	groups  []scheduledGroup
-}
-
-// isClientNameGlob reports whether an identifier contains filepath.Match
-// metacharacters. Only such identifiers need a per-name filepath.Match; everything
-// else matches a client name exactly and is resolved via the byID map.
-func isClientNameGlob(identifier string) bool {
-	return strings.ContainsAny(identifier, `*?[\`)
-}
+// clientGroupsIndex is the client index of clientGroupsBlock; its FQDN
+// identifiers are resolved via the fqdnIPCache at query time.
+type clientGroupsIndex = clientIndex[[]scheduledGroup]
 
 func newClientGroupsIndex(cfg config.Blocking) clientGroupsIndex {
-	byID := clientGroupsBlock(cfg)
-
-	idx := clientGroupsIndex{byID: byID}
-
-	for id, groups := range byID {
-		// Move glob identifiers out of byID into the names bucket: they are only
-		// ever matched against client names via filepath.Match, never by exact
-		// lookup, and a glob string is neither a valid CIDR nor a resolvable FQDN.
-		// Removing them keeps the exact byID lookup faithful (a client whose name
-		// literally equals a glob pattern must not match it as a literal).
-		if isClientNameGlob(id) {
-			idx.names = append(idx.names, nameGlob{pattern: id, groups: groups})
-			delete(byID, id)
-
-			continue
-		}
-
-		// Pre-parse CIDR identifiers so per-query matching is a cheap
-		// ipNet.Contains instead of a net.ParseCIDR allocation per entry.
-		if _, ipNet, err := net.ParseCIDR(id); err == nil {
-			idx.cidrs = append(idx.cidrs, cidrGroups{ipNet: ipNet, groups: groups})
-		}
-
-		// Mirror the previous per-query isFQDN(identifier) check so FQDN
-		// candidates are resolved via the fqdnIPCache without rescanning the
-		// whole map. A CIDR identifier can also be an FQDN candidate (e.g.
-		// "10.0.0.0/8" contains a dot); keeping it in both buckets is faithful
-		// to the original branching.
-		if isFQDN(id) {
-			idx.fqdns = append(idx.fqdns, fqdnGroups{identifier: id, groups: groups})
-		}
-	}
-
-	return idx
+	return newClientIndex(clientGroupsBlock(cfg))
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
@@ -663,37 +590,10 @@ func (r *BlockingResolver) collectGroupsForClient(request *model.Request) []sche
 
 	cg := r.clientGroups
 
-	// try client names: identifiers are already lowercased at config load, so the
-	// client name is lowered once here instead of both sides per map entry.
-	for _, cName := range request.ClientNames {
-		lowerName := strings.ToLower(cName)
-
-		// Literal identifiers (the vast majority — IPs, FQDNs, plain names) match a
-		// client name exactly, so resolve them with a single map lookup instead of
-		// running filepath.Match against every entry.
-		if groupsByName, found := cg.byID[lowerName]; found {
-			groups = append(groups, groupsByName...)
-		}
-
-		// Only the (usually tiny) set of glob identifiers needs a pattern match.
-		for _, ng := range cg.names {
-			if matched, _ := filepath.Match(ng.pattern, lowerName); matched {
-				groups = append(groups, ng.groups...)
-			}
-		}
-	}
-
-	// try IP
-	if groupsByIP, found := cg.byID[request.ClientIP.String()]; found {
-		groups = append(groups, groupsByIP...)
-	}
-
-	// try CIDR using the networks pre-parsed at config load
-	for _, c := range cg.cidrs {
-		if c.ipNet.Contains(request.ClientIP) {
-			groups = append(groups, c.groups...)
-		}
-	}
+	// every client name, IP and CIDR match adds its groups
+	cg.forEachMatch(request.ClientNames, request.ClientIP, func(groupsForID []scheduledGroup) {
+		groups = append(groups, groupsForID...)
+	})
 
 	// try FQDN identifiers via their resolved IPs
 	if r.fqdnIPCache != nil {
@@ -705,7 +605,7 @@ func (r *BlockingResolver) collectGroupsForClient(request *model.Request) []sche
 
 			for _, ip := range *ips {
 				if ip.Equal(request.ClientIP) {
-					groups = append(groups, f.groups...)
+					groups = append(groups, f.value...)
 				}
 			}
 		}

@@ -61,6 +61,11 @@ customDNS:
     example.com: printer.lan
   mapping:
     printer.lan: 192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+  # optional: mappings for particular clients, keyed by client name (wildcards allowed), IP or CIDR (several separated by commas).
+  # Only the client's most specific entry applies (name, then IP, then name with wildcards, then longest CIDR); for each name it is checked before mapping, and the most specific name wins
+  clientMapping:
+    192.168.178.0/24:
+      www.example.com: 192.168.178.10
 
 # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name

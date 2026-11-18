@@ -1015,6 +1015,10 @@ func (cfg *Config) validate(logger *logrus.Entry) error {
 		logger.Warn(err)
 	}
 
+	if err := cfg.CustomDNS.validate(); err != nil {
+		return err
+	}
+
 	// DNS64 validation
 	if err := cfg.DNS64.validate(logger, &cfg.Filtering, &cfg.Caching); err != nil {
 		return err
