@@ -400,6 +400,30 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(HaveKey("gr1"))
 			})
 		})
+		When("a hosts line has patterns (Acrylic DNS Proxy format)", func() {
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": {config.TextBytesSource("0.0.0.0 plain.com >deep.com *.wild.com ads*.net /^track(er)?\\.")},
+				}
+			})
+
+			It("blocks what each pattern covers", func() {
+				for _, domain := range []string{
+					"plain.com",
+					"deep.com", "a.b.deep.com",
+					"wild.com", "sub.wild.com",
+					"ads.net", "ads1.net", "ads.x.net",
+					"tracker.example.org", "track.io",
+				} {
+					Expect(sut.Match(domain, []string{"gr1"})).Should(HaveKey("gr1"), domain)
+				}
+
+				for _, domain := range []string{"sub.plain.com", "notdeep.com", "myads.net", "www.track.io"} {
+					Expect(sut.Match(domain, []string{"gr1"})).ShouldNot(HaveKey("gr1"), domain)
+				}
+			})
+		})
+
 		When("inline regex content is defined", func() {
 			BeforeEach(func() {
 				lists = map[string][]config.BytesSource{

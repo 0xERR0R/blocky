@@ -88,6 +88,15 @@ func (h *HostsIterator) UnmarshalText(data []byte) error {
 		return nil
 	}
 
+	patterns := new(HostsPatternsEntry)
+	if err := patterns.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = patterns
+
+		return nil
+	}
+
 	flatErr := multierror.Flatten(mErr)
 	if flatErr != nil {
 		return fmt.Errorf("failed to parse hosts entry: %w", flatErr)
@@ -262,6 +271,153 @@ func (e *WildcardEntry) UnmarshalText(data []byte) error {
 
 func (e WildcardEntry) forEachHost(callback func(string) error) error {
 	return callback(e.String())
+}
+
+// HostsPatternsEntry is a hosts file line whose names may also be patterns, as
+// in the hosts file of Acrylic DNS Proxy: "0.0.0.0 ads.com *.ads.net >ads.org".
+// A name is turned into the list entry that matches the same domains:
+//   - ">example.com" (the domain and its subdomains) becomes "*.example.com"
+//   - "*.example.com" stays a wildcard, as on a line of its own
+//   - any other name with "*" (any characters) or "?" (one character) becomes
+//     an anchored regex, e.g. "ads*.com" becomes "/^ads.*\.com$/"
+//   - "/regex" becomes the regex entry "/regex/" (Acrylic omits the closing slash)
+//
+// The IP is not used: on a denylist or allowlist every name of the line is an entry.
+type HostsPatternsEntry []string
+
+// We assume this is used with `Lines`:
+// - data will never be empty
+// - comments are stripped
+func (e *HostsPatternsEntry) UnmarshalText(data []byte) error {
+	fields := bytes.Fields(data)
+	if len(fields) < 2 {
+		return errors.New("expected an IP followed by at least one host or pattern")
+	}
+
+	ipStr, _, _ := strings.Cut(string(fields[0]), "%")
+	if net.ParseIP(ipStr) == nil {
+		return fmt.Errorf("invalid ip: %s", fields[0])
+	}
+
+	entries := make([]string, 0, len(fields)-1)
+
+	for _, field := range fields[1:] {
+		entry, err := hostsPatternEntry(string(field))
+		if err != nil {
+			return err
+		}
+
+		entries = append(entries, entry)
+	}
+
+	*e = entries
+
+	return nil
+}
+
+func (e HostsPatternsEntry) forEachHost(callback func(string) error) error {
+	for _, entry := range e {
+		if err := callback(entry); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// hostsPatternEntry turns one name of a HostsPatternsEntry line into a list entry.
+func hostsPatternEntry(name string) (string, error) {
+	switch {
+	case strings.HasPrefix(name, ">"):
+		host, err := toASCII(name[len(">"):])
+		if err != nil {
+			return "", err
+		}
+
+		if err := validateDomainName(host); err != nil {
+			return "", err
+		}
+
+		return "*." + trimRootDot(host), nil
+
+	case strings.HasPrefix(name, "/"):
+		expr := strings.TrimPrefix(name, "/")
+		if isRegex(name) {
+			expr = name[1 : len(name)-1]
+		}
+
+		// "//" would be an empty regex, which matches every name
+		if expr == "" {
+			return "", fmt.Errorf("empty regex: %s", name)
+		}
+
+		if _, err := regexp.Compile(expr); err != nil {
+			return "", fmt.Errorf("invalid regex '%s': %w", name, err)
+		}
+
+		return "/" + expr + "/", nil
+
+	case strings.ContainsAny(name, "*?"):
+		var wildcard WildcardEntry
+
+		if err := wildcard.UnmarshalText([]byte(name)); err == nil {
+			return wildcard.String(), nil
+		}
+
+		return globToRegex(name)
+
+	default:
+		host, err := toASCII(name)
+		if err != nil {
+			return "", err
+		}
+
+		if err := validateDomainName(host); err != nil {
+			return "", err
+		}
+
+		return trimRootDot(host), nil
+	}
+}
+
+// globToRegex turns a name pattern with "*" (any characters, dots included) and "?"
+// (one character) into a regex entry that has to match the whole name.
+func globToRegex(pattern string) (string, error) {
+	p := trimRootDot(strings.ToLower(pattern))
+
+	// With its wildcards filled in, the pattern has to be a valid name, so that
+	// empty labels or broken IDN labels are rejected as they are in other entries.
+	sample, err := toASCII(strings.NewReplacer("*", "a", "?", "a").Replace(p))
+	if err != nil {
+		return "", fmt.Errorf("invalid name pattern '%s': %w", pattern, err)
+	}
+
+	if err := validateDomainName(sample); err != nil {
+		return "", fmt.Errorf("invalid name pattern '%s': %w", pattern, err)
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString("/^")
+
+	for _, c := range p {
+		switch {
+		case c == '*':
+			sb.WriteString(".*")
+		case c == '?':
+			sb.WriteString(".")
+		case c == '.':
+			sb.WriteString(`\.`)
+		case c == '-', c == '_', c >= 'a' && c <= 'z', c >= '0' && c <= '9':
+			sb.WriteRune(c)
+		default:
+			return "", fmt.Errorf("invalid name pattern: %s", pattern)
+		}
+	}
+
+	sb.WriteString("$/")
+
+	return sb.String(), nil
 }
 
 func normalizeHostsListEntry(host string) (string, error) {
