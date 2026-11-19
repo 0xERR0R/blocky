@@ -255,6 +255,39 @@ var _ = Describe("NSEC validation", func() {
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
+		It("should match the query name case insensitively", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "z.example.com.",
+				TypeBitMap: []uint16{dns.TypeA},
+			}
+
+			result := sut.validateNSECNODATA([]*dns.NSEC{nsec}, "WwW.Example.COM.", dns.TypeAAAA)
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should match a mixed case NSEC owner name against a lower case query name", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "WWW.Example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "z.example.com.",
+				TypeBitMap: []uint16{dns.TypeA},
+			}
+
+			result := sut.validateNSECNODATA([]*dns.NSEC{nsec}, "www.example.com.", dns.TypeAAAA)
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should return Bogus when an NSEC owned by the differently cased name lists the type", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "z.example.com.",
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeAAAA},
+			}
+
+			result := sut.validateNSECNODATA([]*dns.NSEC{nsec}, "WWW.example.com.", dns.TypeAAAA)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
 		It("should handle multiple NSEC records", func() {
 			nsec1 := &dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
