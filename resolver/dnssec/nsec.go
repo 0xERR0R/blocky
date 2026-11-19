@@ -55,8 +55,9 @@ func (v *Validator) validateNSECNODATA(nsecRecords []*dns.NSEC, qname string, qt
 
 	// NODATA: Need NSEC at the name proving type doesn't exist
 	for _, nsec := range nsecRecords {
-		nsecName := dns.Fqdn(nsec.Header().Name)
-		if nsecName == qname {
+		// DNS names are case insensitive (RFC 4343), and the query name may be in
+		// a different case than the NSEC owner.
+		if dns.CanonicalName(nsec.Header().Name) == dns.CanonicalName(qname) {
 			// NSEC matches the query name - check if it proves type doesn't exist
 			if !v.nsecHasType(nsec, qtype) {
 				v.logger.Debugf("NSEC proves NODATA for %s type %d", qname, qtype)
