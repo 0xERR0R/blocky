@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -840,6 +840,15 @@
 group names only (e.g. <code>BLOCKED (ads)</code>), <strong>not</strong> the matched rule. The full reason including the
 matched rule (e.g. <code>BLOCKED (ads: *.docler.com)</code>) is still available in the <a href="../configuration/#query-logging">query log</a>.
 This avoids unbounded metric cardinality when large deny lists are used.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title"><code>reason</code> label for <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation failures</p>
+<p>Responses that fail <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation (<code>response_type="BOGUS"</code>) have the kind of failure as the <code>reason</code>
+label of <code>blocky_response_total</code>: <code>DNSSEC validation failed:</code> followed by the name of the Extended <abbr title="Domain Name System">DNS</abbr>
+Error of the response, e.g. <code>DNSSEC validation failed: No Reachable Authority</code> or
+<code>DNSSEC validation failed: DNSSEC Bogus</code> (see <a href="../configuration/#validation-results">Validation Results</a>).
+The one value that the label had before, <code>DNSSEC validation failed: bogus signatures</code>, is no longer used.
+The full reason, such as the lookup that failed, is in the <a href="../configuration/#query-logging">query log</a>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title"><code>client</code> label cardinality</p>

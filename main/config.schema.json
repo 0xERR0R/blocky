@@ -1629,12 +1629,12 @@
         },
         "maxChainDepth": {
           "type": "integer",
-          "description": "Maximum domain label depth for chain of trust validation (DoS protection).",
+          "description": "Maximum number of zones in a chain of trust below its trust anchor (DoS protection).",
           "default": 10
         },
         "cacheExpirationHours": {
           "type": "integer",
-          "description": "How long to cache DNSSEC validation results, in hours.",
+          "description": "How long to cache DNSSEC validation results at most, in hours.",
           "default": 1
         },
         "maxNSEC3Iterations": {
@@ -1644,7 +1644,7 @@
         },
         "maxUpstreamQueries": {
           "type": "integer",
-          "description": "DoS protection: max upstream queries per validation",
+          "description": "DoS protection: max upstream queries that the validation for one client query makes",
           "default": 30
         },
         "clockSkewToleranceSec": {

@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -3379,17 +3379,18 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># default: false</span>
 <span class="w">  </span><span class="nt">validate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 
-<span class="w">  </span><span class="c1"># Maximum domain label depth for chain of trust validation</span>
-<span class="w">  </span><span class="c1"># Prevents DoS with deeply nested domains (e.g., a.b.c.d.e.f.g.h.i.j.example.com)</span>
+<span class="w">  </span><span class="c1"># Maximum number of zones in a chain of trust below its trust anchor</span>
+<span class="w">  </span><span class="c1"># Prevents DoS with long chains of delegations; labels that are no zone of their own are not counted</span>
 <span class="w">  </span><span class="c1"># default: 10</span>
 <span class="w">  </span><span class="nt">maxChainDepth</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 
-<span class="w">  </span><span class="c1"># How long to cache validation results (in hours)</span>
-<span class="w">  </span><span class="c1"># Improves performance by avoiding repeated validation of the same domains</span>
+<span class="w">  </span><span class="c1"># How long to cache validation results at most (in hours)</span>
+<span class="w">  </span><span class="c1"># Improves performance by avoiding repeated validation of the same domains; a result is dropped</span>
+<span class="w">  </span><span class="c1"># earlier when the TTL or the signature of the records that proved it ends</span>
 <span class="w">  </span><span class="c1"># default: 1</span>
 <span class="w">  </span><span class="nt">cacheExpirationHours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 
-<span class="w">  </span><span class="c1"># Maximum upstream DNS queries per validation request</span>
+<span class="w">  </span><span class="c1"># Maximum upstream DNS queries (DNSKEY/DS lookups) that the validation for one client query makes</span>
 <span class="w">  </span><span class="c1"># Protects against DoS attacks with queries requiring many upstream lookups</span>
 <span class="w">  </span><span class="c1"># (e.g., deeply nested delegation chains requiring DNSKEY + DS queries per level)</span>
 <span class="w">  </span><span class="c1"># Validation will fail if budget is exhausted</span>
@@ -4752,7 +4753,7 @@ blocky can serve the result immediately from the cache.</p>
 <td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
 <td>no</td>
 <td>0 (use <abbr title="Time-To-Live">TTL</abbr>)</td>
-<td>How long a response must be cached (min value). If &lt;=0, use response's <abbr title="Time-To-Live">TTL</abbr>, if &gt;0 use this value, if <abbr title="Time-To-Live">TTL</abbr> is smaller</td>
+<td>How long a response must be cached (min value). If &lt;=0, use response's <abbr title="Time-To-Live">TTL</abbr>, if &gt;0 use this value, if <abbr title="Time-To-Live">TTL</abbr> is smaller. With <a href="#dnssec-validation"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation</a>, a response that gets the AD flag is held in the cache for this time too, and sent to clients with no more than the <abbr title="Time-To-Live">TTL</abbr> that its zone signed</td>
 </tr>
 <tr>
 <td>caching.maxTime</td>
@@ -5535,12 +5536,18 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <li>Set the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> OK (DO) bit on all upstream queries to request <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> records</li>
 <li>Validate cryptographic signatures (RRSIG records) in <abbr title="Domain Name System">DNS</abbr> responses</li>
 <li>Verify the chain of trust from root to the queried domain using DNSKEY and DS records</li>
-<li>Validate authenticated denial of existence using NSEC/NSEC3 records for <abbr title="Non-Existence Domain">NXDOMAIN</abbr> and NODATA responses</li>
-<li>Validate wildcard expansions according to RFC 4035 §5.3.4</li>
-<li>Return SERVFAIL for responses with invalid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures (Bogus)</li>
+<li>Validate authenticated denial of existence using NSEC/NSEC3 records for <abbr title="Non-Existence Domain">NXDOMAIN</abbr> and NODATA responses, taking them only from the zone that holds the name (RFC 4035 §5.4, RFC 6840 §4.1). A NODATA response needs a record that lists neither the queried type nor <abbr title="Canonical Name">CNAME</abbr> (RFC 6840 §4.3)</li>
+<li>Accept what a wildcard gives a name, a record set or the answer that it has no data of the type, only with the NSEC/NSEC3 proof that the name does not exist and that this wildcard is the one that answers for it, and an <abbr title="Non-Existence Domain">NXDOMAIN</abbr> response only with the proof that no wildcard does (RFC 4035 §5.3.4 and §5.4, RFC 5155 §8.4, §8.7 and §8.8)</li>
+<li>Validate every record set of the answer and authority sections. The response has the result of its answer, the lowest of the record sets that answer the question. Every other record set that it carries must be authentic beside a Secure answer, and none of them may fail validation, or the response is refused as Bogus (RFC 4035 §3.2.3)</li>
+<li>Accept as the answer only the records that answer the question: those of the queried name and type, or the <abbr title="Canonical Name">CNAME</abbr> chain that leads to them, with a response code that fits. For a DS query, the <abbr title="Canonical Name">CNAME</abbr> record of the queried name is the answer too if the response holds nothing else: a name that has a <abbr title="Canonical Name">CNAME</abbr> record has no other data, so it is no delegation (RFC 1034 §3.6.2). A response that goes on to the target of the <abbr title="Canonical Name">CNAME</abbr> must hold the DS records of the target or the proof that it has none</li>
+<li>Leave an NS record set without signature in the authority section, which some forwarders add to their answers, out of the validation instead of failing the response for it, and remove it from a response that gets the AD flag</li>
+<li>Return the answer to a query for RRSIG records without validating it, and without the AD flag: nothing signs these records</li>
+<li>Return SERVFAIL for responses that fail validation (Bogus): those with invalid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures and, for a name below a trust anchor, those whose validation cannot be completed, for example because a DNSKEY or DS lookup fails (RFC 4035 §5.5). Before that, the upstream is asked for the response once more (see <a href="#validation-results">Validation Results</a>)</li>
 <li>Return the data without validating it, and without the AD flag, to a client that set the Checking Disabled (CD) bit, since that client validates itself (RFC 4035 §3.2.2)</li>
 <li>Set the Authenticated Data (AD) flag only after successful validation</li>
-<li>Add Extended <abbr title="Domain Name System">DNS</abbr> Error (EDE) codes per RFC 8914 when validation fails</li>
+<li>Remove the records of the additional section, except the EDNS OPT record, from a response that gets the AD flag: nothing validates them, and the flag does not cover them (RFC 4035 §3.2.3)</li>
+<li>Send no record set of a response that gets the AD flag with a longer <abbr title="Time-To-Live">TTL</abbr> than its signature allows: the <abbr title="Time-To-Live">TTL</abbr> that the zone signed, and no longer than the time until the signature expires (RFC 4035 §5.3.3). This bounds the <abbr title="Time-To-Live">TTL</abbr> that the client gets, not the time for which Blocky's own cache holds the response: that is set by <code>caching.minTime</code> and <code>caching.maxTime</code>, and a cached response is validated again every time it is served</li>
+<li>Add the Extended <abbr title="Domain Name System">DNS</abbr> Error (EDE) code per RFC 8914 that says why validation failed (see <a href="#validation-results">Validation Results</a>)</li>
 </ul>
 <p>Independently of this setting, Blocky normalizes every response against the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>-related bits of the query it answers, because the client's DO bit is not necessarily the one used towards the upstream:</p>
 <ul>
@@ -5589,21 +5596,21 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <td>uint</td>
 <td>no</td>
 <td>10</td>
-<td>Maximum domain label depth for chain of trust validation (DoS protection)</td>
+<td>Maximum number of zones in a chain of trust below its trust anchor (DoS protection)</td>
 </tr>
 <tr>
 <td>dnssec.cacheExpirationHours</td>
 <td>uint</td>
 <td>no</td>
 <td>1</td>
-<td>How long to cache validation results in hours</td>
+<td>How long to cache validation results at most, in hours. What validation found about a zone is dropped earlier, when the <abbr title="Time-To-Live">TTL</abbr> or the signature of the records that proved it ends</td>
 </tr>
 <tr>
 <td>dnssec.maxUpstreamQueries</td>
 <td>uint</td>
 <td>no</td>
 <td>30</td>
-<td>Maximum upstream <abbr title="Domain Name System">DNS</abbr> queries per validation request (DoS protection)</td>
+<td>Maximum upstream <abbr title="Domain Name System">DNS</abbr> queries (DNSKEY/DS lookups) that the validation for one client query makes (DoS protection)</td>
 </tr>
 <tr>
 <td>dnssec.maxNSEC3Iterations</td>
@@ -5631,9 +5638,10 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <h3 id="dos-protection">DoS Protection</h3>
 <p><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation can be computationally expensive and requires additional <abbr title="Domain Name System">DNS</abbr> queries. Blocky includes several protections against DoS attacks:</p>
 <ul>
-<li><strong>maxChainDepth</strong>: Limits validation depth for deeply nested domains (e.g., prevents validation of <code>a.b.c.d.e.f.g.h.i.j.example.com</code>)</li>
-<li><strong>maxUpstreamQueries</strong>: Limits the number of upstream queries (DNSKEY/DS lookups) per validation to prevent query amplification</li>
+<li><strong>maxChainDepth</strong>: Limits the chain of delegated zones that validation follows below a trust anchor. Labels that are no zone of their own, like those of <code>a.b.c.d.e.f.g.h.i.j.example.com</code> inside the zone <code>example.com</code>, are not counted: <code>maxUpstreamQueries</code> bounds the lookups for them</li>
+<li><strong>maxUpstreamQueries</strong>: Limits the number of upstream queries (DNSKEY/DS lookups) that the validation for one client query makes, to prevent query amplification. A response that is asked for a second time (see <a href="#validation-results">Validation Results</a>) is validated with the queries that the first validation left</li>
 <li><strong>maxNSEC3Iterations</strong>: Limits NSEC3 hash iterations to prevent CPU exhaustion attacks</li>
+<li><strong>Work per client query</strong>: Makes at most 8 tries, each of one signature with one key, to verify one record set, and for one client query verifies at most 128 signatures and computes at most 128 NSEC3 hashes. The DNSKEY and DS lookups made for the response count towards these limits, and so does the validation of a response that is asked for a second time. The limits are not configurable. A response that needs more is Bogus, and what its validation finds after it ran out is not cached</li>
 <li><strong>Validation caching</strong>: Caches validation results to avoid repeated expensive validations</li>
 </ul>
 <h3 id="clock-skew-tolerance">Clock Skew Tolerance</h3>
@@ -5670,23 +5678,108 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <tbody>
 <tr>
 <td><strong>Secure</strong></td>
-<td>Valid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures and complete chain of trust</td>
+<td>Valid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures and complete chain of trust for every part of the response</td>
 <td>AD flag set, response returned</td>
 </tr>
 <tr>
 <td><strong>Insecure</strong></td>
-<td>Domain is not signed with <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> (no RRSIG records)</td>
+<td>The domain, or a part of the answer such as the target of a <abbr title="Canonical Name">CNAME</abbr>, is in a zone that its parent zone proves to be unsigned, or is a name that does not exist in a range that NSEC3 Opt-Out leaves open for unsigned delegations (RFC 5155 §9.2)</td>
 <td>AD flag cleared, response returned</td>
 </tr>
 <tr>
 <td><strong>Bogus</strong></td>
-<td>Invalid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures or broken chain of trust</td>
-<td>SERVFAIL returned with EDE code <code>6 (DNSSEC Bogus)</code>, response type <code>BOGUS</code></td>
+<td>Invalid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures or broken chain of trust, missing signatures or proofs in a signed zone, records that do not answer the question, a validation that needs more work than its limits allow (see <a href="#dos-protection">DoS Protection</a>), or, for a name below a trust anchor, a validation that cannot be completed because a DNSKEY or DS lookup fails (RFC 4035 §5.5)</td>
+<td>SERVFAIL returned with the EDE code that says why (see below), response type <code>BOGUS</code></td>
 </tr>
 <tr>
 <td><strong>Indeterminate</strong></td>
-<td>Validation could not be completed (e.g., network errors, budget exceeded)</td>
+<td>No trust anchor is above the name, so nothing says whether its zone is signed (RFC 4033 §5). This needs custom trust anchors without one for the root: no lookup is made for such a name</td>
 <td>AD flag cleared, response returned</td>
+</tr>
+</tbody>
+</table>
+<p>Many validation failures are transient (RFC 4035 §4.7): a response that fails validation says that the response is
+bad, not that the name is. A resolver may leave out a part of what a zone sent in one response and send it whole in
+the next, and a query whose response lacks NSEC records of the proof that a name or type does not exist must be sent
+again (RFC 4035 §5.4). So before Blocky answers SERVFAIL, it asks the upstream for the response once more, not its
+own cache, which holds the one that failed, and validates the second response. What that validation finds is what
+the client gets:</p>
+<ul>
+<li>Both validations together stay within the limits of one (see <a href="#dos-protection">DoS Protection</a>), and a response
+  whose validation ran out of one of them is not asked for again.</li>
+<li>A response is not asked for again either when a DNSKEY or DS lookup of its validation ended without a reply,
+  whatever else is wrong with the response: asking again would make that lookup again and wait for it again. The
+  upstream made its own tries for it (RFC 9520 §3.1), and the client gets its SERVFAIL after one wait for them.</li>
+<li>The cache holds the second response in the place of the first, if it is one that can be cached.</li>
+<li>A query that fails validation twice, because its second response failed too or did not come, or once for want of
+  a reply to a lookup, is answered SERVFAIL for the next second, with the EDE code of that failure, without
+  further upstream queries and without validating again (RFC 4035 §4.7, RFC 9520 §3.2 and §3.4). Each time it
+  fails so again within a minute after that, with no response that validated in between, the time doubles, up to a
+  minute: a failure that passes costs a second, and one that stays is asked once a minute. The two times are not
+  configurable. Blocky keeps up to 1000 such queries, each for the upstream group of its client and in the form in
+  which it was sent: a query for the same name and type with other flags, another class or other EDNS data is
+  asked as usual, and so is one of a client that sets the CD bit. A validation that ran out of its limits (see
+  <a href="#dos-protection">DoS Protection</a>) is not kept. Other names of a zone that fails validation cost two upstream
+  queries and two validations each.</li>
+<li>With <a href="#dns64">DNS64</a>, a synthesized AAAA response for a name in a signed zone fails validation when the cache
+  serves it again: it comes back as an upstream response without signatures. It is then asked again and synthesized
+  anew, for every query.</li>
+</ul>
+<p>Validation needs an upstream resolver that passes on every <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> record of an answer. When a resolver leaves a part
+of a proof out of both responses, the query is answered SERVFAIL although the zone is signed correctly, and nothing
+that Blocky could ask differently changes that.</p>
+<p>A DNSKEY or DS lookup fails when it gets no reply, or a reply that does not answer it: a truncated one, one with
+an error code such as SERVFAIL, one without the DNSKEY records of the zone, or, for DS records, one with neither
+the records nor NSEC/NSEC3 records that deny them. Blocky asks once more for a reply that came and did not answer,
+within <code>maxUpstreamQueries</code>. A lookup whose two tries both got such a reply is followed by the second ask for the
+response, as any validation failure is; a lookup whose first or second try got no reply is not. Blocky caches
+nothing of a zone for a lookup that failed: only the query that needed it gets SERVFAIL, and the next query, after
+the refusal described above, validates again. Records that came and do not verify are different: when the last
+validation for a query finds them so, their zone is Bogus for a minute. The EDE code of the SERVFAIL tells the
+reason, for the response that was validated last:</p>
+<table>
+<thead>
+<tr>
+<th>EDE code</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>22 (No Reachable Authority)</code></td>
+<td>A DNSKEY or DS lookup got no reply from the upstream: an error or a timeout</td>
+</tr>
+<tr>
+<td><code>23 (Network Error)</code></td>
+<td>The reply to a DNSKEY or DS lookup came truncated, or the reply to a DS lookup had an error code such as SERVFAIL or REFUSED</td>
+</tr>
+<tr>
+<td><code>9 (DNSKEY Missing)</code></td>
+<td>The reply to a DNSKEY lookup had an error code such as SERVFAIL, or did not hold the DNSKEY records of the zone</td>
+</tr>
+<tr>
+<td><code>12 (NSEC Missing)</code></td>
+<td>The reply to a DS lookup held neither the DS records nor NSEC/NSEC3 records that deny them</td>
+</tr>
+<tr>
+<td><code>10 (RRSIGs Missing)</code></td>
+<td>A record set of a signed zone came without signature</td>
+</tr>
+<tr>
+<td><code>7 (Signature Expired)</code></td>
+<td>Every signature of a record set verifies, and has expired</td>
+</tr>
+<tr>
+<td><code>8 (Signature Not Yet Valid)</code></td>
+<td>Every signature of a record set verifies, and is not yet valid</td>
+</tr>
+<tr>
+<td><code>1 (Unsupported DNSKEY Algorithm)</code></td>
+<td>Every signature of a record set is of an algorithm, or names a key, that blocky cannot verify with</td>
+</tr>
+<tr>
+<td><code>6 (DNSSEC Bogus)</code></td>
+<td>Any other failure, also a record set whose signatures fail for different reasons</td>
 </tr>
 </tbody>
 </table>
@@ -5718,6 +5811,11 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 <p class="admonition-title">Warning</p>
 <p>Specifying custom trust anchors <strong>replaces</strong> the default root trust anchors. If you need to validate both public domains and private zones, you must include both the root trust anchors and your custom anchors.</p>
 </div>
+<p>With a trust anchor for a zone and another for a zone below it, the closest one decides: the data of the lower zone and the zones below it is validated through the lower trust anchor alone, and neither signatures nor proofs of non-existence from a zone above it are accepted for that data. RFC 6840 §5.10 leaves this choice to the validator and suggests accepting any trust anchor that succeeds; Blocky follows the "closest encloser" policy of its Appendix C.1, as Unbound does. Two consequences:</p>
+<ul>
+<li>A lower trust anchor that is out of date makes its zone fail validation, even where the chain of trust from the root would validate it.</li>
+<li>Trust anchors apply to every client group. If some clients are sent to upstreams that serve the public records of a name that has a trust anchor for a private zone (split horizon), those records fail validation for them.</li>
+</ul>
 <h3 id="supported-algorithms">Supported Algorithms</h3>
 <p>Blocky supports the following <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> algorithms per RFC 8624:</p>
 <table>
@@ -5733,6 +5831,12 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 <tr>
 <td>RSASHA1</td>
 <td>5</td>
+<td>Deprecated (still supported)</td>
+<td>Weak</td>
+</tr>
+<tr>
+<td>RSASHA1-NSEC3-SHA1</td>
+<td>7</td>
 <td>Deprecated (still supported)</td>
 <td>Weak</td>
 </tr>
@@ -5766,14 +5870,10 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 <td>Recommended</td>
 <td>Very Strong</td>
 </tr>
-<tr>
-<td>ED448</td>
-<td>16</td>
-<td>Recommended</td>
-<td>Strongest</td>
-</tr>
 </tbody>
 </table>
+<p>Signatures of other algorithms, ED448 (16) among them, do not verify.</p>
+<p>RSASHA256 and RSASHA512 keys are used with public exponents up to 2^32+1, RSASHA1 and RSASHA1-NSEC3-SHA1 keys with exponents up to 2^31-1. A signature made with a larger exponent does not verify, and a zone whose DS records name only keys with larger exponents, all of them in its DNSKEY record set, is treated as Insecure.</p>
 <p>Blocky automatically selects the strongest available algorithm when multiple signatures are present, providing protection against algorithm downgrade attacks per RFC 6840 §5.11.</p>
 <h3 id="performance-considerations">Performance Considerations</h3>
 <p><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation adds overhead to <abbr title="Domain Name System">DNS</abbr> resolution:</p>
@@ -5867,7 +5967,7 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 <ul>
 <li>Increase <code>maxUpstreamQueries</code> for domains with complex delegation chains</li>
 <li>Check if upstream servers are slow to respond (may require multiple retries)</li>
-<li>Increase <code>maxChainDepth</code> for deeply nested subdomains</li>
+<li>Increase <code>maxChainDepth</code> for names below a long chain of delegated zones</li>
 </ul>
 <p><strong>Problem</strong>: Signatures rejected as "expired" or "not yet valid" despite being valid</p>
 <ul>
