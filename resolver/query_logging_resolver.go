@@ -398,7 +398,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 			entry.ClientNames = request.ClientNames
 
 		case config.QueryLogFieldResponseReason:
-			entry.ResponseReason = response.Reason
+			entry.ResponseReason = logReason(response.Reason, response.ReasonLabel)
 			entry.ResponseType = response.RType.String()
 			entry.ResponseCode = dns.RcodeToString[response.Res.Rcode]
 
