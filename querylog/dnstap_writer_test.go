@@ -97,8 +97,8 @@ var _ = Describe("DnstapWriter", func() {
 		Entry("1024 does not log", uint64(1024), false),
 	)
 
-	Describe("marshalDnstapFrame", func() {
-		It("builds a CLIENT_RESPONSE frame", func() {
+	DescribeTable("marshalDnstapFrame",
+		func(clientNames []string, expectedExtra string) {
 			query := new(dns.Msg)
 			query.SetQuestion("example.com.", dns.TypeA)
 			queryWire, err := query.Pack()
@@ -114,6 +114,7 @@ var _ = Describe("DnstapWriter", func() {
 
 			frame, err := marshalDnstapFrame(&LogEntry{
 				ClientIP:       "192.168.1.1",
+				ClientNames:    clientNames,
 				SocketProtocol: model.RequestProtocolUDP,
 				QueryWire:      queryWire,
 				ResponseWire:   responseWire,
@@ -134,8 +135,23 @@ var _ = Describe("DnstapWriter", func() {
 			Expect(net.IP(dt.GetMessage().GetQueryAddress()).String()).Should(Equal("192.168.1.1"))
 			Expect(dt.GetMessage().GetQueryTimeSec()).Should(Equal(uint64(1_700_000_000)))
 			Expect(dt.GetMessage().GetQueryTimeNsec()).Should(Equal(uint32(123)))
-		})
-	})
+
+			if expectedExtra == "" {
+				Expect(dt.GetExtra()).Should(BeNil())
+			} else {
+				Expect(string(dt.GetExtra())).Should(MatchJSON(expectedExtra))
+			}
+		},
+		Entry("with no client names",
+			nil,
+			""),
+		Entry("with one client name",
+			[]string{"client1.example"},
+			`{"clientNames":["client1.example"]}`),
+		Entry("with multiple client names",
+			[]string{"client1.example", "client2.example"},
+			`{"clientNames":["client1.example","client2.example"]}`),
+	)
 
 	Describe("NewDnstapWriter", func() {
 		It("creates a writer for a unix target", func() {

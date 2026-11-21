@@ -1,6 +1,7 @@
 package querylog
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -198,6 +199,10 @@ func (d *DnstapWriter) Close() error {
 	return nil
 }
 
+type dnstapExtra struct {
+	ClientNames []string `json:"clientNames"`
+}
+
 func marshalDnstapFrame(entry *LogEntry, identity string) ([]byte, error) {
 	msgType := dnstap.Message_CLIENT_RESPONSE
 	socketFamily, queryAddr, err := clientSocketFamily(entry.ClientIP)
@@ -227,6 +232,17 @@ func marshalDnstapFrame(entry *LogEntry, identity string) ([]byte, error) {
 		Version:  []byte(util.Version),
 		Type:     dnstap.Dnstap_MESSAGE.Enum(),
 		Message:  msg,
+	}
+
+	if len(entry.ClientNames) > 0 {
+		extra, err := json.Marshal(dnstapExtra{
+			ClientNames: entry.ClientNames,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		dt.Extra = extra
 	}
 
 	return proto.Marshal(dt)
