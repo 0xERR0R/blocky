@@ -9,7 +9,6 @@
 #
 # Tags:
 #   deferred:#2397            Signed data for large RSA exponents is put in the wrong order (#2397).
-#   deferred:DNAME            A CNAME synthesized from a signed DNAME fails.
 #
 # A deferred tag is only for a reply that is refused and should not be.
 *.cwild.nsec3./A Secure 5 0
@@ -1077,10 +1076,10 @@ www.deep./A Secure 1 0
 www.deep./CNAME Secure 2 0
 www.deep./DS Secure 2 0
 www.deep./TXT Secure 2 0
-www.dname.nsec./A Bogus 2 0 false-bogus deferred:DNAME
-www.dname.nsec./CNAME Bogus 1 0 false-bogus deferred:DNAME
-www.dname.nsec./DS Bogus 1 0 false-bogus deferred:DNAME
-www.dname.nsec./TXT Bogus 1 0 false-bogus deferred:DNAME
+www.dname.nsec./A Secure 2 0
+www.dname.nsec./CNAME Secure 1 0
+www.dname.nsec./DS Secure 3 1
+www.dname.nsec./TXT Secure 3 1
 www.f.e.d.c.b.deep./A Secure 1 0
 www.f.e.d.c.b.deep./A@d.c.b.deep./DS+bit.ns1 Bogus 7 0
 www.f.e.d.c.b.deep./A@d.c.b.deep./DS+drop.ns0 Secure 11 2

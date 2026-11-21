@@ -184,6 +184,48 @@ type chainKeys struct {
 	parentSide rrsetKey
 }
 
+// validateAnswer defers unsigned synthesized aliases until their source RRsets have
+// been validated, independently of wire order. A signed CNAME is verified normally.
+func (ks chainKeys) validateAnswer(ctx context.Context, answer []dns.RR, sources map[rrsetKey]rrsetKey) []rrsetResult {
+	if len(sources) == 0 {
+		return validateSection(ctx, answer, ks)
+	}
+	sigs := rrsigsByRRset(answer)
+	var aliases, ordinary []dns.RR
+	for _, rr := range answer {
+		key := rrsetKeyOf(rr)
+		if _, made := sources[key]; made && len(sigs[key]) == 0 {
+			aliases = append(aliases, rr)
+		} else {
+			ordinary = append(ordinary, rr)
+		}
+	}
+	results := validateSection(ctx, ordinary, ks)
+	dnames := make(map[rrsetKey]rrsetResult)
+	for _, r := range results {
+		if r.rrType == dns.TypeDNAME {
+			dnames[rrsetKeyOf(r.rrs[0])] = r
+		}
+	}
+	for _, rr := range aliases {
+		r := newRRsetResult([]dns.RR{rr})
+		d := dnames[sources[rrsetKeyOf(rr)]]
+		switch {
+		case ks.v.hasTrustAnchorBelow(d.owner, r.owner):
+			r.err = bogus("DNAME at %s is above a closer trust anchor for %s", d.owner, r.owner)
+		case d.signer() != "":
+			r.status = ValidationResultSecure
+			r.lifetime = min(rr.Header().Ttl, d.lifetime)
+		case d.status != ValidationResultBogus:
+			ks.verify(ctx, &r, nil)
+		default:
+			r.err = d.err
+		}
+		results = append(results, r)
+	}
+	return results
+}
+
 // verify implements keySource. The first of sigs that verifies r says what r is (see verifiedBy).
 // Without RRSIGs r has the status of unsigned data in the zone that holds it (see holder).
 // Otherwise r is Insecure if an RRSIG names a zone below an insecure delegation, and else has the

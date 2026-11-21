@@ -234,12 +234,12 @@ var _ = Describe("Status of a reply", func() {
 			Expect(status(reply(noError, atApex), child, dns.TypeCNAME)).
 				Should(Equal(ValidationResultSecure), "the same RRset as the answer to a CNAME question")
 
-			// RFC 6672 §3.1: a CNAME made from a DNAME has no RRSIG, so no signed zone answers with it
+			// RFC 6672 §3.1: the authenticated DNAME supplies the unsigned CNAME.
 			dname := inParent(newRR("d." + parent + " 300 IN DNAME " + child))
 			made := []dns.RR{newRR("www.d." + parent + " 300 IN CNAME www." + child)}
 
 			Expect(status(reply(noError, slices.Concat(dname, made)), "www.d."+parent, dns.TypeDS)).
-				Should(Equal(ValidationResultBogus), "made from a DNAME")
+				Should(Equal(ValidationResultSecure), "made from a DNAME")
 
 			// *.w.signed.example. owns a CNAME RRset that answers for x.w.signed.example., which the
 			// NSEC record of a.w.signed.example. proves. A reply with NSEC records does not end with
@@ -273,6 +273,38 @@ var _ = Describe("Status of a reply", func() {
 			Expect(status(reply(nameError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultBogus))
 			Expect(status(reply(nameError, slices.Concat(cname, a)), "alias."+parent, dns.TypeA)).
 				Should(Equal(ValidationResultBogus))
+		})
+
+		It("bounds an unsigned CNAME by the verified lifetime of its DNAME", func() {
+			const name = `one\.two.WwW.d.example.`
+			dname := inParent(newRR("D.example. 300 IN DNAME " + child))
+			dname[1].Header().Ttl = 45
+			alias := newRR(name + ` 300 IN CNAME one\.two.www.` + child)
+			answer := slices.Concat([]dns.RR{alias}, dname, inChild(newRR(`one\.two.www.`+child+" 300 IN A 192.0.2.1")))
+			verdict := v.Validate(ctx, reply(noError, answer), dns.Question{Name: name, Qtype: dns.TypeA, Qclass: dns.ClassINET})
+			Expect(verdict.Result).Should(Equal(ValidationResultSecure))
+			Expect(verdict.Lifetimes.Bound(answer)[0].Header().Ttl).Should(Equal(uint32(45)))
+			Expect(alias.Header().Ttl).Should(Equal(uint32(300)))
+		})
+
+		It("requires the DNAME substitution, signer and closest anchor to agree", func() {
+			const owner = "old.example."
+			const name = "www.old.example."
+			d := newRR(owner + " 300 IN DNAME " + child)
+			alias := []dns.RR{newRR(name + " 30 IN CNAME www." + child)}
+			check := func(ds, cs []dns.RR) ValidationResult {
+				return status(reply(noError, slices.Concat(ds, cs)), name, dns.TypeCNAME)
+			}
+			Expect(check(inParent(d), alias)).Should(Equal(ValidationResultSecure))
+			Expect(check(inChild(d), alias)).Should(Equal(ValidationResultBogus), "signer outside the DNAME's zone")
+			Expect(check(inParent(d), []dns.RR{newRR(name + " 30 IN CNAME " + child)})).
+				Should(Equal(ValidationResultBogus), "missing prefix label")
+
+			_, _, anchor := newSignedZoneKey(name)
+			anchors, err := NewTrustAnchorStore([]string{chain.parentKey.String(), anchor})
+			Expect(err).Should(Succeed())
+			v = NewValidator(ctx, anchors, v.logger, upstream, 1, 10, 150, 30, 3600)
+			Expect(check(inParent(d), alias)).Should(Equal(ValidationResultBogus), "closer anchor at the CNAME owner")
 		})
 
 		It("may come with the DNAME RRset above a CNAME, which must be authentic beside a Secure answer", func() {
