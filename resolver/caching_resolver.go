@@ -233,7 +233,16 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			logger = logger.WithField(logFieldDomain, util.Obfuscate(domain))
 		}
 
-		val, ttl := r.getFromCache(logger, domain, cacheKey)
+		var (
+			val *dns.Msg
+			ttl time.Duration
+		)
+
+		// A request that is asked again is not answered with the response that is held for it,
+		// which is the one that failed: that of the next resolver takes its place if it can be held
+		if !request.AskedAgain {
+			val, ttl = r.getFromCache(logger, domain, cacheKey)
+		}
 
 		if val != nil {
 			logger.Debug("domain is cached")

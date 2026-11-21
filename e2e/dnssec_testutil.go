@@ -16,6 +16,9 @@ type DNSSECTestData struct {
 	RRSIG      *dns.RRSIG
 	DNSKEY     *dns.DNSKEY
 	PrivateKey *ecdsa.PrivateKey
+
+	// DNSKEY RRSIG (self-signed per RFC 4035 §5.2)
+	DNSKEYRRSIG *dns.RRSIG
 }
 
 // DNSSECChainData holds a complete DNSSEC chain with parent and child zones
@@ -106,45 +109,65 @@ func GenerateValidDNSSEC(zone, hostname, ipAddr string) (*DNSSECTestData, error)
 		return nil, fmt.Errorf("failed to sign A record: %w", err)
 	}
 
+	dnskeySig, err := selfSignDNSKEY(key, privkey)
+	if err != nil {
+		return nil, err
+	}
+
 	return &DNSSECTestData{
-		ARecord:    aRecord,
-		RRSIG:      sig,
-		DNSKEY:     key,
-		PrivateKey: privkey,
+		ARecord:     aRecord,
+		RRSIG:       sig,
+		DNSKEY:      key,
+		PrivateKey:  privkey,
+		DNSKEYRRSIG: dnskeySig,
 	}, nil
 }
 
+// selfSignDNSKEY returns the RRSIG that key makes over the DNSKEY RRset that holds it alone. A
+// zone publishes its DNSKEY RRset with such an RRSIG, and a validator takes the RRset of a trust
+// anchor zone only with one made by an anchored key (RFC 4035 §5).
+func selfSignDNSKEY(key *dns.DNSKEY, privkey *ecdsa.PrivateKey) (*dns.RRSIG, error) {
+	sig := new(dns.RRSIG)
+	sig.Hdr = dns.RR_Header{
+		Name:   key.Hdr.Name,
+		Rrtype: dns.TypeRRSIG,
+		Class:  dns.ClassINET,
+		Ttl:    key.Hdr.Ttl,
+	}
+	sig.TypeCovered = dns.TypeDNSKEY
+	sig.Algorithm = key.Algorithm
+	sig.Labels = uint8(dns.CountLabel(key.Hdr.Name)) //nolint:gosec // DNS label count is bounded by protocol (max 127)
+	sig.OrigTtl = key.Hdr.Ttl
+	sig.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	sig.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())       //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	sig.KeyTag = key.KeyTag()
+	sig.SignerName = key.Hdr.Name
+
+	if err := sig.Sign(privkey, []dns.RR{key}); err != nil {
+		return nil, fmt.Errorf("failed to sign DNSKEY: %w", err)
+	}
+
+	return sig, nil
+}
+
 // GenerateMismatchedDNSSEC generates DNSSEC data where RRSIG and DNSKEY don't match
-// The A record is signed with keyA, but a different keyB is returned for DNSKEY queries
-//
-//nolint:mnd // Test helper function with DNS TTL and key size constants
-func GenerateMismatchedDNSSEC(zone, hostname, ipAddr string) (*DNSSECTestData, *dns.DNSKEY, error) {
+// The A record is signed with keyA, but a different keyB, with the RRSIG that it makes over its
+// own DNSKEY RRset, is returned for DNSKEY queries
+func GenerateMismatchedDNSSEC(zone, hostname, ipAddr string) (signed, wrongKey *DNSSECTestData, err error) {
 	// Generate the first key and sign with it
-	validData, err := GenerateValidDNSSEC(zone, hostname, ipAddr)
+	signed, err = GenerateValidDNSSEC(zone, hostname, ipAddr)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Generate a second, different DNSKEY
-	wrongKey := new(dns.DNSKEY)
-	wrongKey.Hdr = dns.RR_Header{
-		Name:   zone,
-		Rrtype: dns.TypeDNSKEY,
-		Class:  dns.ClassINET,
-		Ttl:    3600,
-	}
-	wrongKey.Flags = 257
-	wrongKey.Protocol = 3
-	wrongKey.Algorithm = dns.ECDSAP256SHA256
-
-	// Generate different keypair
-	_, err = wrongKey.Generate(256)
+	// Generate a second, different DNSKEY of the zone
+	wrongKey, err = GenerateValidDNSSEC(zone, hostname, ipAddr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate wrong DNSKEY: %w", err)
 	}
 
 	// Return the valid data (signed with keyA) and the wrong key (keyB)
-	return validData, wrongKey, nil
+	return signed, wrongKey, nil
 }
 
 // GenerateDNSSECChain generates a complete DNSSEC chain with parent and child zones

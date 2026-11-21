@@ -767,6 +767,53 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
+	Describe("A request that is asked again should not be answered from the cache", func() {
+		When("The cached response of some query failed DNSSEC validation", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, A, "1.1.1.1")
+			})
+			It("Should ask the next resolver and cache its response instead", func() {
+				By("first request", func() {
+					Expect(sut.Resolve(ctx, newRequest("google.de.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							BeDNSRecord("google.de.", A, "1.1.1.1"),
+						))
+
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+
+				By("the request asked again", func() {
+					answer, ok := mockAnswer.Answer[0].(*dns.A)
+					Expect(ok).Should(BeTrue())
+
+					answer.A = net.ParseIP("2.2.2.2")
+
+					again := newRequest("google.de.", A)
+					again.AskedAgain = true
+
+					Expect(sut.Resolve(ctx, again)).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							BeDNSRecord("google.de.", A, "2.2.2.2"),
+						))
+
+					Expect(m.Calls).Should(HaveLen(2))
+				})
+
+				By("next request", func() {
+					Expect(sut.Resolve(ctx, newRequest("google.de.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeCACHED),
+							BeDNSRecord("google.de.", A, "2.2.2.2"),
+						))
+
+					Expect(m.Calls).Should(HaveLen(2))
+				})
+			})
+		})
+	})
+
 	Describe("EDNS pseudo records should not be cached", func() {
 		When("Some query returns EDNS OPT RRs", func() {
 			BeforeEach(func() {

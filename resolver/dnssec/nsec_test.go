@@ -2,6 +2,7 @@ package dnssec
 
 import (
 	"context"
+	"strings"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/miekg/dns"
@@ -100,9 +101,14 @@ var _ = Describe("NSEC validation", func() {
 				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
 				NextDomain: "z.example.com.",
 			}
+			// and from example.com to a.example.com, which covers the wildcard *.example.com
+			apex := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "a.example.com.",
+			}
 
 			response := &dns.Msg{
-				Ns: []dns.RR{nsec},
+				Ns: []dns.RR{nsec, apex},
 			}
 			response.Rcode = dns.RcodeNameError
 
@@ -141,14 +147,31 @@ var _ = Describe("NSEC validation", func() {
 	})
 
 	Describe("validateNSECNXDOMAIN", func() {
-		It("should return Secure when NSEC covers the query name", func() {
+		// The NSEC record of the apex covers *.example.com., the wildcard that would answer for a name
+		// below example.com. that does not exist (RFC 4035 §5.4)
+		apex := &dns.NSEC{
+			Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeNSEC},
+			NextDomain: "a.example.com.",
+		}
+
+		It("should return Secure when NSEC records cover the query name and the wildcard", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "z.example.com.",
+			}
+
+			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec, apex}, "m.example.com.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should return Bogus when no NSEC covers the wildcard at the closest encloser", func() {
 			nsec := &dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
 				NextDomain: "z.example.com.",
 			}
 
 			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec}, "m.example.com.")
-			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
 		It("should return Bogus when no NSEC covers the query name", func() {
@@ -168,7 +191,7 @@ var _ = Describe("NSEC validation", func() {
 			}
 
 			// Test without trailing dot
-			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec}, "m.example.com")
+			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec, apex}, "m.example.com")
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
@@ -187,20 +210,84 @@ var _ = Describe("NSEC validation", func() {
 			}
 
 			// Query falls in second range (canonically between m and n)
-			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec1, nsec2, nsec3}, "ma.example.com.")
+			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec1, nsec2, nsec3, apex}, "ma.example.com.")
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
 		It("should handle wrap-around at end of zone", func() {
-			// NSEC wraps from z back to a (covers end of zone)
+			// The last NSEC record of a zone has the apex as its next owner name (RFC 4034 §4.1.1): the
+			// zone of the records here is the root
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "z.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: ".",
+			}
+
+			// Query name after the last name of the zone
+			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec, apex}, "zz.example.com.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should not take a record for the last of its zone that does not end at the apex", func() {
+			// A next owner name before the owner name that is not the apex of the zone: no zone has
+			// such a record, and it covers nothing
 			nsec := &dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "z.example.com.", Rrtype: dns.TypeNSEC},
 				NextDomain: "a.example.com.",
 			}
 
-			// Query name that wraps around (after z or before a)
-			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec}, "zz.example.com.")
-			Expect(result).Should(Equal(ValidationResultSecure))
+			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec, apex}, "zz.example.com.")
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		// RFC 4470: a name server that signs its answers as it gives them makes the records that
+		// cover a name and the wildcard for it. Their owner names and next owner names need not
+		// exist.
+		minimal := func(owner, next string) *dns.NSEC {
+			return &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: owner, Rrtype: dns.TypeNSEC},
+				NextDomain: next, TypeBitMap: []uint16{dns.TypeRRSIG, dns.TypeNSEC},
+			}
+		}
+
+		It("should take records that end just after the name and the wildcard (RFC 4470 §3)", func() {
+			records := []*dns.NSEC{
+				minimal("fon.example.com.", "foo-.example.com."), minimal(").example.com.", "+.example.com."),
+			}
+
+			Expect(sut.validateNSECNXDOMAIN(records, "foo.example.com.")).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should read a record that ends below the name as that of an empty non-terminal (RFC 4470 §4)", func() {
+			// RFC 4592 §2.2.2: a name exists if a name below it does, and \000.foo.example.com. is
+			// below foo.example.com. The name has no data then, and no name error.
+			records := []*dns.NSEC{
+				minimal("fon.example.com.", `\000.foo.example.com.`), minimal(").example.com.", "+.example.com."),
+			}
+
+			Expect(sut.validateNSECNXDOMAIN(records, "foo.example.com.")).Should(Equal(ValidationResultBogus))
+			Expect(sut.validateNSECNODATA(records, "foo.example.com.", dns.TypeA)).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should read a record that ends below the wildcard as that of an empty non-terminal (RFC 4470 §4)", func() {
+			// RFC 4592 §4.9: a wildcard without records that has names below it exists, and answers
+			// for the name without data
+			records := []*dns.NSEC{
+				minimal("fon.example.com.", "foo-.example.com."), minimal(").example.com.", `\000.*.example.com.`),
+			}
+
+			Expect(sut.validateNSECNXDOMAIN(records, "foo.example.com.")).Should(Equal(ValidationResultBogus))
+			Expect(sut.validateNSECNODATA(records, "foo.example.com.", dns.TypeA)).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should ask for the denial of the wildcard at the closest encloser that the records show", func() {
+			// The record that covers a.b.example.com. has names below b.example.com., so that is the
+			// closest encloser that it shows, and no record denies *.b.example.com.
+			cover := minimal("`.b.example.com.", "a-.b.example.com.")
+
+			Expect(sut.validateNSECNXDOMAIN([]*dns.NSEC{cover, minimal(").example.com.", "+.example.com.")},
+				"a.b.example.com.")).Should(Equal(ValidationResultBogus))
+			Expect(sut.validateNSECNXDOMAIN([]*dns.NSEC{cover, minimal(").b.example.com.", "+.b.example.com.")},
+				"a.b.example.com.")).Should(Equal(ValidationResultSecure))
 		})
 
 		It("should return Bogus for empty NSEC list", func() {
@@ -214,7 +301,7 @@ var _ = Describe("NSEC validation", func() {
 			nsec := &dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeNSEC},
 				NextDomain: "z.example.com.",
-				TypeBitMap: []uint16{dns.TypeA, dns.TypeNS},
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeNS, dns.TypeSOA},
 			}
 
 			result := sut.validateNSECNODATA([]*dns.NSEC{nsec}, "example.com.", dns.TypeAAAA)
@@ -277,6 +364,136 @@ var _ = Describe("NSEC validation", func() {
 		})
 	})
 
+	// Proofs from a denial set of verified NSEC records of the zone example. A name is the same
+	// name in every case (RFC 4343). A zone spells its names as it likes, and a reply spells the
+	// owner names that it compresses against its question as the question does.
+	Describe("NSEC record of a name that is spelt in another case", func() {
+		record := func(owner string, types ...uint16) []*dns.NSEC {
+			return []*dns.NSEC{{
+				Hdr:        dns.RR_Header{Name: owner, Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "z.example.",
+				TypeBitMap: types,
+			}}
+		}
+
+		It("proves that the name has no data of a type", func() {
+			noData := func(owner, name string, qtype uint16) ValidationResult {
+				return legacyDenialSet(sut, record(owner, dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC), name, qtype).noData()
+			}
+
+			Expect(noData("WWW.Example.", "www.example.", dns.TypeTXT)).Should(Equal(ValidationResultSecure))
+			Expect(noData("www.example.", "WWW.Example.", dns.TypeTXT)).Should(Equal(ValidationResultSecure))
+			Expect(noData("WWW.Example.", "www.example.", dns.TypeA)).Should(Equal(ValidationResultBogus),
+				"the record says that the name has the type")
+			Expect(noData("WWW.Example.", "ww.example.", dns.TypeTXT)).Should(Equal(ValidationResultBogus),
+				"the record is that of another name")
+		})
+
+		It("proves that the name is an insecure delegation", func() {
+			noDS := func(owner, name string, types ...uint16) ValidationResult {
+				return legacyDenialSet(sut, record(owner, types...), name, dns.TypeDS).noDS(false)
+			}
+
+			Expect(noDS("Sub.Example.", "sub.example.", dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC)).
+				Should(Equal(ValidationResultSecure))
+			Expect(noDS("sub.example.", "SUB.EXAMPLE.", dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC)).
+				Should(Equal(ValidationResultSecure))
+			Expect(noDS("Sub.Example.", "sub.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC)).
+				Should(Equal(ValidationResultBogus), "the record is not that of a delegation")
+		})
+	})
+
+	// Replies without answer for names of the zone example., as its name servers send them: the SOA
+	// record and the NSEC records of the proof, each with the RRSIG of the zone (RFC 4035 §3.1.3).
+	Describe("proof that a name has no data of a type", func() {
+		var (
+			chain *signedChain
+			v     *Validator
+		)
+
+		BeforeEach(func() {
+			chain = newSignedChain()
+			v = NewValidator(ctx, chain.anchors, sut.logger, &mockResolver{ResolveFn: chain.resolve}, 1, 10, 150, 30, 3600)
+		})
+
+		// noData returns the status of the reply for name and qtype whose authority section holds
+		// records, NSEC records in zone file format, after the SOA record.
+		noData := func(name string, qtype uint16, records ...string) ValidationResult {
+			records = append([]string{"example. 300 IN SOA ns.example. host.example. 1 3600 600 86400 300"}, records...)
+			authority := make([]dns.RR, 0, 2*len(records))
+
+			for _, record := range records {
+				rr, err := dns.NewRR(record)
+				Expect(err).Should(Succeed())
+
+				sig := signRRset([]dns.RR{rr}, rr.Header().Rrtype, chain.parentKey, chain.parentPriv, chain.parent)
+				authority = append(authority, rr, sig)
+			}
+
+			question := dns.Question{Name: name, Qtype: qtype, Qclass: dns.ClassINET}
+
+			return v.ValidateResponse(ctx, &dns.Msg{Ns: authority}, question)
+		}
+
+		It("is given for an empty non-terminal by the record before it, which names a name below it", func() {
+			// _tcp.example. has no records, and names below it have (RFC 4592 §2.2.2)
+			Expect(noData("_tcp.example.", dns.TypeA, "_github.example. 300 IN NSEC _25._tcp.example. TXT RRSIG NSEC")).
+				Should(Equal(ValidationResultSecure))
+
+			// The record before the name may be that of a wildcard
+			Expect(noData("_dane.example.", dns.TypeA, "*.example. 300 IN NSEC batch._dane.example. TXT RRSIG NSEC")).
+				Should(Equal(ValidationResultSecure))
+
+			Expect(noData("_tcp.example.", dns.TypeA, "_github.example. 300 IN NSEC _udp.example. TXT RRSIG NSEC")).
+				Should(Equal(ValidationResultBogus), "the next owner name is not below the name, which so does not exist")
+			Expect(noData("_tcp.example.", dns.TypeA, "_25._tcp.example. 300 IN NSEC _443._tcp.example. RRSIG NSEC TLSA")).
+				Should(Equal(ValidationResultBogus), "the record is not the one before the name")
+		})
+
+		It("is given for a name that a wildcard answers for by the record of the wildcard, without the type", func() {
+			// RFC 4035 §3.1.3.4: a record covers the name, and so shows the closest encloser example.,
+			// and the record of *.example. lists the types that the wildcard answers with
+			const (
+				wildcard = "*.example. 300 IN NSEC _acme-challenge.example. A AAAA RRSIG NSEC"
+				cover    = "_psl.example. 300 IN NSEC lotus.example. TXT RRSIG NSEC"
+				last     = "_443._tcp.www.example. 300 IN NSEC example. CNAME RRSIG NSEC"
+			)
+
+			Expect(noData("college.example.", dns.TypeHTTPS, wildcard, cover)).Should(Equal(ValidationResultSecure))
+			Expect(noData("zz9x.example.", dns.TypeHTTPS, last, wildcard)).
+				Should(Equal(ValidationResultSecure), "the last record of the zone covers the name")
+
+			Expect(noData("college.example.", dns.TypeHTTPS, wildcard)).
+				Should(Equal(ValidationResultBogus), "no record covers the name")
+			Expect(noData("college.example.", dns.TypeAAAA, wildcard, cover)).
+				Should(Equal(ValidationResultBogus), "the wildcard has the type")
+			Expect(noData("college.example.", dns.TypeHTTPS, cover)).
+				Should(Equal(ValidationResultBogus), "the record of the wildcard is missing")
+			Expect(noData("x.lotus.example.", dns.TypeHTTPS, wildcard, "lotus.example. 300 IN NSEC ns.example. A RRSIG NSEC")).
+				Should(Equal(ValidationResultBogus), "lotus.example. exists, so *.example. does not answer for a name below it")
+		})
+
+		It("takes no wildcard from a record of a zone that the name is not in", func() {
+			// alias.example. is above the zone below.alias.example., whose last record is the first one
+			// here. A record of a zone that the name is not in shows no closest encloser above the name,
+			// and the wildcard below alias.example. does not answer for alias.example. itself.
+			records := []*dns.NSEC{
+				{
+					Hdr:        dns.RR_Header{Name: "www.below.alias.example.", Rrtype: dns.TypeNSEC},
+					NextDomain: "below.alias.example.",
+					TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC},
+				},
+				{
+					Hdr:        dns.RR_Header{Name: "*.alias.example.", Rrtype: dns.TypeNSEC},
+					NextDomain: "below.alias.example.",
+					TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC},
+				},
+			}
+
+			Expect(sut.validateNSECNODATA(records, "alias.example.", dns.TypeTXT)).Should(Equal(ValidationResultBogus))
+		})
+	})
+
 	Describe("nsecCoversName", func() {
 		It("should return true when name is covered in normal range", func() {
 			nsec := &dns.NSEC{
@@ -318,17 +535,29 @@ var _ = Describe("NSEC validation", func() {
 		})
 
 		It("should handle wrap-around case", func() {
-			// NSEC wraps from z back to a
+			// The last NSEC record of a zone has the apex as its next owner name (RFC 4034 §4.1.1): the
+			// zone of the record here is the root
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "z.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: ".",
+			}
+
+			// Names after z should be covered
+			Expect(sut.nsecCoversName(nsec, "zz.example.com.")).Should(BeTrue())
+			// Names before z are those of the records before it
+			Expect(sut.nsecCoversName(nsec, "0.example.com.")).Should(BeFalse())
+			Expect(sut.nsecCoversName(nsec, "m.example.com.")).Should(BeFalse())
+		})
+
+		It("should let no record but the last of a zone wrap around", func() {
+			// A next owner name before the owner name that is not the apex of the zone
 			nsec := &dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "z.example.com.", Rrtype: dns.TypeNSEC},
 				NextDomain: "a.example.com.",
 			}
 
-			// Names after z should be covered
-			Expect(sut.nsecCoversName(nsec, "zz.example.com.")).Should(BeTrue())
-			// Names before a should be covered (wrap around)
-			Expect(sut.nsecCoversName(nsec, "0.example.com.")).Should(BeTrue())
-			// Names in normal range (a to z) should NOT be covered
+			Expect(sut.nsecCoversName(nsec, "zz.example.com.")).Should(BeFalse())
+			Expect(sut.nsecCoversName(nsec, "0.example.com.")).Should(BeFalse())
 			Expect(sut.nsecCoversName(nsec, "m.example.com.")).Should(BeFalse())
 		})
 
@@ -385,9 +614,10 @@ var _ = Describe("NSEC validation", func() {
 		})
 
 		It("should handle wrap-around with underscore-prefixed subdomains", func() {
+			// The last record of the zone, which is the root here
 			nsec := &dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "z.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "a.example.com.",
+				NextDomain: ".",
 			}
 
 			// _srv.z.example.com. is canonically after z.example.com.
@@ -440,6 +670,118 @@ var _ = Describe("NSEC validation", func() {
 
 		It("should handle names without trailing dot", func() {
 			Expect(canonicalNameCompare("a.example.com", "z.example.com")).Should(BeNumerically("<", 0))
+		})
+
+		It("should sort the names of the example in RFC 4034 §6.1", func() {
+			sorted := []string{
+				"example.", "a.example.", "yljkjljk.a.example.", "Z.a.example.", "zABC.a.EXAMPLE.", "z.example.",
+				`\001.z.example.`, "*.z.example.", `\200.z.example.`,
+			}
+
+			for i, name := range sorted {
+				for _, later := range sorted[i+1:] {
+					Expect(canonicalNameCompare(name, later)).Should(BeNumerically("<", 0), "%s before %s", name, later)
+					Expect(canonicalNameCompare(later, name)).Should(BeNumerically(">", 0), "%s after %s", later, name)
+				}
+			}
+		})
+
+		It("should order labels by their octets, not by the text that escapes them", func() {
+			// A space is the octet 0x20, which is before "-" (0x2d), and a dot inside a label is no end
+			// of the label
+			Expect(canonicalNameCompare(`lab\ printer.example.`, "lab-2.example.")).Should(BeNumerically("<", 0))
+			Expect(canonicalNameCompare(`lab\032printer.example.`, `lab\ printer.example.`)).Should(Equal(0))
+			Expect(canonicalNameCompare(`a\.b.example.`, "a.example.")).Should(BeNumerically(">", 0))
+			Expect(canonicalNameCompare(`a\.b.example.`, "b.example.")).Should(BeNumerically("<", 0))
+
+			// Only US-ASCII letters have another case
+			Expect(canonicalNameCompare(`\065.example.`, "a.example.")).Should(Equal(0))
+			Expect(canonicalNameCompare(`\201.example.`, `\233.example.`)).Should(BeNumerically("<", 0))
+
+			// A label is before a longer one that starts with it
+			Expect(canonicalNameCompare("lab.example.", `lab\000.example.`)).Should(BeNumerically("<", 0))
+		})
+
+		It("should let no record own or cover a name that cannot be on the wire", func() {
+			// Like a name with a label of 64 octets (RFC 1035 §2.3.4). The first record is the last
+			// of its zone, the root here, and covers every name after its owner name.
+			tooLong := strings.Repeat("x", 64) + ".example.com."
+			last := &dns.NSEC{Hdr: dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC}, NextDomain: "."}
+			own := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: tooLong, Rrtype: dns.TypeNSEC},
+				NextDomain: "z.example.com.", TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+			}
+
+			Expect(sut.nsecCoversName(last, tooLong[1:])).Should(BeTrue())
+			Expect(sut.nsecCoversName(last, tooLong)).Should(BeFalse())
+			Expect(sut.validateNSECNODATA([]*dns.NSEC{own}, tooLong, dns.TypeA)).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	// Replies for names of the zone example., as its name servers send them. The zone has the names
+	// lab and "lab printer", whose text escapes the space: names are ordered by the octets of their
+	// labels (RFC 4034 §6.1), where the space (0x20) is before "-" (0x2d).
+	Describe("proof that a name with an octet that its text escapes does not exist", func() {
+		var (
+			chain *signedChain
+			v     *Validator
+		)
+
+		BeforeEach(func() {
+			chain = newSignedChain()
+			v = NewValidator(ctx, chain.anchors, sut.logger, &mockResolver{ResolveFn: chain.resolve}, 1, 10, 150, 30, 3600)
+		})
+
+		// nameError returns the status of the name error reply for name whose authority section holds
+		// records, NSEC records in zone file format, after the SOA record.
+		nameError := func(name string, records ...string) ValidationResult {
+			records = append([]string{"example. 300 IN SOA ns.example. host.example. 1 3600 600 86400 300"}, records...)
+			authority := make([]dns.RR, 0, 2*len(records))
+
+			for _, record := range records {
+				rr, err := dns.NewRR(record)
+				Expect(err).Should(Succeed())
+
+				sig := signRRset([]dns.RR{rr}, rr.Header().Rrtype, chain.parentKey, chain.parentPriv, chain.parent)
+				authority = append(authority, rr, sig)
+			}
+
+			question := dns.Question{Name: name, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+
+			return v.ValidateResponse(ctx, &dns.Msg{Rcode: dns.RcodeNameError, Ns: authority}, question)
+		}
+
+		It("is given by the records before and after the name in the order of their octets", func() {
+			const apex = "example. 300 IN NSEC lab.example. NS SOA RRSIG NSEC DNSKEY"
+
+			// The last record of the zone covers lab-2.example., which is after "lab printer"
+			Expect(nameError("lab-2.example.", `lab\032printer.example. 300 IN NSEC example. A RRSIG NSEC`, apex)).
+				Should(Equal(ValidationResultSecure))
+
+			// In a zone that has lab-2.example., the record of lab ends at "lab printer", before it
+			Expect(nameError("lab-2.example.", `lab.example. 300 IN NSEC lab\032printer.example. A RRSIG NSEC`, apex)).
+				Should(Equal(ValidationResultBogus))
+		})
+
+		It("has the closest encloser that the octets of the labels show", func() {
+			// The zone has "lab printer" with the names a and z below it. m is a name below it too,
+			// however a reply spells the space: "lab printer" is its closest encloser, and the record
+			// of "lab printer" covers the wildcard below it.
+			const (
+				above = `lab\032printer.example. 300 IN NSEC a.lab\032printer.example. TXT RRSIG NSEC`
+				cover = `a.lab\032printer.example. 300 IN NSEC z.lab\032printer.example. A RRSIG NSEC`
+			)
+
+			Expect(nameError(`m.lab\ printer.example.`, cover, above)).Should(Equal(ValidationResultSecure))
+			Expect(nameError(`m.lab\ printer.example.`, cover)).
+				Should(Equal(ValidationResultBogus), "without the denial of the wildcard")
+		})
+
+		It("is given by the records that a name server makes for the name alone (RFC 4470 §3)", func() {
+			// A record from just before foo.example. to just after it, and one around the wildcard
+			// *.example.: the octet before "*" is ")", which the text of a name escapes
+			Expect(nameError("foo.example.", "fon.example. 300 IN NSEC foo-.example. RRSIG NSEC",
+				`\).example. 300 IN NSEC +.example. RRSIG NSEC`)).Should(Equal(ValidationResultSecure))
 		})
 	})
 

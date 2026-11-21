@@ -11,29 +11,29 @@ import (
 )
 
 const (
-	// ValidationResultSecure is a ValidationResult of type Secure.
-	// Valid DNSSEC signatures and chain of trust
-	ValidationResultSecure ValidationResult = iota
+	// ValidationResultBogus is a ValidationResult of type Bogus.
+	// Invalid DNSSEC (failed validation, or validation that could not be completed)
+	ValidationResultBogus ValidationResult = iota
+	// ValidationResultIndeterminate is a ValidationResult of type Indeterminate.
+	// No trust anchor above the name
+	ValidationResultIndeterminate
 	// ValidationResultInsecure is a ValidationResult of type Insecure.
 	// No DNSSEC (unsigned zone)
 	ValidationResultInsecure
-	// ValidationResultBogus is a ValidationResult of type Bogus.
-	// Invalid DNSSEC (failed validation)
-	ValidationResultBogus
-	// ValidationResultIndeterminate is a ValidationResult of type Indeterminate.
-	// Validation could not be completed
-	ValidationResultIndeterminate
+	// ValidationResultSecure is a ValidationResult of type Secure.
+	// Valid DNSSEC signatures and chain of trust
+	ValidationResultSecure
 )
 
 var ErrInvalidValidationResult = fmt.Errorf("not a valid ValidationResult, try [%s]", strings.Join(_ValidationResultNames, ", "))
 
-const _ValidationResultName = "SecureInsecureBogusIndeterminate"
+const _ValidationResultName = "BogusIndeterminateInsecureSecure"
 
 var _ValidationResultNames = []string{
-	_ValidationResultName[0:6],
-	_ValidationResultName[6:14],
-	_ValidationResultName[14:19],
-	_ValidationResultName[19:32],
+	_ValidationResultName[0:5],
+	_ValidationResultName[5:18],
+	_ValidationResultName[18:26],
+	_ValidationResultName[26:32],
 }
 
 // ValidationResultNames returns a list of possible string values of ValidationResult.
@@ -46,18 +46,18 @@ func ValidationResultNames() []string {
 // ValidationResultValues returns a list of the values for ValidationResult
 func ValidationResultValues() []ValidationResult {
 	return []ValidationResult{
-		ValidationResultSecure,
-		ValidationResultInsecure,
 		ValidationResultBogus,
 		ValidationResultIndeterminate,
+		ValidationResultInsecure,
+		ValidationResultSecure,
 	}
 }
 
 var _ValidationResultMap = map[ValidationResult]string{
-	ValidationResultSecure:        _ValidationResultName[0:6],
-	ValidationResultInsecure:      _ValidationResultName[6:14],
-	ValidationResultBogus:         _ValidationResultName[14:19],
-	ValidationResultIndeterminate: _ValidationResultName[19:32],
+	ValidationResultBogus:         _ValidationResultName[0:5],
+	ValidationResultIndeterminate: _ValidationResultName[5:18],
+	ValidationResultInsecure:      _ValidationResultName[18:26],
+	ValidationResultSecure:        _ValidationResultName[26:32],
 }
 
 // String implements the Stringer interface.
@@ -76,10 +76,10 @@ func (x ValidationResult) IsValid() bool {
 }
 
 var _ValidationResultValue = map[string]ValidationResult{
-	_ValidationResultName[0:6]:   ValidationResultSecure,
-	_ValidationResultName[6:14]:  ValidationResultInsecure,
-	_ValidationResultName[14:19]: ValidationResultBogus,
-	_ValidationResultName[19:32]: ValidationResultIndeterminate,
+	_ValidationResultName[0:5]:   ValidationResultBogus,
+	_ValidationResultName[5:18]:  ValidationResultIndeterminate,
+	_ValidationResultName[18:26]: ValidationResultInsecure,
+	_ValidationResultName[26:32]: ValidationResultSecure,
 }
 
 // ParseValidationResult attempts to convert a string to a ValidationResult.

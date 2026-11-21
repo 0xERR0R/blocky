@@ -4,7 +4,8 @@ package dnssec
 // exponent Go's crypto/rsa cannot load. RFC 3110 §2 limits the exponent to 4096 bits, but Go
 // rejects any exponent >= 2^31-1, so a validly signed zone using e.g. 2^32+1 fails to validate
 // with miekg/dns and is otherwise degraded to Insecure or Bogus (issue #2364). The exponent is
-// public, so the signature is verified here with math/big instead.
+// public, so the signature is verified here with math/big instead, for exponents up to
+// maxRSAExponent.
 
 import (
 	"bytes"
@@ -24,8 +25,14 @@ import (
 
 const (
 	rsaExponentMaxBytes = 512 // RFC 3110 §2: the exponent is limited to 4096 bits
+	rsaExponentGoBits   = 31  // Go's crypto/rsa takes exponents up to 2^31-1
 	rsaModulusMinBytes  = 64  // RFC 3110 §3: the modulus is at least 512 bits
 	rsaModulusMaxBytes  = 512 // RFC 3110 §3: the modulus is at most 4096 bits
+
+	// maxRSAExponent is the largest public exponent that a signature is verified with, as in
+	// BIND 9. The time that a verification takes grows with the length of the exponent, and no key
+	// in use has a larger one (issue #2364).
+	maxRSAExponent = 1<<32 + 1
 
 	extendedExpHeaderLen = 3 // RFC 3110 §2: a 0x00 length byte followed by a 2-octet length
 	minRSAExponent       = 3 // an RSA public exponent must be odd and greater than 2
@@ -43,9 +50,9 @@ const (
 )
 
 // parseRSAKey parses the RFC 3110 public key of an RSA DNSKEY into its exponent and modulus.
-// It accepts exponents up to 4096 bits, which Go's crypto/rsa cannot load, so signatures made by
-// such keys can still be verified with math/big. ok is false when key is not RSA, is malformed,
-// or exceeds the RFC 3110 exponent/modulus limits.
+// It accepts every exponent that RFC 3110 allows, up to 4096 bits; which of them a signature is
+// verified with is for canVerifyWith to say. ok is false when key is not RSA, is malformed, or
+// exceeds the RFC 3110 exponent/modulus limits.
 func parseRSAKey(key *dns.DNSKEY) (e, n *big.Int, ok bool) {
 	switch key.Algorithm {
 	case dns.RSASHA1, dns.RSASHA1NSEC3SHA1, dns.RSASHA256, dns.RSASHA512:
@@ -92,9 +99,9 @@ func parseRSAKey(key *dns.DNSKEY) (e, n *big.Int, ok bool) {
 }
 
 // rsaKeyNeedsBigMath reports whether key is an RSA/SHA-256 or RSA/SHA-512 DNSKEY whose exponent
-// exceeds Go's crypto/rsa limit (2^31-1) but is within RFC 3110's 4096-bit limit, so its
-// signatures must be verified with math/big. RSA/SHA-1 is deliberately excluded: it is a
-// deprecated algorithm and is left to the existing unsupported-exponent handling.
+// exceeds Go's crypto/rsa limit (2^31-1) but not maxRSAExponent, so its signatures must be
+// verified with math/big. RSA/SHA-1 is deliberately excluded: it is a deprecated algorithm, and
+// nothing verifies with a key of it that has such an exponent.
 func rsaKeyNeedsBigMath(key *dns.DNSKEY) bool {
 	switch key.Algorithm {
 	case dns.RSASHA256, dns.RSASHA512:
@@ -104,16 +111,35 @@ func rsaKeyNeedsBigMath(key *dns.DNSKEY) bool {
 
 	e, _, ok := parseRSAKey(key)
 
-	return ok && e.BitLen() > 31
+	return ok && e.BitLen() > rsaExponentGoBits && e.IsUint64() && e.Uint64() <= maxRSAExponent
+}
+
+// canVerifyWith reports whether key is not an RSA key with an exponent that nothing here verifies
+// with: one above 2^31-1, which Go's crypto/rsa does not take, unless verifyRSAWithBigExponent is
+// for it (see rsaKeyNeedsBigMath). It says nothing else about key: a malformed key, or one of
+// another algorithm, is no such key.
+func canVerifyWith(key *dns.DNSKEY) bool {
+	e, _, ok := parseRSAKey(key)
+
+	return !ok || e.BitLen() <= rsaExponentGoBits || rsaKeyNeedsBigMath(key)
 }
 
 // verifyRSAWithBigExponent verifies an RRSIG made by an RSA DNSKEY using math/big. It works for
 // any in-bounds RSA exponent, including ones Go's crypto/rsa cannot load. It reconstructs the
 // signed data per RFC 4035 §5.3.2 and verifies the PKCS#1 v1.5 signature per RFC 3110 §3.
+//
+// It checks the signature only. Of what RRSIG.Verify of miekg/dns checks before the signature,
+//   - that key may verify rrsig (key tag, algorithm, owner, protocol, Zone Key flag) is for the
+//     caller to check (see mayVerify), and so is that the signer of rrsig may sign rrset (see
+//     maySign; a DS or DNSKEY RRset is verified with the keys of the one zone that signs it);
+//   - that rrset is one RRset of the type that rrsig covers, with at least the labels that rrsig
+//     counts, follows from the signed data: it holds the owner name, type and class of every
+//     record beside the fields of rrsig, so a signature verifies for nothing but the records that
+//     the key signed.
 func verifyRSAWithBigExponent(rrset []dns.RR, rrsig *dns.RRSIG, key *dns.DNSKEY) error {
 	e, n, ok := parseRSAKey(key)
 	if !ok {
-		return errRRSIGVerificationFailed
+		return dns.ErrKey
 	}
 
 	h, digestInfoPrefix, err := rsaHashForAlgorithm(rrsig.Algorithm)
@@ -135,7 +161,7 @@ func verifyRSAWithBigExponent(rrset []dns.RR, rrsig *dns.RRSIG, key *dns.DNSKEY)
 	}
 
 	if !verifyPKCS1v15(n, e, digestInfoPrefix, digest, sig) {
-		return errRRSIGVerificationFailed
+		return dns.ErrSig
 	}
 
 	return nil
