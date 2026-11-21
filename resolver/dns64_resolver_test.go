@@ -528,7 +528,7 @@ var _ = Describe("DNS64Resolver", func() {
 	})
 
 	Describe("RCODE handling", func() {
-		It("should return NXDOMAIN without synthesis", func() {
+		It("preserves the alias and the terminal denial in an A-side NXDOMAIN", func() {
 			request := util.NewMsgWithQuestion("notexist.com.", dns.Type(dns.TypeAAAA))
 
 			aaaaResponse := new(dns.Msg)
@@ -538,6 +538,8 @@ var _ = Describe("DNS64Resolver", func() {
 			aResponse := new(dns.Msg)
 			aResponse.SetReply(aRequest)
 			aResponse.Rcode = dns.RcodeNameError // NXDOMAIN
+			aResponse.Answer = []dns.RR{&dns.CNAME{Hdr: dns.RR_Header{Name: "notexist.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET}, Target: "missing.example."}}
+			aResponse.Ns = []dns.RR{&dns.SOA{Hdr: dns.RR_Header{Name: "example.", Rrtype: dns.TypeSOA, Class: dns.ClassINET}}}
 
 			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
 				return req.Req.Question[0].Qtype == dns.TypeAAAA
@@ -551,6 +553,11 @@ var _ = Describe("DNS64Resolver", func() {
 
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(resp.Res.Question).Should(Equal(request.Question))
+			Expect(resp.Res.Id).Should(Equal(request.Id))
+			Expect(resp.Res.Answer).Should(Equal(aResponse.Answer))
+			Expect(resp.Res.Ns).Should(Equal(aResponse.Ns))
+			Expect(aResponse.Question).Should(Equal(aRequest.Question))
 			Expect(resp.Reason).Should(Equal("NXDOMAIN"))
 		})
 

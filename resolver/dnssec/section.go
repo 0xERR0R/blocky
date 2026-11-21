@@ -223,6 +223,7 @@ func (ks chainKeys) validateAnswer(ctx context.Context, answer []dns.RR, sources
 		}
 		results = append(results, r)
 	}
+
 	return results
 }
 

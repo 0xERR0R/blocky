@@ -100,6 +100,12 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 	}
 
 	qname := request.Req.Question[0].Name
+	// RFC 6147 §5.5: a client requesting both DO and CD needs the original
+	// AAAA reply for its own validation. Check before downstream sets DO.
+	if opt := request.Req.IsEdns0(); request.Req.CheckingDisabled && opt != nil && opt.Do() {
+		return r.next.Resolve(ctx, request)
+	}
+
 	logger.Debugf("received AAAA query for %s, checking for synthesis", qname)
 
 	// Pass query to next resolver
@@ -213,34 +219,18 @@ func (r *DNS64Resolver) synthesizeFromA(
 	}
 
 	// Handle RCODE
-	if aResponse.Res.Rcode == dns.RcodeServerFailure {
-		// Report the failure (including DNSSEC metadata and EDE) for the client's question.
+	if aResponse.Res.Rcode == dns.RcodeServerFailure || aResponse.Res.Rcode == dns.RcodeNameError {
+		// Preserve the denial, including any alias chain to the nonexistent name.
+		// Only the ID and question belong to the original AAAA transaction.
 		failure := *aResponse
 		failure.Res = aResponse.Res.Copy()
 		failure.Res.Id = originalRequest.Req.Id
 		failure.Res.Question = originalRequest.Req.Question
-
-		return &failure, nil
-	}
-
-	if aResponse.Res.Rcode == dns.RcodeNameError {
-		// NXDOMAIN: return NXDOMAIN with original AAAA query in Question section
-		logger.Debug("A query returned NXDOMAIN, no synthesis")
-
-		// Build a synthetic NXDOMAIN response with the original AAAA query in the Question section
-		nxdomainResponse := new(dns.Msg)
-		nxdomainResponse.SetReply(originalRequest.Req)
-		nxdomainResponse.Rcode = dns.RcodeNameError
-		// Copy authority section from A response (contains SOA record with TTL)
-		if len(aResponse.Res.Ns) > 0 {
-			nxdomainResponse.Ns = aResponse.Res.Ns
+		if failure.Res.Rcode == dns.RcodeNameError && failure.Reason == "" {
+			failure.Reason = "NXDOMAIN"
 		}
 
-		return &model.Response{
-			Res:    nxdomainResponse,
-			RType:  aResponse.RType,
-			Reason: "NXDOMAIN",
-		}, nil
+		return &failure, nil
 	}
 
 	if aResponse.Res.Rcode != dns.RcodeSuccess {

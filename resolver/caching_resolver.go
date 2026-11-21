@@ -307,10 +307,10 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, domain, key string)
 // already spent in the cache, so that every section counts down instead of repeating the
 // TTLs the upstream sent. `ttl` is the entry's remaining lifetime.
 func (r *CachingResolver) setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
-	baseTTL := uint32(r.cacheLifetime(resp, hasCacheSignatures(resp)) / time.Second)
+	baseTTL := boundedTTL(int64(r.cacheLifetime(resp, hasCacheSignatures(resp)) / time.Second))
 
 	var elapsed uint32
-	if remaining := uint32(ttl.Seconds()); baseTTL > remaining {
+	if remaining := boundedTTL(int64(ttl / time.Second)); baseTTL > remaining {
 		elapsed = baseTTL - remaining
 	}
 
@@ -416,8 +416,25 @@ func (r *CachingResolver) putInCache(
 	}
 }
 
+// boundedTTL clamps a lifetime in seconds to the range of a DNS TTL field.
+func boundedTTL(seconds int64) uint32 {
+	if seconds < 0 {
+		return 0
+	}
+	if seconds > math.MaxUint32 {
+		return math.MaxUint32
+	}
+
+	return uint32(seconds)
+}
+
 func hasCacheSignatures(msg *dns.Msg) bool {
-	isSig := func(rr dns.RR) bool { _, ok := rr.(*dns.RRSIG); return ok }
+	isSig := func(rr dns.RR) bool {
+		_, ok := rr.(*dns.RRSIG)
+
+		return ok
+	}
+
 	return slices.ContainsFunc(msg.Answer, isSig) || slices.ContainsFunc(msg.Ns, isSig)
 }
 
@@ -439,12 +456,13 @@ func (r *CachingResolver) prepareCacheTTLs(msg *dns.Msg) time.Duration {
 		for _, section := range [][]dns.RR{msg.Answer, msg.Ns} {
 			for _, rr := range section {
 				if sig, ok := rr.(*dns.RRSIG); ok {
-					remaining := max(int64(sig.Expiration)-now, 0)
-					sig.Hdr.Ttl = uint32(min(int64(sig.Hdr.Ttl), int64(sig.OrigTtl), remaining))
+					remaining := boundedTTL(int64(sig.Expiration) - now)
+					sig.Hdr.Ttl = min(sig.Hdr.Ttl, sig.OrigTtl, remaining)
 				}
 			}
 		}
 	}
+
 	return r.cacheLifetime(msg, signed)
 }
 
@@ -465,6 +483,7 @@ func (r *CachingResolver) cacheLifetime(msg *dns.Msg, signed bool) time.Duration
 			ttl = min(ttl, time.Duration(rr.Header().Ttl)*time.Second)
 		}
 	}
+
 	return ttl
 }
 

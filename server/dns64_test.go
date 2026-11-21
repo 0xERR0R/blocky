@@ -36,6 +36,7 @@ var _ = Describe("Validating DNS64 chain", func() {
 				}
 				m.Answer = []dns.RR{&dns.A{Hdr: dns.RR_Header{Name: question.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300}, A: net.IPv4(192, 0, 2, 1)}}
 			}
+
 			return m
 		})
 		var cfg config.Config
@@ -50,23 +51,29 @@ var _ = Describe("Validating DNS64 chain", func() {
 		srv, err := NewServer(ctx, &cfg)
 		Expect(err).Should(Succeed())
 		DeferCleanup(func() { Expect(srv.Stop(ctx)).Should(Succeed()) })
-		query := func(name string, cd bool) *model.Response {
+		query := func(name string, do, cd bool) *model.Response {
 			q := new(dns.Msg).SetQuestion(name, dns.TypeAAAA)
+			q.SetEdns0(1232, do)
 			q.CheckingDisabled = cd
 			r, err := srv.queryResolver.Resolve(ctx, &model.Request{Req: q, Protocol: model.RequestProtocolUDP})
 			Expect(err).Should(Succeed())
+
 			return r
 		}
-		Expect(query(anchored, false).Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+		Expect(query(anchored, false, false).Res.Rcode).Should(Equal(dns.RcodeServerFailure))
 		Expect(anchoredAAAA.Load()).Should(BeEquivalentTo(2))
 		Expect(anchoredA.Load()).Should(BeZero())
-		cd := query(anchored, true)
+		unchecked := query(anchored, true, true)
+		Expect(unchecked.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+		Expect(unchecked.Res.Answer).Should(BeEmpty())
+		Expect(anchoredA.Load()).Should(BeZero())
+		cd := query(anchored, false, true)
 		Expect(cd.RType).Should(Equal(model.ResponseTypeSYNTHESIZED))
 		Expect(cd.Res.CheckingDisabled).Should(BeTrue())
 		Expect(cd.Res.AuthenticatedData).Should(BeFalse())
-		Expect(query("private.signed.example.com.", false).RType).Should(Equal(model.ResponseTypeSYNTHESIZED))
-		for range 2 {
-			r := query(allowed, false)
+		Expect(query("private.signed.example.com.", false, false).RType).Should(Equal(model.ResponseTypeSYNTHESIZED))
+		for _, do := range []bool{false, true} {
+			r := query(allowed, do, false)
 			Expect(r.RType).Should(Equal(model.ResponseTypeSYNTHESIZED))
 			Expect(r.Res.AuthenticatedData).Should(BeFalse())
 			Expect(r.Res.Answer).Should(HaveLen(1))

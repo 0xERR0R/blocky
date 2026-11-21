@@ -496,15 +496,9 @@ type answerChain struct {
 func followAnswer(reply *dns.Msg, question dns.Question) answerChain {
 	rest := groupRRsetsByNameAndType(reply.Answer)
 	chain := answerChain{rrsets: make(map[rrsetKey]bool), end: dns.CanonicalName(question.Name)}
-	var dnames map[rrsetKey][]dns.RR
-	for key, rrset := range rest {
-		if key.rrType == dns.TypeDNAME {
-			if dnames == nil {
-				dnames = make(map[rrsetKey][]dns.RR)
-				chain.synthesized = make(map[rrsetKey]rrsetKey)
-			}
-			dnames[key] = rrset
-		}
+	dnames := indexDNAMEs(rest)
+	if len(dnames) != 0 {
+		chain.synthesized = make(map[rrsetKey]rrsetKey)
 	}
 
 	// take moves the RRset of the name at the end of the chain with the type rrType into the
@@ -519,19 +513,7 @@ func followAnswer(reply *dns.Msg, question dns.Question) answerChain {
 		}
 
 		if held && rrType == dns.TypeCNAME && len(dnames) != 0 {
-			// Walk whole DNS labels: a quoted dot belongs to its label.
-			for off, end := dns.NextLabel(key.name, 0); !end; off, end = dns.NextLabel(key.name, off) {
-				above := rrsetKey{key.name[off:], dns.TypeDNAME}
-				if ds := dnames[above]; ds != nil {
-					if matchesDNAME(key.name[:off], ds, rrset) {
-						chain.synthesized[key] = above
-						delete(rest, above)
-					} else {
-						chain.stray = true
-					}
-					break
-				}
-			}
+			chain.takeCoveringDNAME(key, rrset, dnames, rest)
 		}
 
 		return rrset
@@ -575,6 +557,42 @@ func followAnswer(reply *dns.Msg, question dns.Question) answerChain {
 	return chain
 }
 
+// Keep DNAMEs available for later substitutions even after they have been taken from rest.
+func indexDNAMEs(rest map[rrsetKey][]dns.RR) map[rrsetKey][]dns.RR {
+	var dnames map[rrsetKey][]dns.RR
+	for key, rrset := range rest {
+		if key.rrType != dns.TypeDNAME {
+			continue
+		}
+		if dnames == nil {
+			dnames = make(map[rrsetKey][]dns.RR)
+		}
+		dnames[key] = rrset
+	}
+
+	return dnames
+}
+
+func (chain *answerChain) takeCoveringDNAME(key rrsetKey, rrset []dns.RR, dnames, rest map[rrsetKey][]dns.RR) {
+	// Walk whole DNS labels: a quoted dot belongs to its label. Only the closest DNAME applies.
+	for off, end := dns.NextLabel(key.name, 0); !end; off, end = dns.NextLabel(key.name, off) {
+		above := rrsetKey{key.name[off:], dns.TypeDNAME}
+		ds := dnames[above]
+		if ds == nil {
+			continue
+		}
+
+		if matchesDNAME(key.name[:off], ds, rrset) {
+			chain.synthesized[key] = above
+			delete(rest, above)
+		} else {
+			chain.stray = true
+		}
+
+		return
+	}
+}
+
 // matchesDNAME checks RFC 6672 §3.1: preserve every label below the DNAME owner
 // and replace only that owner with the DNAME target (possibly the root).
 func matchesDNAME(prefix string, ds, cs []dns.RR) bool {
@@ -591,6 +609,7 @@ func matchesDNAME(prefix string, ds, cs []dns.RR) bool {
 		target += dns.CanonicalName(d.Target)
 	}
 	_, valid := dns.IsDomainName(target)
+
 	return valid && target == dns.CanonicalName(c.Target)
 }
 
