@@ -33,6 +33,29 @@ var _ = Describe("Denial of existence validation", func() {
 		ctx = withQueryBudget(ctx, 10)
 	})
 
+	Describe("ANY NODATA", func() {
+		It("distinguishes an NSEC owner from an empty non-terminal in the interval", func() {
+			rr := &dns.NSEC{
+				Hdr: dns.RR_Header{Name: "a.example.", Rrtype: dns.TypeNSEC}, NextDomain: "leaf.b.example.",
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC},
+			}
+			proof := func(name string) ValidationResult {
+				return legacyDenialSet(sut, []*dns.NSEC{rr}, name, dns.TypeANY).noData()
+			}
+			Expect(proof("b.example.")).Should(Equal(ValidationResultSecure))
+			Expect(proof(rr.Hdr.Name)).Should(Equal(ValidationResultBogus))
+			// The NSEC RRset itself exists regardless of the listed types.
+			rr.TypeBitMap = nil
+			Expect(proof(rr.Hdr.Name)).Should(Equal(ValidationResultBogus))
+		})
+
+		It("requires an empty bitmap at the original name for an NSEC3 match", func() {
+			d := denialSet{name: "b.example.", qtype: dns.TypeANY, logger: sut.logger}
+			Expect(d.nsec3MatchNoData(&dns.NSEC3{})).Should(Equal(ValidationResultSecure))
+			Expect(d.nsec3MatchNoData(&dns.NSEC3{TypeBitMap: []uint16{dns.TypeTXT}})).Should(Equal(ValidationResultBogus))
+		})
+	})
+
 	Describe("validateDenialOfExistence", func() {
 		It("should return Bogus when no NSEC or NSEC3 records", func() {
 			response := &dns.Msg{

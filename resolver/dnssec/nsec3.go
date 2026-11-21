@@ -241,8 +241,7 @@ func (d *denialSet) nsec3NoData() ValidationResult {
 // its type: Secure if it shows that the name has no RRset of it
 func (d *denialSet) nsec3MatchNoData(rr *dns.NSEC3) ValidationResult {
 	if !d.lacksType(d.name, rr.TypeBitMap) {
-		d.logger.Debugf("NSEC3 record for %s does not deny type %d: it lists the type or CNAME, or it is from the "+
-			"side of a zone cut that does not hold the type", d.name, d.qtype)
+		d.logger.Debugf("NSEC3 record for %s does not deny type %d", d.name, d.qtype)
 
 		return ValidationResultBogus
 	}

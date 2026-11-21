@@ -653,9 +653,10 @@ func createQueryResolver(
 		// chain below it
 		resolver.NewRebindingProtectionResolver(cfg.RebindingProtection),
 		blocking,
-		dnssecResolver, // DNSSEC validation BEFORE caching - validates all responses before they are cached
+		// Validate the upstream AAAA and A inputs, including on cache hits, before synthesis.
+		resolver.NewDNS64Resolver(cfg.DNS64),
+		dnssecResolver,
 		cachingResolver,
-		resolver.NewDNS64Resolver(cfg.DNS64), // DNS64 synthesis AFTER caching
 		resolver.NewECSResolver(cfg.ECS),
 		condUpstream,
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),

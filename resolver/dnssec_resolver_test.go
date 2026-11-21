@@ -821,8 +821,7 @@ var _ = Describe("DNSSECResolver", func() {
 				Expect(ttls(resp.Res.Answer)).Should(Equal([]uint32{86400, 86400}))
 			})
 
-			It("bounds the TTL that the client gets, not the time for which the cache below holds the reply", func() {
-				// caching.minTime holds a reply for an hour that example.com. signed with five minutes
+			It("bounds both delivery and cache reuse by the signed TTL despite a higher cache minimum", func() {
 				cache, err := NewCachingResolver(ctx, config.Caching{MinCachingTime: config.Duration(time.Hour)}, sutConfig, nil)
 				Expect(err).Should(Succeed())
 
@@ -849,7 +848,11 @@ var _ = Describe("DNSSECResolver", func() {
 					resp, err := sut.Resolve(ctx, &model.Request{Req: util.NewMsgWithQuestion("example.com.", A)})
 					Expect(err).Should(Succeed())
 					Expect(resp.Res.AuthenticatedData).Should(BeTrue())
-					Expect(ttls(resp.Res.Answer)).Should(Equal([]uint32{300, 300}))
+					Expect(ttls(resp.Res.Answer)).Should(HaveLen(2))
+					for _, ttl := range ttls(resp.Res.Answer) {
+						Expect(ttl).Should(BeNumerically("~", 300, 1))
+						Expect(ttl).Should(BeNumerically("<=", 300))
+					}
 				}
 
 				Expect(asked).Should(Equal(1))
@@ -859,7 +862,8 @@ var _ = Describe("DNSSECResolver", func() {
 				Expect(held.RType).Should(Equal(model.ResponseTypeCACHED))
 
 				for _, ttl := range ttls(held.Res.Answer) {
-					Expect(ttl).Should(BeNumerically(">", 3500), "the cache holds the reply for its own time")
+					Expect(ttl).Should(BeNumerically(">", 0))
+					Expect(ttl).Should(BeNumerically("<=", 300))
 				}
 			})
 		})

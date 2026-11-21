@@ -528,7 +528,7 @@ var _ = Describe("DNS64Resolver", func() {
 	})
 
 	Describe("RCODE handling", func() {
-		It("should return NXDOMAIN without synthesis", func() {
+		It("preserves the alias and the terminal denial in an A-side NXDOMAIN", func() {
 			request := util.NewMsgWithQuestion("notexist.com.", dns.Type(dns.TypeAAAA))
 
 			aaaaResponse := new(dns.Msg)
@@ -538,6 +538,8 @@ var _ = Describe("DNS64Resolver", func() {
 			aResponse := new(dns.Msg)
 			aResponse.SetReply(aRequest)
 			aResponse.Rcode = dns.RcodeNameError // NXDOMAIN
+			aResponse.Answer = []dns.RR{&dns.CNAME{Hdr: dns.RR_Header{Name: "notexist.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET}, Target: "missing.example."}}
+			aResponse.Ns = []dns.RR{&dns.SOA{Hdr: dns.RR_Header{Name: "example.", Rrtype: dns.TypeSOA, Class: dns.ClassINET}}}
 
 			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
 				return req.Req.Question[0].Qtype == dns.TypeAAAA
@@ -551,10 +553,15 @@ var _ = Describe("DNS64Resolver", func() {
 
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(resp.Res.Question).Should(Equal(request.Question))
+			Expect(resp.Res.Id).Should(Equal(request.Id))
+			Expect(resp.Res.Answer).Should(Equal(aResponse.Answer))
+			Expect(resp.Res.Ns).Should(Equal(aResponse.Ns))
+			Expect(aResponse.Question).Should(Equal(aRequest.Question))
 			Expect(resp.Reason).Should(Equal("NXDOMAIN"))
 		})
 
-		It("should treat SERVFAIL as empty response (alternative behavior)", func() {
+		It("returns an A validation failure for the original AAAA question", func() {
 			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
 
 			aaaaResponse := new(dns.Msg)
@@ -564,6 +571,9 @@ var _ = Describe("DNS64Resolver", func() {
 			aResponse := new(dns.Msg)
 			aResponse.SetReply(aRequest)
 			aResponse.Rcode = dns.RcodeServerFailure // SERVFAIL
+			aResponse.SetEdns0(1232, false)
+			ede := &dns.EDNS0_EDE{InfoCode: dns.ExtendedErrorCodeDNSBogus}
+			aResponse.IsEdns0().Option = []dns.EDNS0{ede}
 
 			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
 				return req.Req.Question[0].Qtype == dns.TypeAAAA
@@ -576,7 +586,11 @@ var _ = Describe("DNS64Resolver", func() {
 			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
 
 			Expect(err).Should(Succeed())
-			// Should return original empty AAAA response
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+			Expect(resp.Res.Question).Should(Equal(request.Question))
+			Expect(resp.Res.Id).Should(Equal(request.Id))
+			Expect(resp.Res.IsEdns0().Option).Should(ContainElement(ede))
+			Expect(aResponse.Question).Should(Equal(aRequest.Question))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 		})
 	})
@@ -706,17 +720,17 @@ var _ = Describe("DNS64Resolver", func() {
 	})
 
 	Describe("DNSSEC flag handling", func() {
-		It("should copy DO bit from AAAA query to A query", func() {
+		It("uses the original client view and DNSSEC flags for the A query", func() {
 			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
 			request.SetEdns0(4096, true) // Set DO=1
 
 			aaaaResponse := new(dns.Msg)
 			aaaaResponse.SetReply(request)
 
-			var capturedAReq *dns.Msg
+			var capturedAReq *model.Request
 			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
 				if req.Req.Question[0].Qtype == dns.TypeA {
-					capturedAReq = req.Req
+					capturedAReq = req
 
 					return true
 				}
@@ -724,11 +738,14 @@ var _ = Describe("DNS64Resolver", func() {
 				return req.Req.Question[0].Qtype == dns.TypeAAAA
 			})).Return(&model.Response{Res: aaaaResponse}, nil).Twice()
 
-			_, err := sut.Resolve(ctx, &model.Request{Req: request})
+			original := &model.Request{Req: request, ClientNames: []string{"office"}, AskedAgain: true}
+			_, err := sut.Resolve(ctx, original)
 			Expect(err).Should(Succeed())
 
 			Expect(capturedAReq).ShouldNot(BeNil())
-			opt := capturedAReq.IsEdns0()
+			Expect(capturedAReq.ClientNames).Should(Equal(original.ClientNames))
+			Expect(capturedAReq.AskedAgain).Should(BeTrue())
+			opt := capturedAReq.Req.IsEdns0()
 			Expect(opt).ShouldNot(BeNil())
 			Expect(opt.Do()).Should(BeTrue()) // DO bit copied
 		})
