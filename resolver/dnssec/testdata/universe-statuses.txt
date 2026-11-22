@@ -10,6 +10,9 @@
 # Tags:
 #   deferred:#2397            Signed data for large RSA exponents is put in the wrong order (#2397).
 #
+#   deferred:dname-no-cname   A DNAME reply without the CNAME made from it is refused (RFC 6672 §5.3.1).
+#   deferred:dname-yxdomain   YXDOMAIN with the DNAME that makes a name too long is refused (RFC 6672 §2.2).
+#
 # A deferred tag is only for a reply that is refused and should not be.
 *.cwild.nsec3./A Secure 5 0
 *.cwild.nsec3./CNAME Secure 1 0
@@ -368,6 +371,90 @@ dname.nsec./A Secure 2 0
 dname.nsec./CNAME Secure 2 0
 dname.nsec./DS Secure 2 0
 dname.nsec./TXT Secure 2 0
+dname:a.ent.dname.nsec./A Secure 7 0
+dname:alias.nsec./ANY Secure 2 0
+dname:alias.tonsec.other./A Secure 5 0
+dname:any/nsec-of-the-name Bogus 6 0
+dname:any/nsec-of-the-wildcard Bogus 9 0
+dname:any/nsec-without-types Bogus 6 0
+dname:any/nsec3-of-the-name Bogus 6 1
+dname:back.dname.nsec./A Secure 3 0
+dname:dname.nsec./ANY Secure 2 0
+dname:dname.nsec./DNAME Secure 1 0
+dname:ent.nsec./ANY Secure 2 0
+dname:ent.nsec3./ANY Secure 2 1
+dname:nx.dname.nsec./A Secure 5 3
+dname:substitution/above-anchor Bogus 9 0
+dname:substitution/another-class Bogus 0 0
+dname:substitution/another-name Bogus 0 0
+dname:substitution/at-anchor Secure 8 0
+dname:substitution/dot-inside-a-label Bogus 0 0
+dname:substitution/failing-rrsig Bogus 5 0
+dname:substitution/farther-dname Bogus 0 0
+dname:substitution/owner-itself Bogus 0 0
+dname:substitution/part-of-a-label Bogus 0 0
+dname:substitution/second-cname Bogus 0 0
+dname:substitution/two-records Bogus 0 0
+dname:substitution/unsigned-dname Bogus 4 0
+dname:substitution/unused-dname Bogus 0 0
+dname:substitution/wildcard-owner Bogus 7 0
+dname:substitution/yxdomain Bogus 0 0 false-bogus deferred:dname-yxdomain
+dname:todname.nsec./A Secure 3 0
+dname:www.dapex./A Secure 4 0
+dname:www.dapex./DS Secure 3 1
+dname:www.dname.insecure.nsec./A Insecure 2 0
+dname:www.dname.nsec./A+drop.an0 Bogus 4 0
+dname:www.dname.nsec./A+drop.an1 Bogus 0 0 false-bogus deferred:dname-no-cname
+dname:www.dname.nsec./A+drop.an2 Bogus 2 1
+dname:www.dname.nsec./A+dup.an0 Bogus 0 0
+dname:www.dname.nsec./A+dup.an1 Bogus 0 0
+dname:www.dname.nsec./A+dup.an2 Secure 2 0
+dname:www.dname.nsec./A+insecure-soa Bogus 3 0
+dname:www.dname.nsec./A+insecure-soa-sig Bogus 2 0
+dname:www.dname.nsec./A+junk-sig Secure 2 0
+dname:www.dname.nsec./A+move.an0 Bogus 0 0
+dname:www.dname.nsec./A+move.an1 Bogus 0 0
+dname:www.dname.nsec./A+move.an2 Bogus 2 0
+dname:www.dname.nsec./A+nine.an0 Bogus 8 0
+dname:www.dname.nsec./A+nine.an2 Bogus 9 0
+dname:www.dname.nsec./A+rcode Bogus 0 0
+dname:www.dname.nsec./A+rename.an0 Bogus 0 0
+dname:www.dname.nsec./A+rename.an1 Bogus 0 0
+dname:www.dname.nsec./A+rename.an2 Bogus 0 0
+dname:www.dname.nsec./A+replay.cname Bogus 0 0
+dname:www.dname.nsec./A+replay.insecure Bogus 0 0
+dname:www.dname.nsec./A+replay.nx Bogus 3 0
+dname:www.dname.nsec./A+replay.optout Bogus 4 2
+dname:www.dname.nsec./A+replay.other Bogus 0 0
+dname:www.dname.nsec./A+replay.type Bogus 3 1
+dname:www.dname.nsec./A+sigonly.an0 Bogus 0 0
+dname:www.dname.nsec./A+sigonly.an2 Bogus 1 0
+dname:www.dname.nsec./A+stray-sig Secure 2 0
+dname:www.dname.nsec./A+subst-name.an0 Bogus 0 0
+dname:www.dname.nsec./A+subst-name.an2 Bogus 0 0
+dname:www.dname.nsec./A+subst-zone.an0 Bogus 0 0
+dname:www.dname.nsec./A+subst-zone.an1 Bogus 0 0
+dname:www.dname.nsec./A+subst-zone.an2 Bogus 0 0
+dname:www.dname.nsec./A+target-upper.an0 Secure 2 0
+dname:www.dname.nsec./A+target-upper.an1 Secure 2 0
+dname:www.dname.nsec./A+unsign.an0 Bogus 0 0
+dname:www.dname.nsec./A+unsign.an2 Bogus 1 0
+dname:www.dname.nsec./A+upper.an0 Secure 4 0
+dname:www.dname.nsec./A+upper.an1 Secure 2 0
+dname:www.dname.nsec./A+upper.an2 Secure 2 0
+dname:www.dname.nsec./A+upper.qname Secure 2 0
+dname:www.dname.nsec./ANY Secure 1 0
+dname:www.dname.nsec./DNAME Secure 3 1
+dname:www.dname.nsec3./A Secure 2 0
+dname:www.nsec./ANY Secure 3 0
+dname:www.nsec3./ANY Secure 1 0
+dname:www.nsec3.toroot.nsec./A Secure 2 0
+dname:www.tounsigned.nsec./A Insecure 1 0
+dname:www.two.nsec./A Secure 3 0
+dname:x.went.nsec./ANY Secure 3 0
+dname:x.went.nsec3./ANY Secure 4 3
+dname:x.wild.dname.nsec./A Secure 3 1
+dname:x.wild.nsec./ANY Secure 2 0
 do\200.odd./A Secure 3 0
 do\200.odd./CNAME Secure 3 0
 do\200.odd./DS Secure 3 0

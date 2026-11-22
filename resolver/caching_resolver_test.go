@@ -145,6 +145,53 @@ var _ = Describe("CachingResolver", func() {
 				Expect(packed).To(BeNil())
 				Expect(ttl).To(BeZero())
 			})
+
+			DescribeTable("stores a negative entry no longer than the negative caching time", func(rcode int) {
+				mockAnswer.Rcode = rcode
+				mockAnswer.Answer = nil
+				sig.Hdr.Ttl, sig.OrigTtl = 3600, 3600
+				sut.resultCache = cacheMock
+				cacheMock.On("Get", mock.Anything).Return((*[]byte)(nil), time.Duration(0)).Once()
+				cacheMock.On("Put", mock.Anything, mock.Anything, time.Minute).Once()
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).To(HaveResponseType(ResponseTypeRESOLVED))
+			}, Entry("NXDOMAIN", dns.RcodeNameError), Entry("NODATA", dns.RcodeSuccess))
+		})
+
+		When("the answer section contains a signature", func() {
+			var sig *dns.RRSIG
+			BeforeEach(func() {
+				sutConfig.MaxCachingTime = config.Duration(time.Minute)
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "192.0.2.1")
+				sig = &dns.RRSIG{
+					Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: 300},
+					TypeCovered: dns.TypeA, OrigTtl: 300, Expiration: ^uint32(0), SignerName: "example.com.",
+				}
+				mockAnswer.Answer = append(mockAnswer.Answer, sig)
+			})
+			JustBeforeEach(func() {
+				sut.resultCache = cacheMock
+				cacheMock.On("Get", mock.Anything).Return((*[]byte)(nil), time.Duration(0)).Once()
+			})
+
+			It("stores the entry no longer than the maximum caching time", func() {
+				cacheMock.On("Put", mock.Anything, mock.Anything, time.Minute).Once()
+				res, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(Succeed())
+				Expect(res.Res.Answer[0].Header().Ttl).To(Equal(uint32(60)))
+			})
+
+			It("stores the entry no longer than the original TTL of the signature", func() {
+				sig.OrigTtl = 20
+				cacheMock.On("Put", mock.Anything, mock.Anything, 20*time.Second).Once()
+				res, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(Succeed())
+				Expect(res.Res.Answer[1].Header().Ttl).To(Equal(uint32(20)))
+			})
+
+			It("does not store an entry whose signature has expired", func() {
+				sig.Expiration = 1
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).To(HaveResponseType(ResponseTypeRESOLVED))
+			})
 		})
 
 		When("prefetching is enabled", func() {

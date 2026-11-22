@@ -18,6 +18,10 @@ package dnssec
 // to the question with its name in upper case. Curated cases are named after the finding
 // ("583r/ends-at-hash"), and the questions of the second universe have a prefix.
 //
+// A third universe ("dname:", see uniDNAMEZones) has the zones of the first with more DNAME
+// RRsets. It is asked about the names below those and for ANY: honest replies, one of them
+// mutated, and curated cases (see curatedDNAME).
+//
 // testdata/universe-statuses.txt records the status of every case and the numbers of signature
 // verifications and NSEC3 hash computations that its validation makes, and the spec fails when one
 // changes. The honest replies share a validator, and so do the mutated ones (see run), so both
@@ -138,6 +142,7 @@ var _ = Describe("Signed test universe", Ordered, ContinueOnFailure, func() {
 
 	BeforeAll(func(ctx SpecContext) {
 		results = append(newUniverse("", uniZoneSpecs).run(ctx), newUniverse("nsec3-root:", uniNSEC3Root).run(ctx)...)
+		results = append(results, newUniverse("dname:", uniDNAMEZones()).runDNAME(ctx)...)
 
 		if *updateGolden {
 			uniWriteStatuses(results)
