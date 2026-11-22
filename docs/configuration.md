@@ -1062,14 +1062,14 @@ With following parameters you can tune the caching behavior:
 
 | Parameter                     | Type            | Mandatory | Default value | Description                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ----------------------------- | --------------- | --------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| caching.minTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller. With [DNSSEC validation](#dnssec-validation), a response that gets the AD flag is held in the cache for this time too, and sent to clients with no more than the TTL that its zone signed                                                                                                                                                                                                                                                                                            |
+| caching.minTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller. Not used for a response whose answer or authority section has DNSSEC signatures (RRSIG records, which [DNSSEC validation](#dnssec-validation) requests with every query): such a response is cached for no longer than the smallest TTL of the records of these two sections, each signature counted with no more than the TTL that its zone signed and the time until it expires                                                                                                                                                                                                                                                                                            |
 | caching.maxTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater                                                                                                                                                                                                                                                                        |
 | caching.maxItemsCount         | int             | no        | 0 (unlimited) | Max number of cache entries (responses) to be kept in cache (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                |
 | caching.prefetching           | bool            | no        | false         | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
 | caching.prefetchExpires       | duration format | no        | 2h            | Prefetch track time window                                                                                                                                                                                                                                                                                                                                                                                     |
 | caching.prefetchThreshold     | int             | no        | 5             | Name queries threshold for prefetch                                                                                                                                                                                                                                                                                                                                                                            |
 | caching.prefetchMaxItemsCount | int             | no        | 0 (unlimited) | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                  |
-| caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.                                                                                                                                                                                                                                                                        |
+| caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results. The limit that `caching.minTime` describes for a response with DNSSEC signatures applies to a negative result too                                                                                                                                                                                                                                                                        |
 | caching.exclude               | Regex list      | no        |               | Exclusions rules as regex expressions of domains that won't be cached at all. Such as: /lan$/ or /^.*\.host\.com$/                                                                                                                                                                                                                                                                                                 |
 
 !!! example
@@ -1540,7 +1540,7 @@ When DNSSEC validation is enabled, Blocky will:
 - Return the data without validating it, and without the AD flag, to a client that set the Checking Disabled (CD) bit, since that client validates itself (RFC 4035 §3.2.2)
 - Set the Authenticated Data (AD) flag only after successful validation
 - Remove the records of the additional section, except the EDNS OPT record, from a response that gets the AD flag: nothing validates them, and the flag does not cover them (RFC 4035 §3.2.3)
-- Send no record set of a response that gets the AD flag with a longer TTL than its signature allows: the TTL that the zone signed, and no longer than the time until the signature expires (RFC 4035 §5.3.3). This bounds the TTL that the client gets, not the time for which Blocky's own cache holds the response: that is set by `caching.minTime` and `caching.maxTime`, and a cached response is validated again every time it is served
+- Send no record set of a response that gets the AD flag with a longer TTL than its signature allows: the TTL that the zone signed, and no longer than the time until the signature expires (RFC 4035 §5.3.3). Blocky's own cache holds the response for no longer than that either, whatever `caching.minTime` is (see [Caching](#caching)), and a cached response is validated again every time it is served
 - Add the Extended DNS Error (EDE) code per RFC 8914 that says why validation failed (see [Validation Results](#validation-results))
 
 Independently of this setting, Blocky normalizes every response against the DNSSEC-related bits of the query it answers, because the client's DO bit is not necessarily the one used towards the upstream:
@@ -1647,9 +1647,11 @@ the client gets:
   asked as usual, and so is one of a client that sets the CD bit. A validation that ran out of its limits (see
   [DoS Protection](#dos-protection)) is not kept. Other names of a zone that fails validation cost two upstream
   queries and two validations each.
-- With [DNS64](#dns64), a synthesized AAAA response for a name in a signed zone fails validation when the cache
-  serves it again: it comes back as an upstream response without signatures. It is then asked again and synthesized
-  anew, for every query.
+- With [DNS64](#dns64), the AAAA response and the A response that AAAA records are synthesized from are validated
+  one after the other, each as a response of its own, with a second ask and limits of its own (see
+  [DoS Protection](#dos-protection)). When one of the two fails validation, the client gets its SERVFAIL, and
+  nothing is synthesized. Neither response is validated for a client that sets the CD bit: unless it sets the DO
+  bit too, synthesis goes on with the two responses as they are.
 
 Validation needs an upstream resolver that passes on every DNSSEC record of an answer. When a resolver leaves a part
 of a proof out of both responses, the query is answered SERVFAIL although the zone is signed correctly, and nothing
@@ -1871,7 +1873,7 @@ When DNS64 is enabled, Blocky will:
 
 Blocky's DNS64 implementation complies with:
 
-- **RFC 6147** (DNS64 specification): Non-validating mode implementation
+- **RFC 6147** (DNS64 specification): Non-validating mode, and validating resolver mode (Section 5.5) when [DNSSEC validation](#dnssec-validation) is enabled, except that the AD bit is never set on a synthesized response
 - **RFC 6052** (IPv4-to-IPv6 address embedding): All six prefix lengths supported (/32, /40, /48, /56, /64, /96)
 - **RFC 8914** (Extended DNS Errors): Synthesized responses include EDE code 4 (Forged Answer)
 
@@ -1962,17 +1964,19 @@ You can configure a custom exclusion set using the `dns64.exclusionSet` paramete
         - 64:ff9b::/96   # Includes configured prefix
     ```
 
-### DNSSEC Handling (Non-Validating Mode)
+### DNSSEC Handling
 
-DNS64 operates in **non-validating mode** and handles DNSSEC as follows:
+DNS64 handles DNSSEC as follows:
 
+- **Validation**: With [DNSSEC validation](#dnssec-validation) enabled, the AAAA response and the A response are validated before synthesis, as any other response is (RFC 6147 Section 5.5); if either fails, SERVFAIL is returned and nothing is synthesized. Neither is validated for a client that sets the CD bit: unless it sets the DO bit too, synthesis goes on with the two responses as they are
 - **DO bit**: Copied from original AAAA query to A query (preserves client's DNSSEC request)
 - **CD bit**: Copied from original AAAA query to A query (preserves checking-disabled flag)
+- **DO and CD bits both set**: No synthesis, for a client that validates and synthesizes itself (RFC 6147 Section 5.5)
 - **AD bit**: Always **cleared** in synthesized responses (synthesis breaks authentication)
 - **Extended DNS Error**: Synthesized responses include EDE code 4 (Forged Answer)
 
-!!! info "Future: DNSSEC-Aware DNS64"
-    Future enhancement may implement RFC 6147 Section 3 (DNSSEC-aware operation), where DNS64 can validate DNSSEC signatures and set the AD bit appropriately for synthesized responses. The current non-validating mode is suitable for most deployments.
+!!! info "Future: AD Bit for Synthesized Responses"
+    Future enhancement may set the AD bit for synthesized responses whose AAAA and A responses both validated (RFC 6147 Section 5.5).
 
 ### Performance Considerations
 
@@ -1980,7 +1984,7 @@ DNS64 adds overhead to DNS resolution:
 
 - **Additional A query**: Every AAAA query that requires synthesis triggers an additional A query
 - **Caching is critical**: Enable caching to minimize upstream query load
-- **Cache hit rate**: With caching, most AAAA queries hit the cache and avoid synthesis overhead
+- **Cache hit rate**: With caching, a repeated query gets its AAAA and A responses from the cache; the synthesis itself is done for every query. The exception is a query with the CD bit set: the responses to it carry that bit (RFC 4035 §3.2.2), and the cache stores no NOERROR response that does
 
 !!! warning "Enable Caching for DNS64"
     DNS64 without caching will **double** upstream query load (one AAAA + one A per query). Blocky will log a warning if DNS64 is enabled without caching.
