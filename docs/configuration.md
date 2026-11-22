@@ -1747,7 +1747,7 @@ Recommendations:
 
 - Start with `cacheExpirationHours: 1` and increase if validation overhead is acceptable
 - Monitor upstream query count with the `maxUpstreamQueries` metric
-- Use `prefetching` in the caching resolver to pre-validate popular domains
+- Use `prefetching` in the caching resolver to keep the responses of popular domains in the cache; a prefetched response is validated when it is served, not before
 - Consider disabling for high-volume recursive resolvers if performance is critical
 
 ### Examples

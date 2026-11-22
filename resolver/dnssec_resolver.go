@@ -466,8 +466,8 @@ func (r *DNSSECResolver) askAgain(
 // the records that the flag does not cover (RFC 4035 §3.2.3) and leaves no RRset of it a TTL
 // beyond lifetimes, the time for which validation found each authentic (RFC 4035 §5.3.3).
 // Nothing else changes a reply because of its validation. The TTLs are those that the client
-// gets: the cache below this resolver holds a reply for the time of its own configuration, and
-// every reply that it serves is validated again.
+// gets: the cache below this resolver bounds by itself how long it holds a signed reply (see
+// prepareCacheTTLs), and every reply that it serves is validated again.
 func markAuthentic(msg *dns.Msg, lifetimes dnssec.Lifetimes) {
 	msg.AuthenticatedData = true
 
@@ -498,9 +498,9 @@ func skipValidationReason(request *model.Request, response *model.Response) stri
 	// Only public-upstream answers carry a chain of trust in the public DNS hierarchy and
 	// form the GHSA-x845 attack surface, so validate exactly those: RESOLVED, plus cached
 	// upstream answers re-served as CACHED (re-validated on every hit). Every other response
-	// type that can reach this resolver from below is trusted-local or synthesized -
-	// conditional-upstream private/split-horizon zones (CONDITIONAL), special-use names like
-	// localhost (SPECIAL), DNS64-synthesized AAAA (SYNTHESIZED). Those are inherently unsigned
+	// type that can reach this resolver from below is trusted-local - conditional-upstream
+	// private/split-horizon zones (CONDITIONAL), special-use names like localhost (SPECIAL) -
+	// since DNS64 synthesizes (SYNTHESIZED) above this resolver. Those are inherently unsigned
 	// with no public chain of trust, so the post-GHSA-x845 handling would classify them bogus
 	// - the whole namespace sits under the default root trust anchor - and turn every such
 	// lookup into SERVFAIL (#2126). Mirror the rebinding resolver's response-type whitelist

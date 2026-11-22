@@ -1195,8 +1195,8 @@ var _ = Describe("CachingResolver", func() {
 
 				By("second request", func() {
 					// A non-empty answer section does not make this a positive entry:
-					// putInCache stores every NXDOMAIN with the negative cache time, so
-					// that -- not the CNAME's TTL -- is the baseline to age from.
+					// an NXDOMAIN without signatures is stored with the negative cache time
+					// (cacheLifetime), so that -- not the CNAME's TTL -- is the baseline to age from.
 					Eventually(sut.Resolve, "2s").
 						WithContext(ctx).
 						WithArguments(newRequest("example.com.", A)).
