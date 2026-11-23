@@ -175,6 +175,11 @@ var _ = Describe("big-exponent RSA verification", func() {
 			Expect(err).Should(Succeed())
 			rsaPriv := priv.(*rsa.PrivateKey)
 
+			// RFC 4034 §6.3: by RDATA the key with the lower flags comes first, though its RDATA is longer
+			zsk, _, _, _ := generateBigExponentRSAKey("signed.example.")
+			zsk.Flags = 256
+			rrset := []dns.RR{key, zsk}
+
 			sig := new(dns.RRSIG)
 			sig.Hdr = dns.RR_Header{Name: key.Hdr.Name, Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: key.Hdr.Ttl}
 			sig.TypeCovered = dns.TypeDNSKEY
@@ -185,9 +190,9 @@ var _ = Describe("big-exponent RSA verification", func() {
 			sig.Inception = uint32(time.Now().Add(-time.Hour).Unix())
 			sig.KeyTag = key.KeyTag()
 			sig.SignerName = key.Hdr.Name
-			Expect(sig.Sign(rsaPriv, []dns.RR{key})).Should(Succeed())
+			Expect(sig.Sign(rsaPriv, rrset)).Should(Succeed())
 
-			Expect(verifyRSAWithBigExponent([]dns.RR{key}, sig, key)).Should(Succeed())
+			Expect(verifyRSAWithBigExponent(rrset, sig, key)).Should(Succeed())
 		})
 
 		It("verifies a DNSKEY RRset signed by a key whose exponent is 2^32+1", func() {

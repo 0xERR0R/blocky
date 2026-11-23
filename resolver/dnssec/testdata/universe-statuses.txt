@@ -8,7 +8,6 @@
 # case lines; these comments and the tags are kept by hand.
 #
 # Tags:
-#   deferred:#2397            Signed data for large RSA exponents is put in the wrong order (#2397).
 #
 # A deferred tag is only for a reply that is refused and should not be.
 *.cwild.nsec3./A Secure 5 0
@@ -1430,7 +1429,7 @@ www.rsa./A@rsa./DS+unsign.an0 Bogus 1 0
 www.rsa./A@rsa./DS+upper.an0 Secure 4 0
 www.rsa./CNAME Secure 2 0
 www.rsa./DS Secure 2 0
-www.rsa./TXT Bogus 1 0 false-bogus deferred:#2397
+www.rsa./TXT Secure 1 0
 www.sec.nsec./A Secure 1 0
 www.sec.nsec./A@./DNSKEY+drop.an0 Bogus 0 0
 www.sec.nsec./A@./DNSKEY+dup.an0 Secure 6 0

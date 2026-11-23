@@ -229,4 +229,36 @@ var _ = Describe("Log entries of a query", func() {
 		atInfo := logrus.NewEntry(logger)
 		Expect(withDebugField(atInfo, "name", "value")).Should(BeIdenticalTo(atInfo))
 	})
+
+	It("obfuscates the value of a debug field when log privacy is enabled", func() {
+		util.LogPrivacy.Store(true)
+		DeferCleanup(func() { util.LogPrivacy.Store(false) })
+
+		atTrace := log.FromCtx(ctx)
+		Expect(withDebugField(atTrace, "domain", "example.com").Data).
+			Should(HaveKeyWithValue("domain", "*******.***"))
+	})
+
+	Describe("logReason", func() {
+		It("returns the reason when log privacy is disabled", func() {
+			Expect(logReason("BLOCKED (ads: example.com)", "BLOCKED (ads)")).
+				Should(Equal("BLOCKED (ads: example.com)"))
+		})
+
+		When("log privacy is enabled", func() {
+			BeforeEach(func() {
+				util.LogPrivacy.Store(true)
+				DeferCleanup(func() { util.LogPrivacy.Store(false) })
+			})
+
+			It("returns the reason label, which does not name the matched rule", func() {
+				Expect(logReason("BLOCKED (ads: example.com)", "BLOCKED (ads)")).
+					Should(Equal("BLOCKED (ads)"))
+			})
+
+			It("returns the reason when there is no reason label", func() {
+				Expect(logReason("CACHED", "")).Should(Equal("CACHED"))
+			})
+		})
+	})
 })
