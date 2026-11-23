@@ -1102,7 +1102,7 @@ list:</p>
 <ul>
 <li>Query-type filtering (e.g. <code>AAAA</code> via <code>filtering.queryTypes</code>) and non-FQDN rejections are
   client-requested, not protective, and are counted as <code>filtered</code>.</li>
-<li>A <a href="../configuration/#dnssec"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr></a> validation failure (<code>BOGUS</code>) is a SERVFAIL — blocky
+<li>A <a href="../configuration/#dnssec-validation"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr></a> validation failure (<code>BOGUS</code>) is a SERVFAIL — blocky
   could not obtain a trustworthy answer — so it is a resolution error, not a block, and is
   counted as <code>errors</code> together with queries a resolver failed outright.</li>
 </ul>

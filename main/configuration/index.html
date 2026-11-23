@@ -1365,10 +1365,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#dnssec-handling-non-validating-mode" class="md-nav__link">
+  <a href="#dnssec-handling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DNSSEC Handling (Non-Validating Mode)
+        DNSSEC Handling
       
     </span>
   </a>
@@ -2681,10 +2681,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#dnssec-handling-non-validating-mode" class="md-nav__link">
+  <a href="#dnssec-handling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DNSSEC Handling (Non-Validating Mode)
+        DNSSEC Handling
       
     </span>
   </a>
@@ -3047,6 +3047,8 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="nt">caching</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># duration how long a response must be cached (min value).</span>
 <span class="w">  </span><span class="c1"># If &lt;=0, use response's TTL, if &gt;0 use this value, if TTL is smaller</span>
+<span class="w">  </span><span class="c1"># Not used for a response whose answer or authority section has DNSSEC signatures (RRSIG records):</span>
+<span class="w">  </span><span class="c1"># such a response is cached for no longer than the smallest TTL of the records of these two sections</span>
 <span class="w">  </span><span class="c1"># Default: 0</span>
 <span class="w">  </span><span class="nt">minTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span>
 <span class="w">  </span><span class="c1"># duration how long a response must be cached (max value).</span>
@@ -3072,6 +3074,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># Default (0): unlimited</span>
 <span class="w">  </span><span class="nt">prefetchMaxItemsCount</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 <span class="w">  </span><span class="c1"># Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.</span>
+<span class="w">  </span><span class="c1"># The limit that minTime describes for a response with DNSSEC signatures applies to a negative result too.</span>
 <span class="w">  </span><span class="c1"># Default: 30m</span>
 <span class="w">  </span><span class="nt">cacheTimeNegative</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
 
@@ -4753,7 +4756,7 @@ blocky can serve the result immediately from the cache.</p>
 <td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
 <td>no</td>
 <td>0 (use <abbr title="Time-To-Live">TTL</abbr>)</td>
-<td>How long a response must be cached (min value). If &lt;=0, use response's <abbr title="Time-To-Live">TTL</abbr>, if &gt;0 use this value, if <abbr title="Time-To-Live">TTL</abbr> is smaller. With <a href="#dnssec-validation"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation</a>, a response that gets the AD flag is held in the cache for this time too, and sent to clients with no more than the <abbr title="Time-To-Live">TTL</abbr> that its zone signed</td>
+<td>How long a response must be cached (min value). If &lt;=0, use response's <abbr title="Time-To-Live">TTL</abbr>, if &gt;0 use this value, if <abbr title="Time-To-Live">TTL</abbr> is smaller. Not used for a response whose answer or authority section has <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures (RRSIG records, which <a href="#dnssec-validation"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation</a> requests with every query): such a response is cached for no longer than the smallest <abbr title="Time-To-Live">TTL</abbr> of the records of these two sections, each signature counted with no more than the <abbr title="Time-To-Live">TTL</abbr> that its zone signed and the time until it expires</td>
 </tr>
 <tr>
 <td>caching.maxTime</td>
@@ -4802,7 +4805,7 @@ blocky can serve the result immediately from the cache.</p>
 <td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
 <td>no</td>
 <td>30m</td>
-<td>Time how long negative results (<abbr title="Non-Existence Domain">NXDOMAIN</abbr> response or empty result) are cached. A value of -1 will disable caching for negative results.</td>
+<td>Time how long negative results (<abbr title="Non-Existence Domain">NXDOMAIN</abbr> response or empty result) are cached. A value of -1 will disable caching for negative results. The limit that <code>caching.minTime</code> describes for a response with <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures applies to a negative result too</td>
 </tr>
 <tr>
 <td>caching.exclude</td>
@@ -5546,7 +5549,7 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <li>Return the data without validating it, and without the AD flag, to a client that set the Checking Disabled (CD) bit, since that client validates itself (RFC 4035 §3.2.2)</li>
 <li>Set the Authenticated Data (AD) flag only after successful validation</li>
 <li>Remove the records of the additional section, except the EDNS OPT record, from a response that gets the AD flag: nothing validates them, and the flag does not cover them (RFC 4035 §3.2.3)</li>
-<li>Send no record set of a response that gets the AD flag with a longer <abbr title="Time-To-Live">TTL</abbr> than its signature allows: the <abbr title="Time-To-Live">TTL</abbr> that the zone signed, and no longer than the time until the signature expires (RFC 4035 §5.3.3). This bounds the <abbr title="Time-To-Live">TTL</abbr> that the client gets, not the time for which Blocky's own cache holds the response: that is set by <code>caching.minTime</code> and <code>caching.maxTime</code>, and a cached response is validated again every time it is served</li>
+<li>Send no record set of a response that gets the AD flag with a longer <abbr title="Time-To-Live">TTL</abbr> than its signature allows: the <abbr title="Time-To-Live">TTL</abbr> that the zone signed, and no longer than the time until the signature expires (RFC 4035 §5.3.3). Blocky's own cache holds the response for no longer than that either, whatever <code>caching.minTime</code> is (see <a href="#caching">Caching</a>), and a cached response is validated again every time it is served</li>
 <li>Add the Extended <abbr title="Domain Name System">DNS</abbr> Error (EDE) code per RFC 8914 that says why validation failed (see <a href="#validation-results">Validation Results</a>)</li>
 </ul>
 <p>Independently of this setting, Blocky normalizes every response against the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>-related bits of the query it answers, because the client's DO bit is not necessarily the one used towards the upstream:</p>
@@ -5721,9 +5724,11 @@ the client gets:</p>
   asked as usual, and so is one of a client that sets the CD bit. A validation that ran out of its limits (see
   <a href="#dos-protection">DoS Protection</a>) is not kept. Other names of a zone that fails validation cost two upstream
   queries and two validations each.</li>
-<li>With <a href="#dns64">DNS64</a>, a synthesized AAAA response for a name in a signed zone fails validation when the cache
-  serves it again: it comes back as an upstream response without signatures. It is then asked again and synthesized
-  anew, for every query.</li>
+<li>With <a href="#dns64">DNS64</a>, the AAAA response and the A response that AAAA records are synthesized from are validated
+  one after the other, each as a response of its own, with a second ask and limits of its own (see
+  <a href="#dos-protection">DoS Protection</a>). When one of the two fails validation, the client gets its SERVFAIL, and
+  nothing is synthesized. Neither response is validated for a client that sets the CD bit: unless it sets the DO
+  bit too, synthesis goes on with the two responses as they are.</li>
 </ul>
 <p>Validation needs an upstream resolver that passes on every <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> record of an answer. When a resolver leaves a part
 of a proof out of both responses, the query is answered SERVFAIL although the zone is signed correctly, and nothing
@@ -5886,7 +5891,7 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 <ul>
 <li>Start with <code>cacheExpirationHours: 1</code> and increase if validation overhead is acceptable</li>
 <li>Monitor upstream query count with the <code>maxUpstreamQueries</code> metric</li>
-<li>Use <code>prefetching</code> in the caching resolver to pre-validate popular domains</li>
+<li>Use <code>prefetching</code> in the caching resolver to keep the responses of popular domains in the cache; a prefetched response is validated when it is served, not before</li>
 <li>Consider disabling for high-volume recursive resolvers if performance is critical</li>
 </ul>
 <h3 id="examples_1">Examples</h3>
@@ -5996,7 +6001,7 @@ The DNS64 prefix must match your NAT64 gateway's configuration.</p>
 <h3 id="rfc-compliance_1">RFC Compliance</h3>
 <p>Blocky's DNS64 implementation complies with:</p>
 <ul>
-<li><strong>RFC 6147</strong> (DNS64 specification): Non-validating mode implementation</li>
+<li><strong>RFC 6147</strong> (DNS64 specification): Non-validating mode, and validating resolver mode (Section 5.5) when <a href="#dnssec-validation"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation</a> is enabled, except that the AD bit is never set on a synthesized response</li>
 <li><strong>RFC 6052</strong> (IPv4-to-IPv6 address embedding): All six prefix lengths supported (/32, /40, /48, /56, /64, /96)</li>
 <li><strong>RFC 8914</strong> (Extended <abbr title="Domain Name System">DNS</abbr> Errors): Synthesized responses include EDE code 4 (Forged Answer)</li>
 </ul>
@@ -6149,24 +6154,26 @@ The DNS64 prefix must match your NAT64 gateway's configuration.</p>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64:ff9b::/96</span><span class="w">   </span><span class="c1"># Includes configured prefix</span>
 </code></pre></div></p>
 </div>
-<h3 id="dnssec-handling-non-validating-mode"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> Handling (Non-Validating Mode)</h3>
-<p>DNS64 operates in <strong>non-validating mode</strong> and handles <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> as follows:</p>
+<h3 id="dnssec-handling"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> Handling</h3>
+<p>DNS64 handles <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> as follows:</p>
 <ul>
+<li><strong>Validation</strong>: With <a href="#dnssec-validation"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation</a> enabled, the AAAA response and the A response are validated before synthesis, as any other response is (RFC 6147 Section 5.5); if either fails, SERVFAIL is returned and nothing is synthesized. Neither is validated for a client that sets the CD bit: unless it sets the DO bit too, synthesis goes on with the two responses as they are</li>
 <li><strong>DO bit</strong>: Copied from original AAAA query to A query (preserves client's <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> request)</li>
 <li><strong>CD bit</strong>: Copied from original AAAA query to A query (preserves checking-disabled flag)</li>
+<li><strong>DO and CD bits both set</strong>: No synthesis, for a client that validates and synthesizes itself (RFC 6147 Section 5.5)</li>
 <li><strong>AD bit</strong>: Always <strong>cleared</strong> in synthesized responses (synthesis breaks authentication)</li>
 <li><strong>Extended <abbr title="Domain Name System">DNS</abbr> Error</strong>: Synthesized responses include EDE code 4 (Forged Answer)</li>
 </ul>
 <div class="admonition info">
-<p class="admonition-title">Future: <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>-Aware DNS64</p>
-<p>Future enhancement may implement RFC 6147 Section 3 (<abbr title="Domain Name System Security Extensions">DNSSEC</abbr>-aware operation), where DNS64 can validate <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures and set the AD bit appropriately for synthesized responses. The current non-validating mode is suitable for most deployments.</p>
+<p class="admonition-title">Future: AD Bit for Synthesized Responses</p>
+<p>Future enhancement may set the AD bit for synthesized responses whose AAAA and A responses both validated (RFC 6147 Section 5.5).</p>
 </div>
 <h3 id="performance-considerations_1">Performance Considerations</h3>
 <p>DNS64 adds overhead to <abbr title="Domain Name System">DNS</abbr> resolution:</p>
 <ul>
 <li><strong>Additional A query</strong>: Every AAAA query that requires synthesis triggers an additional A query</li>
 <li><strong>Caching is critical</strong>: Enable caching to minimize upstream query load</li>
-<li><strong>Cache hit rate</strong>: With caching, most AAAA queries hit the cache and avoid synthesis overhead</li>
+<li><strong>Cache hit rate</strong>: With caching, a repeated query gets its AAAA and A responses from the cache; the synthesis itself is done for every query. The exception is a query with the CD bit set: the responses to it carry that bit (RFC 4035 §3.2.2), and the cache stores no NOERROR response that does</li>
 </ul>
 <div class="admonition warning">
 <p class="admonition-title">Enable Caching for DNS64</p>
