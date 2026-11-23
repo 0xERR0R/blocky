@@ -1,6 +1,7 @@
 package dnssec
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
@@ -33,9 +34,9 @@ var _ = Describe("RRset validation functions", func() {
 	})
 
 	Describe("getAlgorithmStrength", func() {
-		It("should return highest strength for ED448", func() {
+		It("should return zero for ED448, which miekg/dns does not verify", func() {
 			strength := sut.getAlgorithmStrength(dns.ED448)
-			Expect(strength).Should(Equal(algorithmStrengthED448))
+			Expect(strength).Should(Equal(algorithmStrengthUnsupported))
 		})
 
 		It("should return very high strength for ED25519", func() {
@@ -69,14 +70,12 @@ var _ = Describe("RRset validation functions", func() {
 		})
 
 		It("should rank algorithms correctly", func() {
-			// Verify ED448 > ED25519 > ECDSA > RSA > unsupported
-			ed448 := sut.getAlgorithmStrength(dns.ED448)
+			// Verify ED25519 > ECDSA > RSA > unsupported
 			ed25519 := sut.getAlgorithmStrength(dns.ED25519)
 			ecdsa := sut.getAlgorithmStrength(dns.ECDSAP256SHA256)
 			rsa := sut.getAlgorithmStrength(dns.RSASHA256)
 			unsupported := sut.getAlgorithmStrength(255)
 
-			Expect(ed448).Should(BeNumerically(">", ed25519))
 			Expect(ed25519).Should(BeNumerically(">", ecdsa))
 			Expect(ecdsa).Should(BeNumerically(">", rsa))
 			Expect(rsa).Should(BeNumerically(">", unsupported))
@@ -97,8 +96,8 @@ var _ = Describe("RRset validation functions", func() {
 
 		It("should select strongest algorithm", func() {
 			weak := &dns.RRSIG{Algorithm: dns.RSASHA256}
-			strong := &dns.RRSIG{Algorithm: dns.ED25519}
-			strongest := &dns.RRSIG{Algorithm: dns.ED448}
+			strong := &dns.RRSIG{Algorithm: dns.ECDSAP256SHA256}
+			strongest := &dns.RRSIG{Algorithm: dns.ED25519}
 
 			result := sut.selectBestRRSIG([]*dns.RRSIG{weak, strong, strongest})
 			Expect(result).Should(Equal(strongest))
@@ -240,13 +239,68 @@ var _ = Describe("RRset validation functions", func() {
 			Expect(sut.isSupportedAlgorithm(dns.ED25519)).Should(BeTrue())
 		})
 
-		It("should support ED448", func() {
-			Expect(sut.isSupportedAlgorithm(dns.ED448)).Should(BeTrue())
+		It("should not support ED448", func() {
+			Expect(sut.isSupportedAlgorithm(dns.ED448)).Should(BeFalse())
 		})
 
 		It("should reject unsupported algorithms", func() {
 			Expect(sut.isSupportedAlgorithm(0)).Should(BeFalse())
 			Expect(sut.isSupportedAlgorithm(255)).Should(BeFalse())
+		})
+
+		It("should support the algorithms that miekg/dns verifies a signature of, and no other", func() {
+			rrset := []dns.RR{&dns.A{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   []byte{192, 0, 2, 1},
+			}}
+			bits := map[uint8]int{dns.ECDSAP256SHA256: 256, dns.ECDSAP384SHA384: 384, dns.ED25519: 256}
+
+			for alg := range 256 {
+				key := &dns.DNSKEY{
+					Hdr:   dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDNSKEY, Class: dns.ClassINET},
+					Flags: 257, Protocol: 3, Algorithm: uint8(alg), PublicKey: "dGVzdC1rZXk=",
+				}
+				sig := &dns.RRSIG{
+					Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG, Class: dns.ClassINET},
+					TypeCovered: dns.TypeA, Algorithm: key.Algorithm, Labels: 2, SignerName: "example.com.",
+					KeyTag: key.KeyTag(), Signature: "dGVzdC1zaWduYXR1cmU=",
+				}
+
+				if !sut.isSupportedAlgorithm(key.Algorithm) {
+					Expect(sig.Verify(key, rrset)).Should(MatchError(dns.ErrAlg), "algorithm %d", alg)
+
+					continue
+				}
+
+				size, set := bits[key.Algorithm]
+				if !set {
+					size = 1024
+				}
+
+				priv, err := key.Generate(size)
+				Expect(err).Should(Succeed(), "algorithm %d", alg)
+
+				sig.KeyTag = key.KeyTag()
+				Expect(sig.Sign(priv.(crypto.Signer), rrset)).Should(Succeed(), "algorithm %d", alg)
+				Expect(sig.Verify(key, rrset)).Should(Succeed(), "algorithm %d", alg)
+			}
+		})
+	})
+
+	Describe("isSupportedDigest", func() {
+		It("should support the digest types that miekg/dns computes, but for GOST R 34.11-2012", func() {
+			key := &dns.DNSKEY{
+				Hdr:   dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDNSKEY, Class: dns.ClassINET},
+				Flags: 257, Protocol: 3, Algorithm: dns.ED25519, PublicKey: "dGVzdC1rZXk=",
+			}
+
+			for digestType := range 256 {
+				// Type 5 is GOST R 34.11-2012 (RFC 9558), a digest of 32 octets: miekg/dns names it
+				// SHA512 and computes that
+				computed := key.ToDS(uint8(digestType)) != nil && digestType != int(dns.SHA512)
+
+				Expect(isSupportedDigest(uint8(digestType))).Should(Equal(computed), "digest type %d", digestType)
+			}
 		})
 	})
 

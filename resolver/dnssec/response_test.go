@@ -1303,6 +1303,165 @@ var _ = Describe("Status of a reply", func() {
 		})
 	})
 
+	// RFC 4035 §5.2, RFC 6840 §5.2: a DS record that names a key algorithm or a digest type that is
+	// not supported is disregarded. A zone that is left with none is treated as unsigned, and one
+	// that is left with some is validated with those. RFC 6840 §5.11: an RRSIG of an algorithm that
+	// is not supported is left out in the same way.
+	Describe("algorithms and digest types that are not supported", func() {
+		var a []dns.RR // www.signed.example. A with its RRSIG
+
+		// serve makes rrs the reply to the query of qtype for zone
+		serve := func(zone string, qtype uint16, rrs []dns.RR) {
+			resolve := upstream.ResolveFn
+			upstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				if q := req.Req.Question[0]; q.Qtype == qtype && q.Name == zone {
+					return &model.Response{Res: &dns.Msg{Answer: rrs}}, nil
+				}
+
+				return resolve(ctx, req)
+			}
+		}
+		// dsWith returns the DS record of signed.example. after change
+		dsWith := func(change func(*dns.DS)) dns.RR {
+			ds, _ := dns.Copy(chain.ds).(*dns.DS)
+			change(ds)
+
+			return ds
+		}
+		ed448 := func(ds *dns.DS) { ds.Algorithm = dns.ED448 }
+
+		BeforeEach(func() {
+			a = inChild(newRR("www." + child + " 300 IN A 192.0.2.1"))
+		})
+
+		DescribeTable("make a zone Insecure if its DS RRset names nothing else", func(change func(*dns.DS)) {
+			ds := inParent(dsWith(change))
+			serve(child, dns.TypeDS, ds)
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultInsecure))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultInsecure), "without RRSIG")
+			Expect(status(reply(nameError, nil, []dns.RR{soa(child)}), "nx."+child, dns.TypeA)).
+				Should(Equal(ValidationResultInsecure), "name error without proof")
+			Expect(status(reply(noError, []dns.RR{chain.childKey, chain.childKeySig}), child, dns.TypeDNSKEY)).
+				Should(Equal(ValidationResultInsecure), "the keys of the zone")
+
+			// The DS RRset is a record of the zone above, which signs it
+			Expect(status(reply(noError, ds), child, dns.TypeDS)).Should(Equal(ValidationResultSecure))
+		},
+			Entry("a key algorithm that is not assigned", func(ds *dns.DS) { ds.Algorithm = 100 }),
+			Entry("ED448, which miekg/dns does not verify", ed448),
+			Entry("a digest type that is not assigned", func(ds *dns.DS) { ds.DigestType = 100 }),
+			Entry("GOST R 34.11-2012, which miekg/dns computes as SHA-512", func(ds *dns.DS) { ds.DigestType = 5 }),
+		)
+
+		It("make a zone Insecure if every record of its DS RRset has one of them", func() {
+			// ED448 with a supported digest type, beside the algorithm of the key with a digest type
+			// that is not assigned
+			serve(child, dns.TypeDS, inParent(dsWith(ed448), dsWith(func(ds *dns.DS) { ds.DigestType = 100 })))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultInsecure))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultInsecure), "without RRSIG")
+		})
+
+		DescribeTable("leave a zone to a DS record of every supported digest type", func(digestType uint8) {
+			serve(child, dns.TypeDS, inParent(chain.childKey.ToDS(digestType)))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultSecure))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "without RRSIG")
+		},
+			Entry("SHA-1", dns.SHA1),
+			Entry("SHA-256", dns.SHA256),
+			Entry("SHA-384", dns.SHA384),
+		)
+
+		It("leave a zone to the rule for keys that nothing verifies with if its supported records name such keys", func() {
+			// An RSA/SHA-1 key with the exponent 2^32+1, beside a record of ED448: no supported path
+			key, _, _, _ := generateBigExponentRSAKey(child)
+			key.Algorithm = dns.RSASHA1
+			serve(child, dns.TypeDS, inParent(key.ToDS(dns.SHA256), dsWith(ed448)))
+			serve(child, dns.TypeDNSKEY, []dns.RR{key})
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultInsecure))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultInsecure), "without RRSIG")
+		})
+
+		It("leave a zone to the supported records of its DS RRset if it has some", func() {
+			serve(child, dns.TypeDS, inParent(dsWith(ed448), chain.ds, dsWith(func(ds *dns.DS) { ds.DigestType = 100 })))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultSecure))
+			Expect(status(reply(noError, badlySigned(a)), "www."+child, dns.TypeA)).Should(Equal(ValidationResultBogus))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "without RRSIG")
+		})
+
+		It("do not make a zone Insecure whose supported DS record names no key of the zone", func() {
+			wrong := dsWith(func(ds *dns.DS) { ds.Digest = strings.Repeat("00", 32) })
+			serve(child, dns.TypeDS, inParent(dsWith(ed448), wrong))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultBogus))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "without RRSIG")
+		})
+
+		It("do not make a zone Insecure whose supported DS record names a key that does not verify its keys", func() {
+			serve(child, dns.TypeDS, inParent(dsWith(ed448), chain.ds))
+			serve(child, dns.TypeDNSKEY, badlySigned([]dns.RR{chain.childKey, chain.childKeySig}))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultBogus))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "without RRSIG")
+		})
+
+		It("say nothing of a zone that has a trust anchor of its own", func() {
+			anchors, err := NewTrustAnchorStore([]string{chain.parentKey.String(), chain.childKey.String()})
+			Expect(err).Should(Succeed())
+
+			v = NewValidator(ctx, anchors, v.logger, upstream, 1, 10, 150, 30, 3600)
+			serve(child, dns.TypeDS, inParent(dsWith(ed448)))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultSecure))
+			Expect(status(reply(noError, a[:1]), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "without RRSIG")
+		})
+
+		It("leave an RRset to its RRSIGs of supported algorithms", func() {
+			other := func(alg uint8) *dns.RRSIG {
+				sig, _ := dns.Copy(a[1]).(*dns.RRSIG)
+				sig.Algorithm = alg
+
+				return sig
+			}
+
+			Expect(status(reply(noError, []dns.RR{a[0], other(dns.ED448), a[1]}), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultSecure))
+			Expect(status(reply(noError, []dns.RR{a[0], other(100), badlySigned(a)[1]}), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "the RRSIG of a supported algorithm fails")
+
+			// The zone signs every RRset with the algorithm that its DS RRset names (RFC 4035 §2.2)
+			Expect(status(reply(noError, []dns.RR{a[0], other(dns.ED448)}), "www."+child, dns.TypeA)).
+				Should(Equal(ValidationResultBogus), "no RRSIG of a supported algorithm")
+		})
+
+		It("take none of the tries of an RRset", func() {
+			// example. has an ED448 key too, and nine RRSIGs of the DS RRset name it
+			key := *chain.parentKey
+			key.Algorithm = dns.ED448
+			serve(parent, dns.TypeDNSKEY, inParent(chain.parentKey, &key))
+
+			sig, _ := dns.Copy(chain.dsSig).(*dns.RRSIG)
+			sig.Algorithm, sig.KeyTag = key.Algorithm, key.KeyTag()
+			nine := slices.Repeat([]dns.RR{sig}, maxRRsetVerifications+1)
+
+			serve(child, dns.TypeDS, slices.Concat([]dns.RR{chain.ds}, nine, []dns.RR{chain.dsSig}))
+
+			Expect(status(reply(noError, a), "www."+child, dns.TypeA)).Should(Equal(ValidationResultSecure))
+		})
+	})
+
 	// RFC 8914: a Bogus reply is told with the extended DNS error of the RRset that decided its
 	// status. That says more than "DNSSEC Bogus" if every try at the RRset failed for one thing
 	// that has a code of its own.
@@ -1394,6 +1553,12 @@ var _ = Describe("Status of a reply", func() {
 			serveKeys(inChild(chain.childKey, &gost, unusable))
 
 			Expect(told(a[0], signedWith(&gost))).Should(beTold(noSupport, "unsupported DNSSEC algorithm: 12"))
+
+			// An RRSIG of an algorithm that is not supported is told so with or without a key of it
+			unassigned := gost
+			unassigned.Algorithm = 100
+			Expect(told(a[0], signedWith(&unassigned))).Should(beTold(noSupport, "unsupported DNSSEC algorithm: 100"))
+
 			Expect(told(a[0], signedWith(unusable))).
 				Should(beTold(noSupport, fmt.Sprintf("no support for the RSA exponent of DNSKEY %d", unusable.KeyTag())))
 			Expect(told(a[0], signedWith(&gost), signedWith(unusable))).
