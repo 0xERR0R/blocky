@@ -237,6 +237,13 @@ var _ = Describe("Lifetime of what validation verified", func() {
 			c.replies["DS "+name] = &dns.Msg{Answer: lasting(by, key.ToDS(dns.SHA256))}
 			c.replies["DNSKEY "+name] = &dns.Msg{Answer: []dns.RR{key}}
 		}
+		// A zone whose DS RRset has no record of a supported algorithm: one of ED448
+		zoneWithoutSupportedDS := func(name string, by bound) {
+			key, _, _ := newSignedZoneKey(name)
+			ds := key.ToDS(dns.SHA256)
+			ds.Algorithm = dns.ED448
+			c.replies["DS "+name] = &dns.Msg{Answer: lasting(by, ds)}
+		}
 
 		// keptForAMinute walks to the name three times: when the cache of zones has nothing for it,
 		// 50 seconds later and 70 seconds later
@@ -283,6 +290,8 @@ var _ = Describe("Lifetime of what validation verified", func() {
 				secureZone, rrsetTTL, ValidationResultSecure),
 			Entry("a zone that is Insecure for its unusable key, with the TTL of the DS RRset that names it",
 				zoneWithoutUsableKey, rrsetTTL, ValidationResultInsecure),
+			Entry("a zone that is Insecure for its DS RRset without a supported record, with the TTL of that RRset",
+				zoneWithoutSupportedDS, rrsetTTL, ValidationResultInsecure),
 		)
 
 		It("is kept until the first NSEC RRset of the denial ends, whichever of them the proof reads", func() {

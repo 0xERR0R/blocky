@@ -423,6 +423,64 @@ var _ = Describe("QueryLoggingResolver", func() {
 				})
 			})
 		})
+		When("log privacy is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLog{
+					Target:           config.Secret(tmpDir.Path),
+					Type:             config.QueryLogTypeCsv,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "0.0.0.0")
+
+				util.LogPrivacy.Store(true)
+				DeferCleanup(func() { util.LogPrivacy.Store(false) })
+			})
+
+			readLog := func(g Gomega) []string {
+				csvLines, err := readCsv(tmpDir.JoinPath(time.Now().Format("2006-01-02") + "_ALL.log"))
+
+				g.Expect(err).Should(Succeed())
+				g.Expect(csvLines).Should(HaveLen(1))
+
+				return csvLines[0]
+			}
+
+			It("should not write the blocked domain in the response reason", func() {
+				m.ResolveFn = func(context.Context, *Request) (*Response, error) {
+					return &Response{
+						RType: ResponseTypeBLOCKED, Res: mockAnswer,
+						Reason: "BLOCKED (ads: example.com)", ReasonLabel: "BLOCKED (ads)",
+					}, nil
+				}
+
+				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))).
+					Should(HaveResponseType(ResponseTypeBLOCKED))
+
+				Eventually(func(g Gomega) {
+					line := readLog(g)
+
+					g.Expect(line[4]).Should(Equal("BLOCKED (ads)"))
+					g.Expect(line[5]).Should(Equal("*******.***."))
+					g.Expect(line[6]).Should(Equal("* (*.*.*.*)"))
+					g.Expect(line[8]).Should(Equal("BLOCKED"))
+					g.Expect(line).ShouldNot(ContainElement(ContainSubstring("example")))
+				}, "1s").Should(Succeed())
+			})
+
+			It("should write a response reason that has no label as it is", func() {
+				m.ResolveFn = func(context.Context, *Request) (*Response, error) {
+					return &Response{RType: ResponseTypeCACHED, Res: mockAnswer, Reason: "CACHED"}, nil
+				}
+
+				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))).
+					Should(HaveResponseType(ResponseTypeCACHED))
+
+				Eventually(func(g Gomega) {
+					g.Expect(readLog(g)[4]).Should(Equal("CACHED"))
+				}, "1s").Should(Succeed())
+			})
+		})
 		When("Configuration with specific fields to log", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLog{

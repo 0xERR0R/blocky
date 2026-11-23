@@ -361,9 +361,9 @@ func (ks parentKeys) verify(ctx context.Context, r *rrsetResult, sigs []*dns.RRS
 }
 
 // delegationKeys is the key source for the DNSKEY RRset of a zone below a secure delegation: the
-// keys of the RRset that ds names, the DS RRset of the zone (RFC 4035 §5.2). An RRset that none of
-// them verifies is Bogus, or Insecure if ds names only keys that nothing here verifies with (see
-// onlyUnsupportedKSKs).
+// keys of the RRset that ds names, the supported DS records of the zone (RFC 4035 §5.2). An RRset
+// that none of them verifies is Bogus, or Insecure if ds names only keys that nothing here verifies
+// with (see onlyUnsupportedKSKs).
 type delegationKeys struct {
 	v  *Validator
 	ds []*dns.DS
@@ -583,6 +583,10 @@ func (v *Validator) getParentDomain(domain string) string {
 // that RRset: a zone, which the RRset leads to the keys of. A reply without that RRset has no DS
 // RRset of domain, whatever DS records it holds, and says what it proves without one (see
 // handleDSAbsence).
+//
+// ds holds the records of the RRset with a supported key algorithm and digest type. The others are
+// disregarded, and a zone that is left with none is Insecure for the lifetime of the RRset, like
+// one whose DS RRset is proven absent (RFC 4035 §5.2, RFC 6840 §5.2).
 func (ks parentKeys) dsRRset(
 	ctx context.Context, domain string, dsResponse *dns.Msg,
 ) (ds []*dns.DS, level zoneStatus) {
@@ -598,7 +602,15 @@ func (ks parentKeys) dsRRset(
 		return nil, zoneStatus{result: ValidationResultBogus}
 	}
 
-	ds = util.ExtractRecordsFromSlice[*dns.DS](r.rrs)
+	ds = slices.DeleteFunc(util.ExtractRecordsFromSlice[*dns.DS](r.rrs), func(rr *dns.DS) bool {
+		return !ks.v.isSupportedAlgorithm(rr.Algorithm) || !isSupportedDigest(rr.DigestType)
+	})
+	if len(ds) == 0 {
+		ks.v.logger.Debugf("No DS record of %s has a supported algorithm and digest type - treating zone as Insecure",
+			domain)
+
+		return nil, zoneStatus{result: ValidationResultInsecure, lifetime: r.lifetime}
+	}
 
 	return ds, zoneStatus{result: ValidationResultSecure, lifetime: r.lifetime}
 }
