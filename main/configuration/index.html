@@ -5141,7 +5141,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <li><code>clientName</code>: resolved client name(s) from the origins request</li>
 <li><code>responseReason</code>: reason for the response (e.g. from which upstream resolver), response type and code. For blocked
   queries the reason also names the matched rule per group, e.g. <code>BLOCKED (ads: *.docler.com)</code>, so you can tell which
-  denylist entry caused the block</li>
+  denylist entry caused the block. With <code>log.privacy</code> enabled, only the group names are logged, e.g. <code>BLOCKED (ads)</code></li>
 <li><code>responseAnswer</code>: returned <abbr title="Domain Name System">DNS</abbr> answer</li>
 <li><code>question</code>: <abbr title="Domain Name System">DNS</abbr> question from the request</li>
 <li><code>duration</code>: request processing time in milliseconds</li>
