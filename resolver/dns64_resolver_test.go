@@ -778,7 +778,7 @@ var _ = Describe("DNS64Resolver", func() {
 			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
 
 			Expect(err).Should(Succeed())
-			Expect(resp.Res.AuthenticatedData).Should(BeFalse()) // AD bit cleared (non-validating mode)
+			Expect(resp.Res.AuthenticatedData).Should(BeFalse()) // AD bit cleared (the synthesized RRset is unsigned)
 		})
 
 		It("should copy AA and RA bits from A response", func() {

@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -259,6 +262,97 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeBLOCKED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
+			})
+		})
+	})
+
+	Describe("Log privacy", func() {
+		var hook *test.Hook
+
+		// loggedText renders every log entry with its fields, as a log line would show them
+		loggedText := func() string {
+			var sb strings.Builder
+
+			for _, entry := range hook.AllEntries() {
+				line, err := entry.String()
+				Expect(err).Should(Succeed())
+				sb.WriteString(line)
+			}
+
+			return sb.String()
+		}
+
+		BeforeEach(func() {
+			allowFile := tmpDir.CreateStringFile("privacyAllowFile", "allowed1.com")
+
+			sutConfig = config.Blocking{
+				BlockType:  "ZEROIP",
+				BlockTTL:   config.Duration(time.Minute),
+				Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path, defaultGroupFile.Path)},
+				Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(allowFile.Path)},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"gr1"},
+				},
+			}
+
+			util.LogPrivacy.Store(true)
+			DeferCleanup(func() { util.LogPrivacy.Store(false) })
+
+			var logger *logrus.Logger
+			logger, hook = test.NewNullLogger()
+			logger.SetLevel(logrus.DebugLevel)
+			ctx, _ = log.NewCtx(ctx, logrus.NewEntry(logger))
+		})
+
+		It("should not log the blocked domain", func() {
+			Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1"))).
+				Should(
+					SatisfyAll(
+						HaveResponseType(ResponseTypeBLOCKED),
+						// the response itself is not log output and keeps the matched rule
+						HaveReason("BLOCKED (gr1: domain1.com)"),
+					))
+
+			Expect(loggedText()).Should(ContainSubstring("blocking request 'BLOCKED (gr1)'"))
+			Expect(loggedText()).ShouldNot(ContainSubstring("domain1"))
+		})
+
+		It("should not log the allowlisted domain", func() {
+			Expect(sut.Resolve(ctx, newRequestWithClient("allowed1.com.", A, "1.2.1.2", "client1"))).
+				Should(HaveResponseType(ResponseTypeRESOLVED))
+
+			Expect(loggedText()).Should(ContainSubstring("domain is allowlisted"))
+			Expect(loggedText()).ShouldNot(ContainSubstring("allowed1"))
+		})
+
+		It("should log the blocked domain when log privacy is disabled", func() {
+			util.LogPrivacy.Store(false)
+
+			Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1"))).
+				Should(HaveResponseType(ResponseTypeBLOCKED))
+
+			Expect(loggedText()).Should(ContainSubstring("blocking request 'BLOCKED (gr1: domain1.com)'"))
+		})
+
+		When("the response contains a CNAME on the denylist", func() {
+			BeforeEach(func() {
+				rr1, _ := dns.NewRR("example.com 300 IN CNAME domain.com")
+				rr2, _ := dns.NewRR("domain.com 300 IN CNAME badcnamedomain.com")
+				rr3, _ := dns.NewRR("badcnamedomain.com 300 IN A 125.125.125.125")
+				mockAnswer = new(dns.Msg)
+				mockAnswer.Answer = []dns.RR{rr1, rr2, rr3}
+			})
+
+			It("should not log the CNAME target", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.1.2", "client1"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED CNAME (gr1: badcnamedomain.com)"),
+						))
+
+				Expect(loggedText()).Should(ContainSubstring("blocking request 'BLOCKED CNAME (gr1)'"))
+				Expect(loggedText()).ShouldNot(ContainSubstring("badcnamedomain"))
 			})
 		})
 	})

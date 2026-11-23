@@ -9,10 +9,13 @@ import (
 // Caching configuration for domain caching
 type Caching struct {
 	// Minimum TTL for cached entries; if the response TTL is smaller, this value is used instead.
+	// Not used for a response whose answer or authority section has DNSSEC signatures (RRSIG records):
+	// such a response is cached for no longer than the smallest TTL of the records of these two sections.
 	MinCachingTime Duration `yaml:"minTime"`
 	// Maximum TTL for cached entries. If <0, caching is disabled. If 0, the response TTL is used.
 	MaxCachingTime Duration `yaml:"maxTime"`
 	// TTL for negative responses (NXDOMAIN / empty). Use -1 to disable caching of negative results.
+	// The limit that minTime describes for a response with DNSSEC signatures applies to a negative result too.
 	CacheTimeNegative Duration `default:"30m" yaml:"cacheTimeNegative"`
 	// Maximum number of cache entries (soft limit). 0 means unlimited.
 	MaxItemsCount int `yaml:"maxItemsCount"`

@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 )
 
 type stringCache interface {
@@ -26,7 +27,8 @@ type cacheFactory interface {
 // allocations unless debug logging is on.
 func logMatch(prefix, kind, rule, searchString string) {
 	if log.Log().IsLevelEnabled(logrus.DebugLevel) {
-		log.PrefixedLog(prefix).Debugf("%s '%s' matched with '%s'", kind, rule, searchString)
+		log.PrefixedLog(prefix).Debugf("%s '%s' matched with '%s'",
+			kind, util.Obfuscate(rule), util.Obfuscate(searchString))
 	}
 }
 

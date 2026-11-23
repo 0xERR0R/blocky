@@ -220,9 +220,11 @@ func packRRSIGRDATA(rrsig *dns.RRSIG) ([]byte, error) {
 
 // canonicalRRsetData builds the canonical wire form of rrset per RFC 4034 §6.2: TTLs replaced by
 // the RRSIG original TTL, wildcard names expanded, domain names lowercased, and records sorted
-// and de-duplicated.
+// by their RDATA (RFC 4034 §6.3) and de-duplicated.
 func canonicalRRsetData(rrset []dns.RR, rrsig *dns.RRSIG) ([]byte, error) {
-	wires := make([][]byte, len(rrset))
+	type canonicalRR struct{ wire, rdata []byte }
+
+	rrs := make([]canonicalRR, len(rrset))
 
 	for i, r := range rrset {
 		r1 := dns.Copy(r)
@@ -243,19 +245,22 @@ func canonicalRRsetData(rrset []dns.RR, rrsig *dns.RRSIG) ([]byte, error) {
 			return nil, err
 		}
 
-		wires[i] = wire[:off]
+		// PackRR sets Rdlength to the RDLENGTH that it packed (RFC 1035 §3.2.1): the RDATA is that
+		// many octets at the end of the record
+		rrs[i] = canonicalRR{wire: wire[:off], rdata: wire[off-int(h.Rdlength) : off]}
 	}
 
-	sort.Slice(wires, func(i, j int) bool { return bytes.Compare(wires[i], wires[j]) < 0 })
+	// RFC 4034 §6.3: the records are in the order of their RDATA, compared as octet strings
+	sort.Slice(rrs, func(i, j int) bool { return bytes.Compare(rrs[i].rdata, rrs[j].rdata) < 0 })
 
 	var buf []byte
 
-	for i, wire := range wires {
-		if i > 0 && bytes.Equal(wire, wires[i-1]) {
+	for i, rr := range rrs {
+		if i > 0 && bytes.Equal(rr.wire, rrs[i-1].wire) {
 			continue
 		}
 
-		buf = append(buf, wire...)
+		buf = append(buf, rr.wire...)
 	}
 
 	return buf, nil
