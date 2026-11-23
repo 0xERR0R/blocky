@@ -55,7 +55,7 @@ You can also browse the interactive API documentation (RapiDoc) documentation [o
 
     - Query-type filtering (e.g. `AAAA` via `filtering.queryTypes`) and non-FQDN rejections are
       client-requested, not protective, and are counted as `filtered`.
-    - A [DNSSEC](configuration.md#dnssec) validation failure (`BOGUS`) is a SERVFAIL — blocky
+    - A [DNSSEC](configuration.md#dnssec-validation) validation failure (`BOGUS`) is a SERVFAIL — blocky
       could not obtain a trustworthy answer — so it is a resolution error, not a block, and is
       counted as `errors` together with queries a resolver failed outright.
 
