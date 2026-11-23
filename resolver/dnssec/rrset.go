@@ -3,12 +3,14 @@ package dnssec
 // This file contains RRset and RRSIG signature validation logic per RFC 4035.
 
 import (
-	"encoding/base64"
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 // Algorithm strength scores for preventing downgrade attacks
@@ -22,55 +24,13 @@ const (
 	algorithmStrengthRSASHA1         = 10  // Deprecated/weak
 	algorithmStrengthUnsupported     = 0   // Unsupported
 
-	// DNSSEC RSA key validation constants (per RFC 3110)
-	dnskeyProtocolValue  = 3          // Required protocol field value
-	publicKeyPrefixLen   = 40         // Length of public key prefix for logging
-	maxRSAExponentBytes  = 4          // Max exponent length supported by Go crypto (2^31-1)
-	maxInt31             = 0x7FFFFFFF // Maximum RSA exponent value supported by Go crypto
-	extendedExpLenOffset = 3          // Offset for extended exponent length format
-	bitsPerByte          = 8          // Number of bits in a byte
+	// DNSKEY validation constants
+	dnskeyProtocolValue = 3  // Required protocol field value
+	publicKeyPrefixLen  = 40 // Length of public key prefix for logging
+	bitsPerByte         = 8  // Number of bits in a byte
 )
 
-// maxZoneKeyVerifications is the verification budget of verifyWithZoneKeys for one RRset, or for
-// all RRsets of one reply (KeyTrap, CVE-2023-50387).
-const maxZoneKeyVerifications = 8
-
 var errRRSIGVerificationFailed = errors.New("signature verification failed")
-
-// verifyWithZoneKeys verifies rrset with one of sigs made by a key in keys, the validated DNSKEY
-// RRset of the signer zone. Key tags are not unique, so a signature is tried with every key that
-// has its key tag and algorithm (RFC 4035 §5.3.1). Each verification spends one of *budget, and
-// verifyWithZoneKeys fails once none is left (KeyTrap, CVE-2023-50387).
-func (v *Validator) verifyWithZoneKeys(rrset []dns.RR, sigs []*dns.RRSIG, keys []*dns.DNSKEY, budget *int) error {
-	var errs []error
-
-	for _, sig := range sigs {
-		for _, key := range keys {
-			if !keyMatches(key, sig.KeyTag, sig.Algorithm) {
-				continue
-			}
-
-			if *budget <= 0 {
-				return errors.Join(append(errs, errors.New("no signature verifications left"))...)
-			}
-
-			*budget--
-
-			err := v.verifyRRSIG(rrset, sig, key, nil, "")
-			if err == nil {
-				return nil
-			}
-
-			errs = append(errs, err)
-		}
-	}
-
-	if errs == nil {
-		return errors.New("no RRSIG made by a validated key")
-	}
-
-	return errors.Join(errs...)
-}
 
 // getAlgorithmStrength returns a strength score for a DNSSEC algorithm
 // Higher scores indicate stronger algorithms (used to prevent downgrade attacks)
@@ -123,51 +83,29 @@ func (v *Validator) sortRRSIGsByStrength(rrsigs []*dns.RRSIG) []*dns.RRSIG {
 		return rrsigs
 	}
 
-	// Create a copy to avoid modifying the original slice
-	sorted := make([]*dns.RRSIG, len(rrsigs))
-	copy(sorted, rrsigs)
-
-	// Simple bubble sort (sufficient for small RRSIG lists, typically 1-3 signatures)
-	for i := range len(sorted) - 1 {
-		for j := range len(sorted) - i - 1 {
-			if v.getAlgorithmStrength(sorted[j].Algorithm) < v.getAlgorithmStrength(sorted[j+1].Algorithm) {
-				sorted[j], sorted[j+1] = sorted[j+1], sorted[j]
-			}
-		}
-	}
+	// Create a copy to avoid modifying the original slice. RRSIGs of one strength keep their order.
+	sorted := slices.Clone(rrsigs)
+	slices.SortStableFunc(sorted, func(a, b *dns.RRSIG) int {
+		return v.getAlgorithmStrength(b.Algorithm) - v.getAlgorithmStrength(a.Algorithm)
+	})
 
 	return sorted
 }
 
-// findMatchingRRSIGs finds all RRSIGs that match the given RRset owner name and type
-// Per RFC 4035: An RRSIG covers an RRset if:
-// 1. The RRSIG's owner name equals the RRset's owner name
-// 2. The RRSIG's Type Covered field equals the RRset's type
-// Owner names are compared in canonical (case-insensitive) form per RFC 4034 §6.
-func findMatchingRRSIGs(sigs []*dns.RRSIG, ownerName string, rrType uint16) []*dns.RRSIG {
-	ownerName = dns.CanonicalName(ownerName)
-	var matchingRRSIGs []*dns.RRSIG
-	for _, sig := range sigs {
-		sigOwnerName := dns.CanonicalName(sig.Header().Name)
-		if sig.TypeCovered == rrType && sigOwnerName == ownerName {
-			matchingRRSIGs = append(matchingRRSIGs, sig)
+// rrsigsByRRset returns the RRSIGs of rrs, the records of a section, by the RRset that each
+// covers, in the order of the section. An RRSIG covers the RRset that has its owner name and the
+// type of its Type Covered field (RFC 4035 §5.3.1).
+func rrsigsByRRset(rrs []dns.RR) map[rrsetKey][]*dns.RRSIG {
+	sigs := make(map[rrsetKey][]*dns.RRSIG)
+
+	for _, rr := range rrs {
+		if sig, isSig := rr.(*dns.RRSIG); isSig {
+			key := rrsetKey{name: dns.CanonicalName(sig.Hdr.Name), rrType: sig.TypeCovered}
+			sigs[key] = append(sigs[key], sig)
 		}
 	}
 
-	return matchingRRSIGs
-}
-
-// findMatchingRRSIGsForType finds all RRSIGs that cover the given RRset type
-// Note: This function only matches by type, not owner name; signature verification checks it.
-func findMatchingRRSIGsForType(sigs []*dns.RRSIG, rrType uint16) []*dns.RRSIG {
-	var matchingRRSIGs []*dns.RRSIG
-	for _, sig := range sigs {
-		if sig.TypeCovered == rrType {
-			matchingRRSIGs = append(matchingRRSIGs, sig)
-		}
-	}
-
-	return matchingRRSIGs
+	return sigs
 }
 
 // validateSignerName validates that the RRSIG signer name is valid for the RRset
@@ -176,90 +114,177 @@ func validateSignerName(signerName, rrsetName string) bool {
 	return dns.IsSubDomain(signerName, rrsetName)
 }
 
-// findMatchingDNSKEY finds the DNSKEY that matches the given key tag
-func findMatchingDNSKEY(keys []*dns.DNSKEY, keyTag uint16, algorithm uint8) *dns.DNSKEY {
+// isZoneKey reports whether key is a key that RRSIGs are verified with: it has the Zone Key flag
+// (RFC 4034 §2.1.1) and the protocol value 3 (RFC 4034 §2.1.2), and it is not revoked (RFC 5011
+// §2.1).
+func isZoneKey(key *dns.DNSKEY) bool {
+	return key.Flags&dns.ZONE != 0 && key.Flags&dns.REVOKE == 0 && key.Protocol == dnskeyProtocolValue
+}
+
+// keyID is what an RRSIG names the key that made it by: the zone that owns the key, in canonical
+// form (RFC 4034 §6), its key tag and its algorithm (RFC 4035 §5.3.1)
+type keyID struct {
+	zone      string
+	tag       uint16
+	algorithm uint8
+}
+
+// keySet holds the keys of a DNSKEY RRset that RRSIGs are verified with, each under what an RRSIG
+// names it by, so that the keys for an RRSIG are found without looking at the others. Key tags
+// are not unique: an RRSIG may name several keys of a set (RFC 4035 §5.3.1).
+type keySet map[keyID][]*dns.DNSKEY
+
+// newKeySet returns the key set of keys: those that are zone keys with the protocol value 3 and
+// not revoked (RFC 4034 §2.1.1 and §2.1.2, RFC 5011 §2.1: see isZoneKey). The validation of ctx
+// computes the key tag of a key once.
+func newKeySet(ctx context.Context, keys []*dns.DNSKEY) keySet {
+	b, set := budgetFrom(ctx), make(keySet, len(keys))
+
 	for _, key := range keys {
-		if keyMatches(key, keyTag, algorithm) {
-			return key
+		if isZoneKey(key) {
+			id := keyID{zone: dns.CanonicalName(key.Hdr.Name), tag: b.keyTag(key), algorithm: key.Algorithm}
+			set[id] = append(set[id], key)
 		}
 	}
 
-	return nil
+	return set
 }
 
-// keyMatches reports whether key has the given key tag and algorithm and may verify signatures
-// RFC 4034 §2.1.2: Protocol field MUST be 3
-func keyMatches(key *dns.DNSKEY, keyTag uint16, algorithm uint8) bool {
-	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
+// zone returns the zone that owns the keys of the set, in canonical form: a set holds the keys of
+// one DNSKEY RRset. It is empty for a set without keys. That names no zone, and not the root: a
+// set without keys verifies no RRset, so nothing is read as a record of its zone.
+func (keys keySet) zone() string {
+	for id := range keys {
+		return id.zone
+	}
 
-	// RFC 5011 §7: a revoked key only verifies the self-signature of its DNSKEY RRset
-	return key.Protocol == dnskeyProtocolValue && key.Flags&REVOKE == 0 &&
-		key.KeyTag() == keyTag && key.Algorithm == algorithm
+	return ""
 }
 
-// hasUnsupportedRSAExponent checks if an RSA DNSKEY has an exponent that exceeds Go crypto's limits
-// Per RFC 3110, RSA exponents can be up to 65535 bytes, but Go's crypto/rsa limits them to 2^31-1
-// This function detects keys with exponents > 4 bytes, which likely exceed the limit
-// Returns true if the exponent is unsupported, false otherwise
-func hasUnsupportedRSAExponent(key *dns.DNSKEY) bool {
-	// Only check RSA algorithms
-	switch key.Algorithm {
-	case dns.RSASHA1, dns.RSASHA1NSEC3SHA1, dns.RSASHA256, dns.RSASHA512:
-		// Decode the base64 public key
-		pubKeyBytes, err := base64.StdEncoding.DecodeString(key.PublicKey)
-		if err != nil || len(pubKeyBytes) < 1 {
-			return false // Can't parse, let normal validation handle it
+// mayVerify returns the keys of the set that may verify sig: those with its key tag and its
+// algorithm that the signer which it names owns
+func (keys keySet) mayVerify(sig *dns.RRSIG) []*dns.DNSKEY {
+	return keys[keyID{zone: dns.CanonicalName(sig.SignerName), tag: sig.KeyTag, algorithm: sig.Algorithm}]
+}
+
+// verifyRRset returns the first of sigs, RRSIGs that cover the RRset of r, that verifies it with
+// one of keys. Key tags are not unique, so an RRSIG is tried with every key that may verify it
+// (RFC 4035 §5.3.1). Each try comes out of the budget of ctx (see spendTry), and without one left
+// nothing more is tried.
+//
+// No RRSIG made for a wildcard is tried for a DS or DNSKEY RRset. A wildcard gives no name a DS
+// RRset or keys (RFC 4592 §4.6): a DS RRset is that of the delegation that owns it, with digests
+// that cover the owner name of a key (RFC 4034 §5.1.4), and the keys of a zone are the DNSKEY
+// RRset at its apex.
+func (v *Validator) verifyRRset(
+	ctx context.Context, r *rrsetResult, sigs []*dns.RRSIG, keys keySet,
+) (*dns.RRSIG, error) {
+	var errs []error
+
+	b := budgetFrom(ctx)
+
+	for _, sig := range sigs {
+		if (r.rrType == dns.TypeDS || r.rrType == dns.TypeDNSKEY) && isWildcardExpansion(r.owner, sig) {
+			errs = append(errs, fmt.Errorf("RRSIG %d was made for a wildcard, which has no such RRset for %s",
+				sig.KeyTag, r.owner))
+
+			continue
 		}
 
-		// Parse exponent length per RFC 3110
-		// Track offset to avoid redundant checks
-		var expLen int
-		var offset int
-
-		if pubKeyBytes[0] == 0 {
-			// Extended format: next 2 bytes contain exponent length
-			if len(pubKeyBytes) < extendedExpLenOffset {
-				return false
+		for _, key := range keys.mayVerify(sig) {
+			if err := b.spendTry(r); err != nil {
+				return nil, errors.Join(append(errs, err)...)
 			}
 
-			expLen = int(pubKeyBytes[1])<<bitsPerByte | int(pubKeyBytes[2])
-			offset = extendedExpLenOffset
-		} else {
-			// Standard format: first byte is exponent length
-			expLen = int(pubKeyBytes[0])
-			offset = 1
+			err := v.checkRRSIG(ctx, r.rrs, sig, key)
+			if err == nil {
+				return sig, nil
+			}
+
+			errs = append(errs, err)
 		}
-
-		// Go's crypto/rsa limits exponents to 2^31-1 (the maximum value of a signed int32).
-		// While 4 bytes can represent values up to 2^32-1, Go enforces the stricter 2^31-1 limit.
-		if expLen > maxRSAExponentBytes {
-			return true
-		}
-
-		// Even if <= 4 bytes, check if the value exceeds 2^31-1
-		if len(pubKeyBytes) < offset+expLen {
-			return false
-		}
-
-		exponent := pubKeyBytes[offset : offset+expLen]
-
-		// Limit check: If exponent is > 8 bytes, it exceeds uint64 capacity and definitely exceeds 2^31-1
-		const maxUint64Bytes = 8
-		if len(exponent) > maxUint64Bytes {
-			return true
-		}
-
-		var expValue uint64
-
-		for _, b := range exponent {
-			expValue = (expValue << bitsPerByte) | uint64(b)
-		}
-
-		// Check if exponent exceeds 2^31-1
-		return expValue > maxInt31
 	}
 
-	return false
+	if errs == nil {
+		return nil, errors.New("no RRSIG made by a validated key")
+	}
+
+	return nil, failedTries(errs)
+}
+
+// verifyWith gives r what the first of sigs says that verifies it with one of keys (see verifyRRset
+// and verifiedBy), and reports whether one did. Without one r stays what it is.
+func (v *Validator) verifyWith(ctx context.Context, r *rrsetResult, sigs []*dns.RRSIG, keys keySet) bool {
+	sig, err := v.verifyRRset(ctx, r, sigs, keys)
+	if err != nil {
+		r.err = err
+
+		return false
+	}
+
+	r.verifiedBy(sig)
+
+	return true
+}
+
+// verifiedLifetime returns how long rrset is authentic, in seconds, as the RRset that sig, an
+// RRSIG that covers it, verified: no longer than the TTL of its records, the TTL of sig, the
+// Original TTL field of sig and the time until sig expires (RFC 4035 §5.3.3). Whatever the RRset
+// proves holds no longer. It is zero for an RRSIG that has expired and verifies within the clock
+// skew tolerance.
+func verifiedLifetime(rrset []dns.RR, sig *dns.RRSIG) uint32 {
+	untilExpiration := max(int64(sig.Expiration)-time.Now().Unix(), 0)
+	lifetime := min(sig.Hdr.Ttl, sig.OrigTtl, uint32(untilExpiration)) //nolint:gosec // below the uint32 expiration
+
+	for _, rr := range rrset {
+		lifetime = min(lifetime, rr.Header().Ttl)
+	}
+
+	return lifetime
+}
+
+// Lifetimes holds how long the RRsets of the answer and authority sections of a reply are
+// authentic, in seconds: each for as long as the RRSIG that verified it lets it be (see
+// verifiedLifetime), and one that a wildcard answers with no longer than the proof of that (see
+// proveExpansions). An RRset that both sections hold has the shorter of its two lifetimes.
+type Lifetimes map[rrsetKey]uint32
+
+// newLifetimes returns the lifetimes of the RRsets of sections, sections of verified RRsets
+func newLifetimes(sections ...[]rrsetResult) Lifetimes {
+	lifetimes := make(Lifetimes)
+
+	for _, results := range sections {
+		for i := range results {
+			key := rrsetKeyOf(results[i].rrs[0])
+			if lifetime, held := lifetimes[key]; !held || results[i].lifetime < lifetime {
+				lifetimes[key] = results[i].lifetime
+			}
+		}
+	}
+
+	return lifetimes
+}
+
+// Bound returns rrs, the records of the answer or authority section of the reply, with no TTL
+// beyond the lifetime of the RRset that the record is part of or, as an RRSIG, covers: the TTL of
+// an authenticated RRset and of its RRSIGs is no longer than that (RFC 4035 §5.3.3). A record
+// with a longer TTL is returned as a copy, and the reply stays as it is.
+func (l Lifetimes) Bound(rrs []dns.RR) []dns.RR {
+	bound := slices.Clone(rrs)
+
+	for i, rr := range bound {
+		key := rrsetKeyOf(rr)
+		if sig, isSig := rr.(*dns.RRSIG); isSig {
+			key.rrType = sig.TypeCovered
+		}
+
+		if lifetime, verified := l[key]; verified && rr.Header().Ttl > lifetime {
+			bound[i] = dns.Copy(rr)
+			bound[i].Header().Ttl = lifetime
+		}
+	}
+
+	return bound
 }
 
 // isSupportedAlgorithm checks if the DNSSEC algorithm is supported
@@ -282,38 +307,47 @@ func (v *Validator) isSupportedAlgorithm(alg uint8) bool {
 	}
 }
 
-// verifyRRSIG verifies an RRSIG signature for an RRset
-func (v *Validator) verifyRRSIG(
-	rrset []dns.RR, rrsig *dns.RRSIG, key *dns.DNSKEY, nsRecords []dns.RR, qname string,
-) error {
+// checkRRSIG verifies the signature of rrsig over rrset with key, a key that may verify it (see
+// mayVerify): its algorithm, its Labels field, the zone of its signer if it was made for a
+// wildcard, the signature itself, which counts as a verification on the budget of ctx, and then
+// its validity period. Whether a wildcard answers for the owner name of rrset is for the caller
+// to check (see proveExpansions). A failure that an extended DNS error names is an extendedError
+// with its code: an algorithm or a key that nothing here verifies with (RFC 8914 §4.2), and, for
+// a signature that verifies, a validity period that has ended or not begun (§4.8, §4.9).
+func (v *Validator) checkRRSIG(ctx context.Context, rrset []dns.RR, rrsig *dns.RRSIG, key *dns.DNSKEY) error {
 	// Log DNSKEY details including public key prefix for debugging
 	pkeyPrefix := key.PublicKey
 	if len(pkeyPrefix) > publicKeyPrefixLen {
 		pkeyPrefix = pkeyPrefix[:publicKeyPrefixLen]
 	}
 	v.logger.Debugf(
-		"verifyRRSIG: Using DNSKEY flags=%d, protocol=%d, algorithm=%d, keytag=%d, "+
+		"verifyRRSIG: Using DNSKEY flags=%d, protocol=%d, algorithm=%d, "+
 			"Header.Name='%s', pubkey_prefix=%s... to verify RRSIG keytag=%d, algorithm=%d, SignerName='%s'",
-		key.Flags, key.Protocol, key.Algorithm, key.KeyTag(), key.Header().Name, pkeyPrefix,
+		key.Flags, key.Protocol, key.Algorithm, key.Header().Name, pkeyPrefix,
 		rrsig.KeyTag, rrsig.Algorithm, rrsig.SignerName)
 
 	// Check algorithm support per RFC 4035 §2.2
 	// Unsupported algorithms should be treated as Insecure, not Bogus
 	if !v.isSupportedAlgorithm(rrsig.Algorithm) {
-		return fmt.Errorf("unsupported DNSSEC algorithm: %d", rrsig.Algorithm)
+		return unsupported("unsupported DNSSEC algorithm: %d", rrsig.Algorithm)
 	}
 
-	// Verify RRSIG and DNSKEY use the same algorithm
-	if rrsig.Algorithm != key.Algorithm {
-		return fmt.Errorf("algorithm mismatch: RRSIG uses %d, DNSKEY uses %d", rrsig.Algorithm, key.Algorithm)
+	// RFC 4035 §5.3.1: the Labels field counts no more labels than the owner name has, as an RRSIG
+	// made for that name counts them (see isWildcardExpansion)
+	if len(rrset) > 0 && int(rrsig.Labels) > rrsigLabelsForOwner(rrset[0].Header().Name) {
+		return fmt.Errorf("RRSIG counts %d labels, more than its owner name has", rrsig.Labels)
 	}
 
-	// RFC 4035 §5.3.4: Validate wildcard expansion if applicable
-	if len(rrset) > 0 {
-		rrsetName := dns.Fqdn(rrset[0].Header().Name)
-		if err := v.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname); err != nil {
-			return fmt.Errorf("wildcard validation failed: %w", err)
-		}
+	if err := wildcardInSignerZone(rrset, rrsig); err != nil {
+		return fmt.Errorf("wildcard validation failed: %w", err)
+	}
+
+	// RFC 4035 §5.3.1: the current time is at or after the inception and at or before the
+	// expiration, so no time is within a validity period that ends before it begins. The clock skew
+	// tolerance below must not make such a period valid.
+	if rrsig.Inception > rrsig.Expiration {
+		return fmt.Errorf("signature inception after expiration (inception: %d, expiration: %d)",
+			rrsig.Inception, rrsig.Expiration)
 	}
 
 	// Capture timestamp once at the start to avoid TOCTOU race condition
@@ -331,35 +365,57 @@ func (v *Validator) verifyRRSIG(
 	inceptionWithSkew := int64(rrsig.Inception) - tolerance
 	expirationWithSkew := int64(rrsig.Expiration) + tolerance
 
-	// Check signature expiration and inception times first (fast check)
-	if int64(now) < inceptionWithSkew {
-		return fmt.Errorf("signature not yet valid (inception: %d, now: %d, tolerance: %ds)",
-			rrsig.Inception, now, v.clockSkewToleranceSec)
-	}
-	if int64(now) > expirationWithSkew {
-		return fmt.Errorf("signature expired (expiration: %d, now: %d, tolerance: %ds)",
-			rrsig.Expiration, now, v.clockSkewToleranceSec)
+	// RFC 4035 §5.5: the RRSIG of a key that nothing here verifies with fails like any other
+	if !canVerifyWith(key) {
+		return unsupported("no support for the RSA exponent of DNSKEY %d", rrsig.KeyTag)
 	}
 
-	// Use miekg/dns to verify the signature (expensive crypto operation)
-	if err := rrsig.Verify(key, rrset); err != nil {
-		// Go's crypto/rsa cannot load exponents >= 2^31-1, so miekg/dns reports "dns: bad key"
-		// for an otherwise valid RSA/SHA-256 or RSA/SHA-512 key (e.g. exponent 2^32+1). Verify
-		// such signatures with math/big so these zones validate Secure instead of being
-		// degraded (issue #2364).
-		if rsaKeyNeedsBigMath(key) && verifyRSAWithBigExponent(rrset, rrsig, key) == nil {
-			return nil
-		}
+	budgetFrom(ctx).spendVerification()
 
-		// Debug: log RRset details on failure
-		v.logger.Debugf("Signature verification failed for RRset with %d records:", len(rrset))
-		for i, rr := range rrset {
-			v.logger.Debugf("  [%d] %s", i, rr.String())
-		}
-		v.logger.Debugf("  RRSIG: %s", rrsig.String())
+	// The key decides what verifies the signature (expensive crypto operation). Go's crypto/rsa
+	// cannot load exponents above 2^31-1, so miekg/dns reports "dns: bad key" for an RSA/SHA-256
+	// or RSA/SHA-512 key that has one (e.g. exponent 2^32+1), and math/big verifies with it
+	// (issue #2364).
+	var err error
+	if rsaKeyNeedsBigMath(key) {
+		err = verifyRSAWithBigExponent(rrset, rrsig, key)
+	} else {
+		err = rrsig.Verify(key, rrset)
+	}
+
+	if err != nil {
+		v.logFailedVerification(rrset, rrsig)
 
 		return fmt.Errorf("%w: %w", errRRSIGVerificationFailed, err)
 	}
 
+	// The validity period comes last. Only a signature that the key made says that its zone let
+	// it expire, or published it early: one that does not verify is a failed signature, whatever
+	// its dates. Unbound checks in this order too.
+	if int64(now) < inceptionWithSkew {
+		return extended(dns.ExtendedErrorCodeSignatureNotYetValid,
+			"signature not yet valid (inception: %d, now: %d, tolerance: %ds)", rrsig.Inception, now, v.clockSkewToleranceSec)
+	}
+	if int64(now) > expirationWithSkew {
+		return extended(dns.ExtendedErrorCodeSignatureExpired,
+			"signature expired (expiration: %d, now: %d, tolerance: %ds)", rrsig.Expiration, now, v.clockSkewToleranceSec)
+	}
+
 	return nil
+}
+
+// logFailedVerification logs the records and the RRSIG of a verification that failed, for
+// debugging. Their text is made only if it is logged.
+func (v *Validator) logFailedVerification(rrset []dns.RR, rrsig *dns.RRSIG) {
+	if !v.logger.Logger.IsLevelEnabled(logrus.DebugLevel) {
+		return
+	}
+
+	v.logger.Debugf("Signature verification failed for RRset with %d records:", len(rrset))
+
+	for i, rr := range rrset {
+		v.logger.Debugf("  [%d] %s", i, rr.String())
+	}
+
+	v.logger.Debugf("  RRSIG: %s", rrsig.String())
 }

@@ -60,6 +60,12 @@ func (r *EDEResolver) addExtraReasoning(res *model.Response) {
 		return
 	}
 
+	// The DNSSEC resolver gives its SERVFAIL the extended error that says why validation failed,
+	// which the response type does not tell
+	if res.RType == model.ResponseTypeBOGUS && util.GetEdns0Option[*dns.EDNS0_EDE](res.Res) != nil {
+		return
+	}
+
 	edeOption := new(dns.EDNS0_EDE)
 	edeOption.InfoCode = infocode
 	edeOption.ExtraText = truncateText(res.Reason, maxEDETextLength)

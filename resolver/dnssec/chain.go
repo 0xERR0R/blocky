@@ -11,43 +11,59 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 )
 
-// bogusTTL caps how long a Bogus verdict stays cached, like Unbound's val-bogus-ttl, so a single
+// BogusTTL caps how long a Bogus verdict stays cached, like Unbound's val-bogus-ttl, so a single
 // bad answer (an empty or unsigned DNSKEY RRset, say) cannot fail a zone for a whole cache period.
-const bogusTTL = time.Minute
+// The resolver refuses a question whose replies go on failing validation for at most as long.
+const BogusTTL = time.Minute
 
-// zoneStatus is a cached chain-of-trust verdict for a zone. keys holds the zone's validated
-// DNSKEY RRset when result is Secure: signatures are only ever verified with these keys.
+// zoneStatus is what the chain of trust walk found at a name, as the validation cache holds it:
+// the verdict for the zone of that name. keys holds the zone's validated DNSKEY RRset when result
+// is Secure: signatures are only ever verified with these keys. noZoneCut says that the name is no
+// zone: the Secure zone above it proved that the name is part of it (see handleDSAbsence), and
+// the walk goes through the name with the keys of that zone. err says why the walk went no
+// further than the name, if it says more than result: which lookup could not be completed
+// (result is Indeterminate, see lookup), or what makes the zone Bogus.
+//
+// lifetime says how long the name is what the walk found, in seconds: as long as the RRsets that
+// proved it are authentic (see verifiedLifetime). These are the DS and DNSKEY RRsets of a Secure
+// zone, the denial of the DS RRset of an Insecure one, or its DS RRset if that names no key to
+// verify with, and the denial or the CNAME RRset that shows a name to be no zone cut. depth is the
+// number of zones of the chain of trust from its trust anchor down to a zone.
 type zoneStatus struct {
-	result ValidationResult
-	keys   []*dns.DNSKEY
+	result    ValidationResult
+	keys      []*dns.DNSKEY
+	noZoneCut bool
+	lifetime  uint32
+	depth     uint
+	err       error
+}
+
+// startsWalk reports whether a walk to a name below may start at the name of the status: at a
+// Secure zone, which has the keys for what is below it, or at an Insecure one, whose status the
+// names below it share (see walk)
+func (s *zoneStatus) startsWalk() bool {
+	return !s.noZoneCut && (s.result == ValidationResultSecure || s.result == ValidationResultInsecure)
 }
 
 // validationCacheKey scopes a cached validation result to the upstream view of the originating
 // client: the upstream group that answers its DS/DNSKEY sub-queries. Per GHSA-x845-2f78-7v36
 // finding 3 the cache must NOT be keyed by bare domain name: a status established for one view
 // (split-horizon or upstream group) must not be reused for another. Clients of the same group
-// share one view. Requests without a client context share the empty scope.
+// share one view. Requests without a client context share the empty scope. A zone has one entry
+// however its name is spelt: the key holds the name in canonical form (RFC 4034 §6.2).
 func validationCacheKey(ctx context.Context, domain string) string {
 	cc, _ := clientContextFrom(ctx)
 
-	return cc.view + "\x00" + dns.Fqdn(domain)
+	return cc.view + "\x00" + dns.CanonicalName(domain)
 }
 
-// getCachedValidation retrieves a cached validation result for the domain within the
-// originating client's view (see validationCacheKey).
-func (v *Validator) getCachedValidation(ctx context.Context, domain string) (ValidationResult, bool) {
-	status := v.cachedZoneStatus(ctx, domain)
-	if status == nil {
-		return ValidationResultIndeterminate, false
-	}
-
-	return status.result, true
-}
-
-// cachedZoneStatus returns the unexpired cache entry for domain, or nil.
+// cachedZoneStatus returns the unexpired cache entry for domain within the originating client's
+// view (see validationCacheKey), or nil. A walk records a cache hit for an entry that it uses: it
+// may look at one that it cannot use.
 func (v *Validator) cachedZoneStatus(ctx context.Context, domain string) *zoneStatus {
 	status, ttl := v.validationCache.Get(validationCacheKey(ctx, domain))
 	// The cache returns expired entries until its cleanup runs; keys must not outlive their TTL.
@@ -55,82 +71,92 @@ func (v *Validator) cachedZoneStatus(ctx context.Context, domain string) *zoneSt
 		return nil
 	}
 
-	// Record cache hit
-	v.cacheHitMetrics.Inc()
-
 	return status
 }
 
-// setCachedValidation stores a validation result in the cache, scoped to the originating
-// client's view (see validationCacheKey). keys is the zone's validated DNSKEY RRset for a Secure
-// result; the entry then expires with the shortest key TTL. A Bogus result expires after bogusTTL.
+// setCachedZoneStatus stores what the walk found at domain in the cache, scoped to the originating
+// client's view (see validationCacheKey), for the cache period at most. An entry expires with the
+// lifetime of the status: a zone is Secure or Insecure, and a name is no zone cut, for as long as
+// the records that proved it say so (RFC 4035 §5.3.3; RFC 2308 §5 and RFC 9077 §3.4 for a
+// denial). A Bogus result expires after BogusTTL.
 //
-// Indeterminate is never cached. It means "could not determine" - in practice a transient
-// sub-query failure (timeout/unreachable upstream) while walking the chain of trust.
-// Persisting it would shadow every later RRSIG signed by that zone (the cached Indeterminate
-// makes the chain check fail, the signature is skipped, and the answer is declared Bogus ->
-// SERVFAIL) for the full cache TTL, even after the upstream recovers - turning one transient
-// blip into an hour of failures (issue #2120). Leaving it uncached lets the next query
+// Indeterminate is never cached. It means "could not determine": a lookup of the walk could not
+// be completed (see lookup), in practice a transient failure (timeout/unreachable upstream).
+// Persisting it would fail every later answer signed by that zone (Bogus -> SERVFAIL, see
+// classifyUndetermined) for the full cache TTL, even after the upstream recovers - turning one
+// transient blip into an hour of failures (issue #2120). Leaving it uncached lets the next query
 // re-evaluate the zone and establish its real (durable) status.
-func (v *Validator) setCachedValidation(
-	ctx context.Context, domain string, result ValidationResult, keys ...*dns.DNSKEY,
-) {
-	if result == ValidationResultIndeterminate {
+//
+// Nothing is cached either once the validation has run out of budget. What it finds from then on
+// comes from the work that its reply asked for, and no other query may get it as the status of a
+// zone.
+//
+// Neither is a Bogus result of the validation of a first reply, after which the question is asked
+// once more: the fault may be that of one reply to a lookup, and the validation of the second
+// reply walks again and stores what it finds (see FirstAsk).
+func (v *Validator) setCachedZoneStatus(ctx context.Context, domain string, status zoneStatus) {
+	if status.result == ValidationResultIndeterminate || budgetFrom(ctx).ranOut() ||
+		status.result == ValidationResultBogus && asksAgain(ctx) {
 		return
 	}
 
-	ttl := v.cacheExpiration
-	if result == ValidationResultBogus {
-		ttl = min(ttl, bogusTTL)
+	ttl := min(v.cacheExpiration, time.Duration(status.lifetime)*time.Second)
+	if status.result == ValidationResultBogus {
+		ttl = min(v.cacheExpiration, BogusTTL)
 	}
 
-	for _, key := range keys {
-		ttl = min(ttl, time.Duration(key.Hdr.Ttl)*time.Second)
-	}
-
-	v.validationCache.Put(validationCacheKey(ctx, domain), &zoneStatus{result: result, keys: keys}, ttl)
+	v.validationCache.Put(validationCacheKey(ctx, domain), &status, ttl)
 }
 
-// walkChainOfTrust returns the security status of zone domain and, when it is Secure, the zone's
-// validated DNSKEY RRset. The walk starts at the closest trust anchor at or above domain and
-// validates each zone below it with the validated keys of the zone above. Every zone is cached
-// with its keys, so zones share their ancestors' work and a warm chain needs no upstream query.
-// A domain that is part of its parent zone has no keys of its own and is Bogus.
-func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) (ValidationResult, []*dns.DNSKEY) {
-	return v.walk(ctx, domain, true)
+// signerKeys is the walk to the zone that an RRSIG names as its signer, with the keys of a Secure
+// zone as the set that RRSIGs are matched with. A validation walks to a signer once, however many
+// RRSIGs name it and whatever the walk finds.
+func (v *Validator) signerKeys(ctx context.Context, signer string) signerZone {
+	return budgetFrom(ctx).signer(dns.CanonicalName(signer), func() signerZone {
+		zone := v.walk(ctx, signer, true)
+
+		return signerZone{result: zone.result, keys: newKeySet(ctx, zone.keys), err: zone.err}
+	})
 }
 
-// walkToEnclosingZone is walkChainOfTrust for a name that may be part of its parent zone, like
-// co.jp inside jp. It returns the status and keys of the zone that holds the name's records.
-func (v *Validator) walkToEnclosingZone(ctx context.Context, name string) (ValidationResult, []*dns.DNSKEY) {
-	return v.walk(ctx, name, false)
-}
+// walk returns what the chain of trust walk finds for domain: the security status of its zone
+// and, when that is Secure, the zone's validated DNSKEY RRset. The walk starts at the closest
+// trust anchor at or above domain and validates each zone below it with the validated keys of the
+// zone above. It stops at the first zone that is not Secure: the names below an insecure
+// delegation are Insecure, whatever they hold (RFC 4035 §5.2). What the walk finds at a name is
+// cached, so zones share their ancestors' work and a warm chain needs no upstream query.
+//
+// Below the trust anchor the walk starts at the deepest name above domain that the cache holds
+// as a zone it can start at (see startsWalk). A zone is what the cache holds for it until the
+// records that proved it end (see zoneStatus), whatever has become of the entries for the zones
+// above it: no lookup is made for those, and none that fails changes what is below. Unbound
+// starts at the closest entry of its key cache in the same way.
+//
+// mustBeZone is set for a zone that an RRSIG names as its signer: a domain that is part of its
+// parent zone has no keys of its own and is Bogus. Without it domain is a name that may be part
+// of its parent zone, like co.jp inside jp, and the walk returns the status and keys of the zone
+// that holds the name's records, which is also the zone whose status data without RRSIG at the
+// name has (see unsignedDataStatus).
+//
+// The status is Indeterminate if no trust anchor is at or above domain, and if a lookup of the
+// walk could not be completed. That says nothing about the zone, and what it means for the data
+// of a reply is for classifyUndetermined to say.
+func (v *Validator) walk(ctx context.Context, domain string, mustBeZone bool) zoneStatus {
+	// The walk is made, and its verdict cached, under the canonical form of the name (RFC 4034
+	// §6.2): the names that it asks about are those that its cache entries are for
+	domain = dns.CanonicalName(domain)
 
-// walk implements walkChainOfTrust and walkToEnclosingZone. mustBeZone makes a domain that is part
-// of its parent zone Bogus instead of returning the parent zone's status and keys.
-func (v *Validator) walk(ctx context.Context, domain string, mustBeZone bool) (ValidationResult, []*dns.DNSKEY) {
-	// Normalize the domain name
-	domain = dns.Fqdn(domain)
-
-	// Check cache first
-	if status := v.cachedZoneStatus(ctx, domain); status != nil {
+	// Check cache first. A name that is cached as part of its parent zone has the status of that
+	// zone, which the walk finds in the cache too.
+	if status := v.cachedZoneStatus(ctx, domain); status != nil && !status.noZoneCut {
 		v.logger.Debugf("Using cached validation result for %s: %s", domain, status.result.String())
+		v.cacheHitMetrics.Inc()
 
-		return status.result, status.keys
+		return *status
 	}
 
 	// Split domain into labels
 	labels := dns.SplitDomainName(domain)
-
-	// Check chain depth limit to prevent DoS attacks with deeply nested domains
-	// RFC does not specify a limit, but we add one for security
-	if uint(len(labels)) > v.maxChainDepth {
-		v.logger.Warnf("Domain %s exceeds maximum chain depth (%d labels > %d max), rejecting",
-			domain, len(labels), v.maxChainDepth)
-		v.setCachedValidation(ctx, domain, ValidationResultBogus)
-
-		return ValidationResultBogus, nil
-	}
 
 	// zones[i] is the zone made of the last i labels of domain: the root, then down to domain.
 	zones := make([]string, len(labels)+1)
@@ -148,171 +174,246 @@ func (v *Validator) walk(ctx context.Context, domain string, mustBeZone bool) (V
 	if start < 0 {
 		v.logger.Debugf("No trust anchor at or above %s", domain)
 
-		return ValidationResultIndeterminate, nil
+		return zoneStatus{result: ValidationResultIndeterminate}
 	}
 
-	return v.walkDown(ctx, zones[start:], mustBeZone)
+	for cut := len(zones) - 2; cut > start; cut-- {
+		if zone := v.cachedZoneStatus(ctx, zones[cut]); zone != nil && zone.startsWalk() {
+			v.cacheHitMetrics.Inc()
+
+			return v.walkDown(ctx, *zone, zones[cut+1:], mustBeZone)
+		}
+	}
+
+	return v.walkDown(ctx, v.walkLevel(ctx, zones[start], nil), zones[start+1:], mustBeZone)
 }
 
-// walkDown validates names, a trust-anchored zone followed by the names below it down to the name
-// being walked, each with the validated keys of the zone above it. A name that the zone above
-// proves to be part of that zone, like co.jp inside jp, keeps that zone's keys (RFC 4035 §5.2).
-// mustBeZone makes the walk Bogus when the last name is such a name.
-func (v *Validator) walkDown(
-	ctx context.Context, names []string, mustBeZone bool,
-) (ValidationResult, []*dns.DNSKEY) {
-	var (
-		result ValidationResult
-		keys   []*dns.DNSKEY
-	)
-
+// walkDown takes the walk from zone, a zone that it has the status of, down names, the names
+// below that zone down to the name being walked. Each is validated with the keys of the zone that
+// the walk is in when it comes to it (see walkLevel). A name that this zone proves to be part of
+// it, like co.jp inside jp, leaves the walk in the zone (RFC 4035 §5.2). mustBeZone makes the walk
+// Bogus when the last name is such a name. The walk asks nothing below the first zone that is not
+// Secure.
+func (v *Validator) walkDown(ctx context.Context, zone zoneStatus, names []string, mustBeZone bool) zoneStatus {
 	for i, name := range names {
-		zoneCut := true
-
-		switch status := v.cachedZoneStatus(ctx, name); {
-		case status != nil:
-			result, keys = status.result, status.keys
-		case i == 0:
-			result, keys = v.verifyDomainAgainstTrustAnchor(ctx, name)
-			v.setCachedValidation(ctx, name, result, keys...)
-		default:
-			if result, keys, zoneCut = v.validateDomainLevel(ctx, name, keys); zoneCut {
-				v.setCachedValidation(ctx, name, result, keys...)
-			}
+		if zone.result != ValidationResultSecure {
+			break
 		}
 
-		if !zoneCut {
-			// Not cached: an entry would answer a later walk for name as if it were a zone.
-			if i == len(names)-1 && mustBeZone {
-				v.logger.Warnf("%s is not a zone, so it has no keys to sign with", name)
+		level := v.walkLevel(ctx, name, &zone)
 
-				return ValidationResultBogus, nil
-			}
+		switch {
+		case !level.noZoneCut:
+			zone = level
+		case i == len(names)-1 && mustBeZone:
+			v.logger.Warnf("%s is not a zone, so it has no keys to sign with", name)
 
-			continue
-		}
-
-		if result != ValidationResultSecure {
-			// Zones below an insecure, bogus or unresolved zone share its status.
-			return result, nil
+			return zoneStatus{result: ValidationResultBogus}
 		}
 	}
 
-	return result, keys
+	if zone.result != ValidationResultSecure {
+		// Zones below an insecure, bogus or unresolved zone share its status.
+		return zoneStatus{result: zone.result, err: zone.err}
+	}
+
+	return zone
 }
 
-// validateDomainLevel validates one zone with the validated DNSKEY RRset of its parent zone:
-// the parent must sign the zone's DS RRset (or the proof that it has none), and the zone's
-// DNSKEY RRset must match a DS record and be signed by that key (RFC 4035 §5.2).
+// walkLevel returns what the walk finds at name: what the cache holds for it, and else what its
+// validation finds, which goes to the cache (see setCachedZoneStatus). Without above, name is the
+// zone of a trust anchor, validated with the DNSKEY RRset that a key among its trust anchors signs
+// (see anchorKeys). Else above is the Secure zone that the walk is in when it comes to name, and
+// its keys validate name (see validateDelegation).
 //
-// zoneCut is false when the parent zone proves that domain is part of it and not a delegation.
-// The result is then Secure with parentKeys, the keys that sign the records at and below domain
-// up to the next zone cut.
-func (v *Validator) validateDomainLevel(
-	ctx context.Context, domain string, parentKeys []*dns.DNSKEY,
-) (result ValidationResult, keys []*dns.DNSKEY, zoneCut bool) {
+// The walk asks one DS query for every name that is not in the cache yet, zone cut or not: nothing
+// else tells where the zone cuts above a name are. maxChainDepth is the number of zones that a
+// chain of trust may have below its trust anchor: a further zone is Bogus, and nothing is cached
+// for it. No RFC sets such a limit. Names that are no zone cut are not counted, however many the
+// walk passes: the upstream queries of the validation bound them.
+func (v *Validator) walkLevel(ctx context.Context, name string, above *zoneStatus) zoneStatus {
+	if status := v.cachedZoneStatus(ctx, name); status != nil {
+		v.cacheHitMetrics.Inc()
+
+		return *status
+	}
+
+	if above == nil {
+		level := v.validateZoneKeys(ctx, name, anchorKeys{v: v, anchors: v.trustAnchors.GetTrustAnchors(name)})
+		v.setCachedZoneStatus(ctx, name, level)
+
+		return level
+	}
+
+	level := v.validateDelegation(ctx, name, above.keys)
+
+	// A zone below the trust anchor is one more zone of the chain. A query that failed leaves
+	// open whether name is one.
+	if !level.noZoneCut && level.result != ValidationResultIndeterminate {
+		if level.depth = above.depth + 1; level.depth > v.maxChainDepth {
+			v.logger.Warnf("Chain of trust to %s has more than the maximum chain depth of %d zones, rejecting",
+				name, v.maxChainDepth)
+
+			return zoneStatus{result: ValidationResultBogus}
+		}
+	}
+
+	v.setCachedZoneStatus(ctx, name, level)
+
+	return level
+}
+
+// validateDelegation validates one zone with the validated DNSKEY RRset of its parent zone:
+// the parent must sign the zone's DS RRset (or the proof that it has none), and a key of the
+// zone's DNSKEY RRset that a DS record names must sign that RRset (RFC 4035 §5.2). Both are the
+// RRsets that domain owns in the answers to the lookups for them (see lookup and answerRRset).
+//
+// When the parent zone proves that domain is part of it and no delegation, the result is Secure
+// and no zone cut, without keys: parentZoneKeys sign the records at and below domain up to the
+// next zone cut, and a later walk comes through domain with those that the zone above then has.
+//
+// The status has the lifetime of what proved it: the reply to the DS lookup and, for a Secure
+// zone, its DNSKEY RRset too.
+func (v *Validator) validateDelegation(ctx context.Context, domain string, parentZoneKeys []*dns.DNSKEY) zoneStatus {
 	v.logger.Debugf("Validating domain level: %s", domain)
 
-	// Query DS records for the child domain from the parent zone
+	// Look up the DS records for the child domain from the parent zone
 	// Note: The DS query name is the child domain, but the response comes from parent's authority
-	dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
+	dsResponse, err := v.lookup(ctx, domain, dns.TypeDS)
 	if err != nil {
 		v.logger.Warnf("Failed to query DS for %s: %v", domain, err)
 
-		return ValidationResultIndeterminate, nil, true
+		return zoneStatus{result: ValidationResultIndeterminate, err: err}
 	}
 
-	// Every signature check on this reply draws from one budget (KeyTrap, CVE-2023-50387)
-	budget := maxZoneKeyVerifications
+	parent := parentKeys{v: v, keys: newKeySet(ctx, parentZoneKeys)}
 
-	if v.provesNoZoneCut(domain, parentKeys, dsResponse, &budget) {
+	dsRecords, level := parent.dsRRset(ctx, domain, dsResponse)
+	switch {
+	case level.noZoneCut:
 		v.logger.Debugf("%s is part of its parent zone, not a zone cut", domain)
 
-		return ValidationResultSecure, parentKeys, false
+		return level
+	case level.result != ValidationResultSecure:
+		return level
 	}
 
-	// Extract and validate DS records (may be in answer or authority section)
-	dsRecords, result := v.extractAndValidateDSRecords(domain, parentKeys, dsResponse, &budget)
-	if result != ValidationResultSecure {
-		return result, nil, true
+	zone := v.validateZoneKeys(ctx, domain, delegationKeys{v: v, ds: dsRecords})
+	if zone.result != ValidationResultSecure {
+		// Without the keys of the zone, the DS RRset alone says what the zone is (see delegationKeys)
+		zone.lifetime = level.lifetime
+
+		return zone
 	}
 
-	answer, keys, err := v.queryDNSKEY(ctx, domain)
-	if err != nil {
-		v.logger.Warnf("Failed to get DNSKEY for %s: %v", domain, err)
+	// The zone is Secure for as long as its DS RRset and its DNSKEY RRset both are authentic
+	zone.lifetime = min(zone.lifetime, level.lifetime)
 
-		return dnskeyFailure(err), nil, true
-	}
-
-	// Validate at least one DNSKEY against the DS records
-	// This validates the KSK (Key Signing Key) which is pointed to by the DS
-	validatedKSKs, err := v.findAndValidateKSKs(keys, dsRecords, domain)
-	if err != nil {
-		v.logger.Warnf("Failed to validate any DNSKEY against DS records for %s: %v", domain, err)
-
-		return ValidationResultBogus, nil, true
-	}
-
-	// CRITICAL: Now verify the DNSKEY RRset itself using the validated KSK
-	// Per RFC 4035 §5.2: The DNSKEY RRset MUST be signed by a key in the DNSKEY RRset itself
-	// This allows us to trust ALL keys in the set (including ZSKs with different algorithms)
-	sig, err := v.verifyDNSKEYRRset(answer, validatedKSKs, domain)
-	if err != nil {
-		if onlyUnsupportedKSKs(validatedKSKs, dsRecords) {
-			v.logger.Debugf("DS RRset of %s names only RSA keys with exponents above 2^31-1 - treating zone as Insecure",
-				domain)
-
-			return ValidationResultInsecure, nil, true
-		}
-
-		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", domain, err)
-
-		return ValidationResultBogus, nil, true
-	}
-
-	v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
-
-	return ValidationResultSecure, keysUntilSignatureExpiry(keys, sig), true
+	return zone
 }
 
-// provesNoZoneCut reports whether dsResponse, the reply to a DS query for domain, holds an NSEC or
-// NSEC3 RRset signed with parentKeys that shows domain is part of the parent zone and not a
-// delegation. Unbound continues its chain walk on the same proof. Its signature checks spend
-// *budget, the verification budget of the reply.
-func (v *Validator) provesNoZoneCut(domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg, budget *int) bool {
-	if _, err := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns); err == nil {
-		return false
+// validateZoneKeys returns the status of zone from its DNSKEY RRset, which it looks up, with the
+// keys of the zone and the lifetime of the RRset if that is Secure. ks is the key source for the
+// RRset and knows what leads to the zone: the DS RRset of its delegation, or its trust anchors. An
+// RRSIG authenticates an RRset as a whole, so the keys of the zone are the records of the RRset
+// that ks verifies, all of them and no others (RFC 4035 §5).
+func (v *Validator) validateZoneKeys(ctx context.Context, zone string, ks keySource) zoneStatus {
+	r, err := v.dnskeyRRset(ctx, zone, ks)
+
+	switch {
+	case err != nil:
+		// The lookup could not be completed: nothing to keep for the zone (issue #2120)
+		v.logger.Warnf("Failed to get DNSKEY for %s: %v", zone, err)
+
+		return zoneStatus{result: ValidationResultIndeterminate, err: err}
+	case r.status == ValidationResultSecure:
+		v.logger.Debugf("Verified DNSKEY RRset of %s with the RRSIG of key %d", zone, r.sig.KeyTag)
+
+		return zoneStatus{result: ValidationResultSecure, keys: dnskeysOf(r), lifetime: r.lifetime}
+	case r.status == ValidationResultInsecure:
+		v.logger.Debugf("DS RRset of %s names only keys that cannot be verified with - treating zone as Insecure", zone)
+	default:
+		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", zone, r.err)
+
+		return zoneStatus{result: r.status, err: r.err}
 	}
 
-	rrsets := groupRRsetsByNameAndType(dsResponse.Ns)
-	sigs := extractRRSIGs(dsResponse.Ns)
-	tried := map[rrsetKey]bool{}
+	return zoneStatus{result: r.status}
+}
 
-	// Candidates are tried in reply order, so the outcome does not depend on map order.
-	for _, rr := range dsResponse.Ns {
-		key := rrsetKey{name: dns.Fqdn(rr.Header().Name), rrType: rr.Header().Rrtype}
-		if tried[key] || !v.showsNoZoneCut(rr, domain) {
-			continue
-		}
+// dnskeysOf returns the records of r, a DNSKEY RRset, as keys
+func dnskeysOf(r *rrsetResult) []*dns.DNSKEY {
+	return util.ExtractRecordsFromSlice[*dns.DNSKEY](r.rrs)
+}
 
-		tried[key] = true
+// parentKeys is the key source for the reply to a DS query: keys is the validated DNSKEY RRset of
+// the zone that answers it, the parent of the name asked for. An RRset that none of these keys
+// verifies is Bogus, and so is one that only an RRSIG made for a wildcard verifies: no proof
+// follows for an RRset of such a reply (see verifiedBy).
+type parentKeys struct {
+	v    *Validator
+	keys keySet
+}
 
-		// A wildcard-expanded RRSIG still verifies after its owner is renamed onto this name, so it
-		// proves nothing about this name. Only a signature over the literal owner counts.
-		candidates := slices.DeleteFunc(findMatchingRRSIGs(sigs, key.name, key.rrType), func(sig *dns.RRSIG) bool {
-			return int(sig.Labels) != rrsigLabelsForOwner(key.name)
-		})
+// verify implements keySource (see verifyWith)
+func (ks parentKeys) verify(ctx context.Context, r *rrsetResult, sigs []*dns.RRSIG) {
+	ks.v.verifyWith(ctx, r, sigs, ks.keys)
+}
 
-		if v.verifyWithZoneKeys(rrsets[key], candidates, parentKeys, budget) == nil {
-			return true
-		}
+// delegationKeys is the key source for the DNSKEY RRset of a zone below a secure delegation: the
+// keys of the RRset that ds names, the DS RRset of the zone (RFC 4035 §5.2). An RRset that none of
+// them verifies is Bogus, or Insecure if ds names only keys that nothing here verifies with (see
+// onlyUnsupportedKSKs).
+type delegationKeys struct {
+	v  *Validator
+	ds []*dns.DS
+}
 
-		if *budget <= 0 {
-			return false
+// verify implements keySource
+func (ks delegationKeys) verify(ctx context.Context, r *rrsetResult, sigs []*dns.RRSIG) {
+	ksks, allNamed, err := ks.v.keysNamedByDS(dnskeysOf(r), ks.ds, r.owner)
+	if err != nil {
+		r.err = err
+
+		return
+	}
+
+	if !ks.v.verifyWith(ctx, r, sigs, newKeySet(ctx, ksks)) && onlyUnsupportedKSKs(ksks, allNamed) {
+		r.status = ValidationResultInsecure
+	}
+}
+
+// anchorKeys is the key source for the DNSKEY RRset of a zone that has trust anchors: the keys of
+// the RRset that are among anchors. An RRset that none of them verifies is Bogus, also one that
+// holds no other key: the RRSIG of an anchored key is what says that these records are the DNSKEY
+// RRset of the zone (RFC 4035 §5).
+type anchorKeys struct {
+	v       *Validator
+	anchors []*TrustAnchor
+}
+
+// verify implements keySource
+func (ks anchorKeys) verify(ctx context.Context, r *rrsetResult, sigs []*dns.RRSIG) {
+	var anchored []*dns.DNSKEY
+
+	for _, key := range dnskeysOf(r) {
+		// Trust anchors are DNSKEY records - validate by matching key content
+		if slices.ContainsFunc(ks.anchors, func(anchor *TrustAnchor) bool {
+			return key.PublicKey == anchor.Key.PublicKey &&
+				key.Algorithm == anchor.Key.Algorithm &&
+				key.Flags == anchor.Key.Flags
+		}) {
+			anchored = append(anchored, key)
 		}
 	}
 
-	return false
+	if len(anchored) == 0 {
+		r.err = errors.New("no DNSKEY matches a trust anchor")
+
+		return
+	}
+
+	ks.v.verifyWith(ctx, r, sigs, newKeySet(ctx, anchored))
 }
 
 // rrsigLabelsForOwner returns the RRSIG Labels value of a signature made over the literal name
@@ -327,80 +428,14 @@ func rrsigLabelsForOwner(owner string) int {
 	return n
 }
 
-// showsNoZoneCut reports whether rr, an NSEC or NSEC3 record of the parent zone, shows that domain
-// is part of that zone: the record for domain lacks the NS, SOA and DS bits, the counterpart of
-// assertsInsecureDelegation, or an NSEC shows that domain is an empty non-terminal.
-func (v *Validator) showsNoZoneCut(rr dns.RR, domain string) bool {
-	domain = dns.CanonicalName(domain)
-
-	switch r := rr.(type) {
-	case *dns.NSEC:
-		if dns.CanonicalName(r.Hdr.Name) == domain {
-			return assertsNoZoneCut(r.TypeBitMap)
-		}
-
-		// An empty non-terminal has no NSEC of its own: the NSEC before it points below it.
-		next := dns.CanonicalName(r.NextDomain)
-
-		return next != domain && dns.IsSubDomain(domain, next) && canonicalNameCompare(r.Hdr.Name, domain) < 0
-	case *dns.NSEC3:
-		// The iteration limit bounds the hashing a response can force (RFC 5155 §10.3).
-		return r.Hash == dns.SHA1 && uint(r.Iterations) <= v.maxNSEC3Iterations && r.Match(domain) &&
-			assertsNoZoneCut(r.TypeBitMap)
-	}
-
-	return false
-}
-
-// assertsNoZoneCut reports whether an NSEC/NSEC3 type bitmap shows a name inside the zone: no NS bit
-// (no delegation), no SOA bit (no zone apex) and no DS bit (no DS RRset that the reply left out).
-func assertsNoZoneCut(typeBitMap []uint16) bool {
-	return !slices.Contains(typeBitMap, dns.TypeNS) &&
-		!slices.Contains(typeBitMap, dns.TypeSOA) &&
-		!slices.Contains(typeBitMap, dns.TypeDS)
-}
-
 // onlyUnsupportedKSKs reports whether every key that the DS RRset names is one of ksks, the keys
-// that matched it, and has an RSA exponent that Go cannot verify with. Like a DS RRset of
-// unsupported algorithms only, this leaves no supported path to the zone (RFC 4035 §5.2). A DS
-// record whose key is missing from the DNSKEY reply may name a supported key stripped from it.
-func onlyUnsupportedKSKs(ksks []*dns.DNSKEY, dsRecords []*dns.DS) bool {
-	for _, ds := range dsRecords {
-		if !slices.ContainsFunc(ksks, func(key *dns.DNSKEY) bool {
-			return key.KeyTag() == ds.KeyTag && key.Algorithm == ds.Algorithm
-		}) {
-			return false
-		}
-	}
-
-	return !slices.ContainsFunc(ksks, func(key *dns.DNSKEY) bool { return !hasUnsupportedRSAExponent(key) })
-}
-
-// keysUntilSignatureExpiry returns copies of keys whose TTLs do not exceed the TTL, the original
-// TTL or the remaining lifetime of sig, the RRSIG that validated their RRset (RFC 4035 §5.3.3).
-func keysUntilSignatureExpiry(keys []*dns.DNSKEY, sig *dns.RRSIG) []*dns.DNSKEY {
-	remaining := max(int64(sig.Expiration)-time.Now().Unix(), 0)
-	ttl := min(sig.Hdr.Ttl, sig.OrigTtl, uint32(remaining)) //nolint:gosec // remaining is below the uint32 expiration
-
-	capped := make([]*dns.DNSKEY, 0, len(keys))
-
-	for _, key := range keys {
-		keyCopy := *key
-		keyCopy.Hdr.Ttl = min(keyCopy.Hdr.Ttl, ttl)
-		capped = append(capped, &keyCopy)
-	}
-
-	return capped
-}
-
-// dnskeyFailure maps a queryDNSKEY error to a result: keys that could not be retrieved leave the
-// zone Indeterminate (issue #2120), an answer without keys is Bogus.
-func dnskeyFailure(err error) ValidationResult {
-	if errors.Is(err, errDNSKEYUnavailable) {
-		return ValidationResultIndeterminate
-	}
-
-	return ValidationResultBogus
+// that matched it, and is a key that nothing here can verify with (see canVerifyWith). Like a DS
+// RRset of unsupported algorithms only, this leaves no supported path to the zone (RFC 4035
+// §5.2). A DS record names the key that has its digest (RFC 4034 §5.1.4), and one whose key is
+// missing from the DNSKEY reply may name a supported key stripped from it: allNamed says that
+// keysNamedByDS found the key of every DS record.
+func onlyUnsupportedKSKs(ksks []*dns.DNSKEY, allNamed bool) bool {
+	return allNamed && !slices.ContainsFunc(ksks, canVerifyWith)
 }
 
 // validateDNSKEY validates a DNSKEY against a DS record from parent zone
@@ -430,49 +465,38 @@ func (v *Validator) validateDNSKEY(dnskey *dns.DNSKEY, parentDS *dns.DS) error {
 	return nil
 }
 
-// validateAnyDNSKEY validates at least one DNSKEY against DS records
-// This is a convenience wrapper around findAndValidateKSKs for callers that only need a bool result
-//
-//nolint:unparam // domain parameter used for logging, test usage pattern is acceptable
-func (v *Validator) validateAnyDNSKEY(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) bool {
-	ksks, err := v.findAndValidateKSKs(keys, dsRecords, domain)
-
-	return err == nil && len(ksks) > 0
-}
-
-// findAndValidateKSKs validates DNSKEYs against DS records and returns all validated KSKs
-// This function is similar to validateAnyDNSKEY but returns the validated keys instead of bool
-func (v *Validator) findAndValidateKSKs(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) ([]*dns.DNSKEY, error) {
-	const REVOKE = 0x0080                  // RFC 5011 §7: REVOKE flag (bit 8)
+// keysNamedByDS validates DNSKEYs against DS records and returns all validated KSKs: the zone keys
+// of keys that a DS record names by key tag, algorithm and digest (RFC 4035 §5.2). allNamed says
+// whether the key of every DS record was found. A DS record names one key, and a record that the
+// RRset holds twice is one record, so no key is held against a record twice.
+func (v *Validator) keysNamedByDS(
+	keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string,
+) (validKSKs []*dns.DNSKEY, allNamed bool, err error) {
 	const maxDNSKEYValidationAttempts = 16 // Caps digest validation attempts (KeyTrap, CVE-2023-50387).
 
+	dsRecords = distinctDS(dsRecords)
+	named := make([]bool, len(dsRecords)) // The DS records whose key was found
 	validationAttempts := 0
-	var validKSKs []*dns.DNSKEY
 
 outer:
 	for _, key := range keys {
-		// Per RFC 4034 §2.1.1: Only validate keys with the ZONE flag (bit 7) set
-		if key.Flags&dns.ZONE == 0 {
+		// Only a zone key verifies the DNSKEY RRset
+		if !isZoneKey(key) {
 			continue
 		}
 
-		// RFC 5011 §7: DNSKEYs with REVOKE flag MUST NOT be used
-		if key.Flags&REVOKE != 0 {
-			continue
-		}
-
-		kskTag := key.KeyTag()
-		for _, ds := range dsRecords {
+		kskTag, isKSK := key.KeyTag(), false
+		for i, ds := range dsRecords {
 			// RFC 4035 §5.2 requires both Key Tag and Algorithm to match
 			// This check is cheap so it does not count against our validation budget
-			if kskTag != ds.KeyTag || key.Algorithm != ds.Algorithm {
+			if named[i] || kskTag != ds.KeyTag || key.Algorithm != ds.Algorithm {
 				continue
 			}
 
 			// Limit the number of key validations to prevent DoS
 			if validationAttempts == maxDNSKEYValidationAttempts {
 				if len(validKSKs) == 0 {
-					return nil, fmt.Errorf("exceeded KSK validation budget (%d attempts)", validationAttempts)
+					return nil, false, fmt.Errorf("exceeded KSK validation budget (%d attempts)", validationAttempts)
 				}
 
 				v.logger.Warnf("Exceeded KSK validation budget for domain %s, stopping with %d validated KSKs",
@@ -482,190 +506,48 @@ outer:
 			}
 			validationAttempts++
 
-			if err := v.validateDNSKEY(key, ds); err == nil {
+			if v.validateDNSKEY(key, ds) != nil {
+				continue
+			}
+
+			if named[i] = true; !isKSK {
 				v.logger.Debugf("Validated KSK for %s: flags=%d, algorithm=%d, keytag=%d",
 					domain, key.Flags, key.Algorithm, kskTag)
 
-				validKSKs = append(validKSKs, key)
-
-				break
+				validKSKs, isKSK = append(validKSKs, key), true
 			}
 		}
 	}
 
 	if len(validKSKs) == 0 {
-		return nil, errors.New("no DNSKEY matches the parent DS RRset")
+		return nil, false, errors.New("no DNSKEY matches the parent DS RRset")
 	}
 
-	return validKSKs, nil
+	return validKSKs, !slices.Contains(named, false), nil
 }
 
-// verifyDNSKEYRRset verifies the DNSKEY RRset using validated KSKs and returns the RRSIG that verified it
-// Per RFC 4035 §5.2: The DNSKEY RRset MUST be self-signed by a key in the set
-// This validates all keys in the RRset, including ZSKs with different algorithms
-func (v *Validator) verifyDNSKEYRRset(
-	answer []dns.RR, validatedKSKs []*dns.DNSKEY, domain string,
-) (*dns.RRSIG, error) {
-	// Extract DNSKEY records and RRSIGs from the answer section
-	var dnskeyRecords []dns.RR
-	var rrsigs []*dns.RRSIG
+// distinctDS returns dsRecords without the records that say what an earlier one says: they name
+// the same key by the same digest
+func distinctDS(dsRecords []*dns.DS) []*dns.DS {
+	type rdata struct {
+		keyTag                uint16
+		algorithm, digestType uint8
+		digest                string
+	}
 
-	for _, rr := range answer {
-		switch r := rr.(type) {
-		case *dns.DNSKEY:
-			dnskeyRecords = append(dnskeyRecords, r)
-		case *dns.RRSIG:
-			if r.TypeCovered == dns.TypeDNSKEY {
-				rrsigs = append(rrsigs, r)
-			}
+	seen := make(map[rdata]bool, len(dsRecords))
+	distinct := make([]*dns.DS, 0, len(dsRecords))
+
+	for _, ds := range dsRecords {
+		id := rdata{ds.KeyTag, ds.Algorithm, ds.DigestType, strings.ToLower(ds.Digest)}
+		if !seen[id] {
+			seen[id] = true
+
+			distinct = append(distinct, ds)
 		}
 	}
 
-	if len(validatedKSKs) == 0 {
-		return nil, errors.New("no validated KSKs provided")
-	}
-
-	if len(dnskeyRecords) == 0 {
-		return nil, errors.New("no DNSKEY records found in answer")
-	}
-
-	if len(rrsigs) == 0 {
-		return nil, errors.New("no RRSIG records found for DNSKEY RRset")
-	}
-
-	sig, err := v.verifyRRSIGMatch(validatedKSKs, dnskeyRecords, rrsigs, domain)
-	if err != nil {
-		return nil, fmt.Errorf("DNSKEY RRset signature verification failed: %w", err)
-	}
-
-	return sig, nil
-}
-
-// verifyRRSIGMatch returns an RRSIG made by one of the validated KSKs that verifies the RRset
-func (v *Validator) verifyRRSIGMatch(
-	validatedKSKs []*dns.DNSKEY, dnskeyRecords []dns.RR, rrsigs []*dns.RRSIG, domain string,
-) (*dns.RRSIG, error) {
-	const maxRRSIGVerificationAttempts = 8 // Caps signature verification attempts (KeyTrap, CVE-2023-50387)
-
-	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
-	domainFQDN := dns.CanonicalName(domain)
-	var sigErrors []error
-	verifyAttempts := 0
-
-	// Iterate through validated KSKs and check against available RRSIGs
-	for _, ksk := range validatedKSKs {
-		kskTag := ksk.KeyTag()
-
-		for _, sig := range rrsigs {
-			// Match by KeyTag, Algorithm, AND SignerName for security
-			if sig.KeyTag != kskTag ||
-				sig.Algorithm != ksk.Algorithm ||
-				dns.CanonicalName(sig.SignerName) != domainFQDN {
-				continue
-			}
-
-			// Attempt to verify the DNSKEY RRset with this KSK and signature
-			err := v.verifyRRSIG(dnskeyRecords, sig, ksk, nil, domain)
-			if err == nil {
-				v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
-					domain, kskTag)
-
-				return sig, nil
-			}
-
-			sigErrors = append(sigErrors, fmt.Errorf("keytag=%d: %w", kskTag, err))
-
-			// Give up verification after some number of attempts to prevent DoS
-			// Only failed cryptographic verifications count against the budget
-			if !errors.Is(err, errRRSIGVerificationFailed) {
-				continue
-			}
-			verifyAttempts++
-			if verifyAttempts >= maxRRSIGVerificationAttempts {
-				return nil, fmt.Errorf("giving up after %d verification attempts: %w",
-					verifyAttempts, errors.Join(sigErrors...))
-			}
-		}
-	}
-
-	if sigErrors == nil {
-		var kskDetails []string
-		for _, ksk := range validatedKSKs {
-			kskDetails = append(kskDetails, fmt.Sprintf("(keytag=%d, algorithm=%d)", ksk.KeyTag(), ksk.Algorithm))
-		}
-
-		return nil, fmt.Errorf("no RRSIG found for validated KSKs %s", strings.Join(kskDetails, "; "))
-	}
-
-	return nil, errors.Join(sigErrors...)
-}
-
-// verifyDomainAgainstTrustAnchor validates the DNSKEY RRset of a zone with a configured trust
-// anchor. The RRset must contain an anchored key, and an anchored key must sign it unless the
-// RRset holds anchored keys only.
-func (v *Validator) verifyDomainAgainstTrustAnchor(
-	ctx context.Context, domain string,
-) (ValidationResult, []*dns.DNSKEY) {
-	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
-
-	// Get trust anchors for this domain
-	trustAnchors := v.trustAnchors.GetTrustAnchors(domain)
-	if len(trustAnchors) == 0 {
-		v.logger.Warnf("No trust anchors configured for %s", domain)
-
-		return ValidationResultIndeterminate, nil
-	}
-
-	// Query DNSKEY for the domain
-	answer, keys, err := v.queryDNSKEY(ctx, domain)
-	if err != nil {
-		v.logger.Warnf("Failed to get DNSKEY for %s: %v", domain, err)
-
-		return dnskeyFailure(err), nil
-	}
-
-	// Trust anchors are DNSKEY records - validate by matching key content
-	var anchored []*dns.DNSKEY
-
-	for _, key := range keys {
-		// Only consider keys with the Zone Key flag set; RFC 5011 §7: skip revoked keys
-		if key.Flags&dns.ZONE == 0 || key.Flags&REVOKE != 0 {
-			continue
-		}
-
-		if slices.ContainsFunc(trustAnchors, func(anchor *TrustAnchor) bool {
-			return key.PublicKey == anchor.Key.PublicKey &&
-				key.Algorithm == anchor.Key.Algorithm &&
-				key.Flags == anchor.Key.Flags
-		}) {
-			anchored = append(anchored, key)
-		}
-	}
-
-	if len(anchored) == 0 {
-		v.logger.Warnf("Failed to validate DNSKEY for %s against any trust anchor", domain)
-
-		return ValidationResultBogus, nil
-	}
-
-	sig, err := v.verifyDNSKEYRRset(answer, anchored, domain)
-	if err != nil {
-		// Without the anchor's signature nothing vouches for the other keys of the RRset, and the
-		// zone signs with them (the root's ZSK signs every TLD's DS RRset).
-		if len(anchored) < len(keys) {
-			v.logger.Warnf("DNSKEY RRset for %s is not signed by its trust anchor: %v", domain, err)
-
-			return ValidationResultBogus, nil
-		}
-
-		v.logger.Debugf("DNSKEY RRset for %s holds only anchored keys and no anchor signature", domain)
-
-		return ValidationResultSecure, keys
-	}
-
-	v.logger.Debugf("Successfully validated DNSKEY for %s against trust anchor", domain)
-
-	return ValidationResultSecure, keysUntilSignatureExpiry(keys, sig)
+	return distinct
 }
 
 // getParentDomain returns the parent domain of the given domain
@@ -692,213 +574,125 @@ func (v *Validator) getParentDomain(domain string) string {
 	return parent
 }
 
-// validateDSRecordSignature validates a DS record RRSIG with the validated DNSKEY RRset of the
-// zone that holds parentDomain, the zone that delegates domain
-func (v *Validator) validateDSRecordSignature(
-	ctx context.Context, domain, parentDomain string, dsRRset []dns.RR, dsRRSIG *dns.RRSIG,
-) ValidationResult {
-	parentResult, parentKeys := v.walkToEnclosingZone(ctx, parentDomain)
-	if parentResult != ValidationResultSecure {
-		v.logger.Warnf("Parent zone %s of %s is %s, cannot validate its DS RRset",
-			parentDomain, domain, parentResult.String())
-
-		return parentResult
-	}
-
-	budget := maxZoneKeyVerifications
-	if err := v.verifyWithZoneKeys(dsRRset, []*dns.RRSIG{dsRRSIG}, parentKeys, &budget); err != nil {
-		v.logger.Warnf("DS RRSIG verification failed for %s: %v", domain, err)
-
-		return ValidationResultBogus
-	}
-
-	v.logger.Debugf("Successfully validated DS records for %s using parent zone's DNSKEY", domain)
-
-	return ValidationResultSecure
-}
-
-// extractAndValidateDSRecords extracts DS records from a response and validates their RRSIG
-// with the validated keys of the parent zone. Its signature checks spend *budget, the verification
-// budget of dsResponse.
+// dsRRset returns the DS RRset of domain from dsResponse, the reply to the DS query for it: the
+// RRset that domain owns in the answer section (see answerRRset), which the keys of ks, the
+// validated keys of the parent zone, must verify.
 // Per RFC 4035 §5.2: "The DS RRset MUST be signed by the parent zone's DNSKEY"
-func (v *Validator) extractAndValidateDSRecords(
-	domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg, budget *int,
-) ([]*dns.DS, ValidationResult) {
-	// Extract DS records (may be in answer or authority section)
-	dsRecords, err := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns)
-	if err != nil {
-		// No DS records found - check for authenticated denial of existence
-		return v.handleDSAbsence(domain, parentKeys, dsResponse, budget)
+//
+// level is what the reply makes of domain. With the DS RRset it is Secure for the lifetime of
+// that RRset: a zone, which the RRset leads to the keys of. A reply without that RRset has no DS
+// RRset of domain, whatever DS records it holds, and says what it proves without one (see
+// handleDSAbsence).
+func (ks parentKeys) dsRRset(
+	ctx context.Context, domain string, dsResponse *dns.Msg,
+) (ds []*dns.DS, level zoneStatus) {
+	r := answerRRset(ctx, dsResponse, domain, dns.TypeDS, ks)
+
+	switch {
+	case r == nil:
+		// No DS RRset of domain - check for authenticated denial of existence
+		return nil, ks.handleDSAbsence(ctx, domain, dsResponse)
+	case r.status != ValidationResultSecure:
+		ks.v.logger.Warnf("DS RRset for %s is not signed by its parent zone: %v", domain, r.err)
+
+		return nil, zoneStatus{result: ValidationResultBogus}
 	}
 
-	sigs := findMatchingRRSIGsForType(extractRRSIGs(slices.Concat(dsResponse.Answer, dsResponse.Ns)), dns.TypeDS)
-	if err := v.verifyWithZoneKeys(convertDSToRRset(dsRecords), sigs, parentKeys, budget); err != nil {
-		v.logger.Warnf("DS RRset for %s is not signed by its parent zone: %v", domain, err)
+	ds = util.ExtractRecordsFromSlice[*dns.DS](r.rrs)
 
-		return nil, ValidationResultBogus
-	}
-
-	return dsRecords, ValidationResultSecure
+	return ds, zoneStatus{result: ValidationResultSecure, lifetime: r.lifetime}
 }
 
 // handleDSAbsence handles the case where no DS records are found
 // Per RFC 4035 §5.2: DS absent can mean:
 // 1. Unsigned delegation (Insecure) - proven by NSEC/NSEC3 signed by the parent zone
-// 2. Missing proof (Indeterminate) - no DS and no NSEC/NSEC3
-func (v *Validator) handleDSAbsence(
-	domain string, parentKeys []*dns.DNSKEY, dsResponse *dns.Msg, budget *int,
-) ([]*dns.DS, ValidationResult) {
-	// Check for NSEC/NSEC3 records proving DS doesn't exist
-	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
-	hasNSEC3 := len(extractNSEC3Records(dsResponse.Ns)) > 0
+// 2. No delegation (no zone cut) - the NSEC/NSEC3 signed by the parent zone show that
+// domain is part of that zone, or domain owns a CNAME RRset of that zone (see ownsCNAME). Unbound
+// continues its chain walk on the same proofs.
+// 3. Missing proof (Bogus) - the reply proves neither. Without NSEC/NSEC3 records it holds a CNAME
+// RRset of domain that the keys of ks do not verify for that name, or the walk would not read it
+// (see lookup): like a DS RRset that does not verify, that is no answer of the parent zone.
+//
+// The proof is read from the denial set of the parent zone, the zone that ks has the keys of: the
+// zone above a delegation holds its DS RRset, and so gives the denial of it (RFC 4035 §2.4, §5.2).
+// What it proves holds for the lifetime of the records that it is read from: the CNAME RRset, or
+// the NSEC or NSEC3 records of the set (see denialSet).
+func (ks parentKeys) handleDSAbsence(ctx context.Context, domain string, dsResponse *dns.Msg) zoneStatus {
+	v := ks.v
 
-	if !hasNSEC && !hasNSEC3 {
-		// No DS and no proof of absence - cannot determine if delegation is secure
-		v.logger.Warnf("No DS records for %s and no NSEC/NSEC3 proof - indeterminate", domain)
-
-		return nil, ValidationResultIndeterminate
+	if lifetime, owns := ks.ownsCNAME(ctx, domain, dsResponse); owns {
+		return zoneStatus{result: ValidationResultSecure, noZoneCut: true, lifetime: lifetime}
 	}
 
-	// A denial proves nothing unless the parent zone signed it
-	if err := v.verifyDenialSignatures(dsResponse.Ns, parentKeys, budget); err != nil {
+	// Check for NSEC/NSEC3 records proving DS doesn't exist
+	if !hasDenialRecords(dsResponse.Ns) {
+		v.logger.Warnf("No DS records for %s and no NSEC/NSEC3 proof - treating as Bogus", domain)
+
+		return zoneStatus{result: ValidationResultBogus}
+	}
+
+	// A denial proves nothing unless the parent zone signed it, and no name is hashed for an NSEC3
+	// record before that (RFC 9276 §3.2)
+	denials, err := ks.verifyDenialSignatures(ctx, dsResponse.Ns)
+	if err != nil {
 		v.logger.Warnf("NSEC/NSEC3 proof of DS absence for %s is not signed by its parent zone: %v", domain, err)
 
-		return nil, ValidationResultBogus
+		return zoneStatus{result: ValidationResultBogus}
+	}
+
+	denial := v.newDenialSet(ctx, ks.keys.zone(), denials, domain, dns.TypeDS)
+	if denial.noZoneCut() {
+		return zoneStatus{result: ValidationResultSecure, noZoneCut: true, lifetime: denial.lifetime}
 	}
 
 	// Validate NSEC/NSEC3 proof that DS doesn't exist
-	validationResult := v.validateDSAbsenceProof(domain, dsResponse, hasNSEC)
+	validationResult := denial.noDS(dsResponse.Rcode == dns.RcodeNameError)
 
 	if validationResult == ValidationResultSecure || validationResult == ValidationResultInsecure {
 		// Authenticated denial of existence OR NSEC3 opt-out - this is an unsigned delegation
 		v.logger.Debugf("Validated NSEC/NSEC3 proof that DS doesn't exist for %s - insecure delegation", domain)
 
-		return nil, ValidationResultInsecure
+		return zoneStatus{result: ValidationResultInsecure, lifetime: denial.lifetime}
 	}
 
 	// NSEC/NSEC3 validation failed - could be an attack
 	v.logger.Warnf("NSEC/NSEC3 records present but failed to prove DS absence for %s - treating as Bogus", domain)
 
-	return nil, ValidationResultBogus
+	return zoneStatus{result: ValidationResultBogus}
 }
 
-// verifyDenialSignatures checks that every NSEC and NSEC3 RRset in rrs is signed by one of keys.
-// All checks spend *budget, the verification budget of the reply, so more RRsets in a reply buy no
-// more verifications.
-func (v *Validator) verifyDenialSignatures(rrs []dns.RR, keys []*dns.DNSKEY, budget *int) error {
-	sigs := extractRRSIGs(rrs)
-
-	for key, rrset := range groupRRsetsByNameAndType(rrs) {
-		if key.rrType != dns.TypeNSEC && key.rrType != dns.TypeNSEC3 {
-			continue
-		}
-
-		err := v.verifyWithZoneKeys(rrset, findMatchingRRSIGs(sigs, key.name, key.rrType), keys, budget)
-		if err != nil {
-			return fmt.Errorf("%s %s: %w", key.name, dns.TypeToString[key.rrType], err)
-		}
+// ownsCNAME reports whether dsResponse, the reply to the DS query for domain, shows that domain
+// owns a CNAME RRset of the parent zone. A name that owns one has no other data (RFC 1034 §3.6.2,
+// RFC 2181 §10.1): no NS RRset, so it is no zone cut, and that RRset is the answer to a query for
+// any other type. It counts if the keys of ks make it Secure, which only an RRSIG made for domain
+// does: one made for a wildcard says nothing about the name that the records carry (see
+// verifiedBy). What the reply holds for the target of the CNAME is not read. lifetime says how
+// long the RRset is authentic.
+func (ks parentKeys) ownsCNAME(
+	ctx context.Context, domain string, dsResponse *dns.Msg,
+) (lifetime uint32, owns bool) {
+	cname := answerRRset(ctx, dsResponse, domain, dns.TypeCNAME, ks)
+	if cname == nil || cname.status != ValidationResultSecure {
+		return 0, false
 	}
 
-	return nil
+	return cname.lifetime, true
 }
 
-// validateDSAbsenceProof validates NSEC or NSEC3 proof that DS doesn't exist
-func (v *Validator) validateDSAbsenceProof(domain string, dsResponse *dns.Msg, hasNSEC bool) ValidationResult {
-	// Create a synthetic question for DS query validation
-	dsQuestion := dns.Question{
-		Name:   domain,
-		Qtype:  dns.TypeDS,
-		Qclass: dns.ClassINET,
-	}
+// verifyDenialSignatures checks that every NSEC and NSEC3 RRset in rrs is signed by one of the
+// keys of ks, and returns these RRsets
+func (ks parentKeys) verifyDenialSignatures(ctx context.Context, rrs []dns.RR) ([]rrsetResult, error) {
+	denials := slices.DeleteFunc(slices.Clone(rrs), func(rr dns.RR) bool {
+		_, isSig := rr.(*dns.RRSIG)
 
-	if hasNSEC {
-		// Validate NSEC proof of DS absence (NODATA proof)
-		nsecRecords := extractNSECRecords(dsResponse.Ns)
+		return !isSig && rr.Header().Rrtype != dns.TypeNSEC && rr.Header().Rrtype != dns.TypeNSEC3
+	})
 
-		// A DS-absence NODATA proof only proves an INSECURE DELEGATION if the matching NSEC
-		// asserts a delegation: NS bit set, SOA and DS bits clear (RFC 6840 §4.4, RFC 4035
-		// §5.2). An NSEC for an ordinary in-zone name (NS bit clear) or a zone apex (SOA bit
-		// set) does not - the name lives inside the signed zone, so a missing-signature answer
-		// for it is bogus, not insecure (GHSA-x845-2f78-7v36 finding 4).
-		if !v.nsecProvesInsecureDelegation(nsecRecords, domain) {
-			v.logger.Warnf("NSEC DS-absence proof for %s does not assert an insecure delegation "+
-				"(NS bit clear or SOA/DS bit set) - not an unsigned delegation", domain)
-
-			return ValidationResultBogus
+	results := validateSection(ctx, denials, ks)
+	for _, r := range results {
+		if r.status != ValidationResultSecure {
+			return nil, fmt.Errorf("%s %s: %w", r.owner, dns.TypeToString[r.rrType], r.err)
 		}
-
-		return v.validateNSECNODATA(nsecRecords, domain, dns.TypeDS)
-	}
-
-	// Validate NSEC3 proof of DS absence (NODATA proof)
-	result := v.validateNSEC3DenialOfExistence(dsResponse, dsQuestion)
-
-	// A name that does not exist is no delegation and has no keys to sign with. Only an Opt-Out
-	// span (Insecure) may hold an unsigned delegation that the denial does not show (RFC 5155 §6).
-	if dsResponse.Rcode == dns.RcodeNameError && result == ValidationResultSecure {
-		v.logger.Warnf("NSEC3 proof shows that %s does not exist - not an unsigned delegation", domain)
-
-		return ValidationResultBogus
-	}
-
-	return result
-}
-
-// nsecProvesInsecureDelegation reports whether an NSEC RR matching domain asserts an insecure
-// delegation per RFC 6840 §4.4 (the NS-set/SOA-clear/DS-clear rule shared with NSEC3 via
-// assertsInsecureDelegation). This distinguishes a genuine unsigned delegation from an ordinary
-// name inside a signed zone or the apex of a signed zone, neither of which may be treated as an
-// insecure delegation when proving DS absence.
-func (v *Validator) nsecProvesInsecureDelegation(nsecRecords []*dns.NSEC, domain string) bool {
-	domain = dns.Fqdn(domain)
-	for _, nsec := range nsecRecords {
-		if dns.Fqdn(nsec.Header().Name) != domain {
-			continue
-		}
-
-		return assertsInsecureDelegation(nsec.TypeBitMap)
-	}
-
-	return false
-}
-
-// findDSRRSIG finds the RRSIG for DS records in the response
-func (v *Validator) findDSRRSIG(dsResponse *dns.Msg, domain string) *dns.RRSIG {
-	dsSignatures := extractRRSIGs(append(dsResponse.Answer, dsResponse.Ns...))
-
-	for _, sig := range dsSignatures {
-		if sig.TypeCovered == dns.TypeDS {
-			return sig
-		}
-	}
-
-	v.logger.Warnf("No RRSIG found for DS records of %s", domain)
-
-	return nil
-}
-
-// convertDSToRRset converts DS records to a generic RR slice for signature verification
-func convertDSToRRset(dsRecords []*dns.DS) []dns.RR {
-	dsRRset := make([]dns.RR, 0, len(dsRecords))
-	for _, ds := range dsRecords {
-		dsRRset = append(dsRRset, ds)
-	}
-
-	return dsRRset
-}
-
-// extractTypedRecords extracts records of a specific type from RR slices using Go generics
-func extractTypedRecords[T dns.RR](rrs ...[]dns.RR) ([]T, error) {
-	var results []T
-	for _, rrList := range rrs {
-		for _, rr := range rrList {
-			if typed, ok := rr.(T); ok {
-				results = append(results, typed)
-			}
-		}
-	}
-	if len(results) == 0 {
-		return nil, errors.New("no records of requested type found")
 	}
 
 	return results, nil

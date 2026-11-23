@@ -100,11 +100,17 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 	}
 
 	qname := request.Req.Question[0].Name
+	// RFC 6147 §5.5: a client requesting both DO and CD needs the original
+	// AAAA reply for its own validation. Check before downstream sets DO.
+	if opt := request.Req.IsEdns0(); request.Req.CheckingDisabled && opt != nil && opt.Do() {
+		return r.next.Resolve(ctx, request)
+	}
+
 	logger.Debugf("received AAAA query for %s, checking for synthesis", qname)
 
 	// Pass query to next resolver
 	response, err := r.next.Resolve(ctx, request)
-	if err != nil {
+	if err != nil || response.Res.Rcode != dns.RcodeSuccess {
 		return response, err
 	}
 
@@ -200,16 +206,12 @@ func (r *DNS64Resolver) synthesizeFromA(
 	aReq.CheckingDisabled = originalRequest.Req.CheckingDisabled
 	aReq.RecursionDesired = originalRequest.Req.RecursionDesired
 
-	// Create request wrapper
-	aRequest := &model.Request{
-		Req:             aReq,
-		ClientIP:        originalRequest.ClientIP,
-		RequestClientID: originalRequest.RequestClientID,
-		Protocol:        originalRequest.Protocol,
-	}
+	// Resolve the A input in the same client view and retain the cache retry state.
+	aRequest := *originalRequest
+	aRequest.Req = aReq
 
 	// Send A query through next resolver
-	aResponse, err := r.next.Resolve(ctx, aRequest)
+	aResponse, err := r.next.Resolve(ctx, &aRequest)
 	if err != nil {
 		logger.Debugf("A query failed: %v", err)
 
@@ -217,24 +219,18 @@ func (r *DNS64Resolver) synthesizeFromA(
 	}
 
 	// Handle RCODE
-	if aResponse.Res.Rcode == dns.RcodeNameError {
-		// NXDOMAIN: return NXDOMAIN with original AAAA query in Question section
-		logger.Debug("A query returned NXDOMAIN, no synthesis")
-
-		// Build a synthetic NXDOMAIN response with the original AAAA query in the Question section
-		nxdomainResponse := new(dns.Msg)
-		nxdomainResponse.SetReply(originalRequest.Req)
-		nxdomainResponse.Rcode = dns.RcodeNameError
-		// Copy authority section from A response (contains SOA record with TTL)
-		if len(aResponse.Res.Ns) > 0 {
-			nxdomainResponse.Ns = aResponse.Res.Ns
+	if aResponse.Res.Rcode == dns.RcodeServerFailure || aResponse.Res.Rcode == dns.RcodeNameError {
+		// Preserve the denial, including any alias chain to the nonexistent name.
+		// Only the ID and question belong to the original AAAA transaction.
+		failure := *aResponse
+		failure.Res = aResponse.Res.Copy()
+		failure.Res.Id = originalRequest.Req.Id
+		failure.Res.Question = originalRequest.Req.Question
+		if failure.Res.Rcode == dns.RcodeNameError && failure.Reason == "" {
+			failure.Reason = "NXDOMAIN"
 		}
 
-		return &model.Response{
-			Res:    nxdomainResponse,
-			RType:  aResponse.RType,
-			Reason: "NXDOMAIN",
-		}, nil
+		return &failure, nil
 	}
 
 	if aResponse.Res.Rcode != dns.RcodeSuccess {
@@ -274,7 +270,7 @@ func (r *DNS64Resolver) synthesizeFromA(
 	syntheticResponse.SetReply(originalRequest.Req)
 	syntheticResponse.Authoritative = aResponse.Res.Authoritative
 	syntheticResponse.RecursionAvailable = aResponse.Res.RecursionAvailable
-	syntheticResponse.AuthenticatedData = false // Always clear AD bit (non-validating mode)
+	syntheticResponse.AuthenticatedData = false // The synthesized RRset itself is unsigned.
 
 	// Add CNAME/DNAME records first, then synthesized AAAA records
 	for _, cname := range cnameRecords {

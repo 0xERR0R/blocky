@@ -87,6 +87,66 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	Describe("Caching responses", func() {
+		When("the authority section contains a signature", func() {
+			var sig *dns.RRSIG
+			BeforeEach(func() {
+				sutConfig.MinCachingTime = config.Duration(time.Hour)
+				sutConfig.CacheTimeNegative = config.Duration(time.Minute)
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 12, A, "192.0.2.1")
+				sig = &dns.RRSIG{
+					Hdr:     dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: 90},
+					OrigTtl: 10, Expiration: ^uint32(0), SignerName: "example.com.",
+				}
+				mockAnswer.Ns = []dns.RR{sig}
+			})
+
+			It("preserves short answer TTLs and prepares private copies on misses and prefetch", func() {
+				res, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(Succeed())
+				Expect(res.Res.Answer[0].Header().Ttl).To(Equal(uint32(12)))
+				Expect(res.Res.Ns[0].Header().Ttl).To(Equal(uint32(10)))
+				Expect(sig.Hdr.Ttl).To(Equal(uint32(90)))
+
+				packed, ttl := sut.reloadCacheEntry(ctx, util.GenerateCacheKey(A, "example.com"))
+				Expect(ttl).To(Equal(10 * time.Second))
+				Expect(packed).NotTo(BeNil())
+				var refreshed dns.Msg
+				Expect(refreshed.Unpack(*packed)).To(Succeed())
+				Expect(refreshed.Answer[0].Header().Ttl).To(Equal(uint32(12)))
+				Expect(refreshed.Ns[0].Header().Ttl).To(Equal(uint32(10)))
+				Expect(sig.Hdr.Ttl).To(Equal(uint32(90)))
+			})
+
+			DescribeTable("ages a negative entry from the proof-limited insertion TTL", func(rcode int) {
+				mockAnswer.Rcode = rcode
+				mockAnswer.Answer = nil
+				sut.resultCache = cacheMock
+				cacheMock.On("Get", mock.Anything).Return((*[]byte)(nil), time.Duration(0)).Once()
+				var packed *[]byte
+				cacheMock.On("Put", mock.Anything, mock.Anything, 10*time.Second).Run(func(args mock.Arguments) {
+					packed = args.Get(1).(*[]byte)
+				}).Once()
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).To(HaveResponseType(ResponseTypeRESOLVED))
+				cacheMock.On("Get", mock.Anything).Return(packed, 4*time.Second).Once()
+				hit, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).To(Succeed())
+				Expect(hit.RType).To(Equal(ResponseTypeCACHED))
+				aged := hit.Res.Ns[0].(*dns.RRSIG)
+				Expect(aged.Hdr.Ttl).To(Equal(uint32(4)))
+				Expect(aged.OrigTtl).To(Equal(uint32(10)))
+			}, Entry("NXDOMAIN", dns.RcodeNameError), Entry("NODATA", dns.RcodeSuccess))
+
+			It("does not store or prefetch an entry with an expired proof", func() {
+				sig.Expiration = 1
+				sut.resultCache = cacheMock
+				cacheMock.On("Get", mock.Anything).Return((*[]byte)(nil), time.Duration(0)).Once()
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).To(HaveResponseType(ResponseTypeRESOLVED))
+				packed, ttl := sut.reloadCacheEntry(ctx, util.GenerateCacheKey(A, "example.com"))
+				Expect(packed).To(BeNil())
+				Expect(ttl).To(BeZero())
+			})
+		})
+
 		When("prefetching is enabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.Caching{
@@ -452,7 +512,7 @@ var _ = Describe("CachingResolver", func() {
 						MaxCachingTime: config.Duration(time.Minute * 1),
 					}
 				})
-				It("should cache response and return 0 TTL if entry is expired", func() {
+				It("should resolve again when the cache still holds an expired entry", func() {
 					By("first request", func() {
 						Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 							Should(
@@ -467,20 +527,15 @@ var _ = Describe("CachingResolver", func() {
 					})
 
 					By("second request", func() {
-						Eventually(sut.Resolve, "2s").
-							WithContext(ctx).
-							WithArguments(newRequest("example.com.", A)).
-							Should(
-								SatisfyAll(
-									HaveResponseType(ResponseTypeCACHED),
-									HaveReturnCode(dns.RcodeSuccess),
-									BeDNSRecord("example.com.",
-										A, "1.1.1.1"),
-									// ttl is 0
-									HaveTTL(BeNumerically("==", 0))))
-
-						// still one call to upstream
-						Expect(m.Calls).Should(HaveLen(1))
+						packed, err := mockAnswer.Pack()
+						Expect(err).Should(Succeed())
+						sut.resultCache = cacheMock
+						for _, remaining := range []time.Duration{0, -time.Second} {
+							cacheMock.On("Get", mock.Anything).Return(&packed, remaining).Once()
+							cacheMock.On("Put", mock.Anything, mock.Anything, time.Second).Once()
+							Expect(sut.Resolve(ctx, newRequest("example.com.", A))).Should(HaveResponseType(ResponseTypeRESOLVED))
+						}
+						Expect(m.Calls).Should(HaveLen(3))
 					})
 				})
 			})
@@ -759,6 +814,53 @@ var _ = Describe("CachingResolver", func() {
 							HaveReturnCode(dns.RcodeSuccess),
 							BeDNSRecord("google.de.", A, "1.1.1.1"),
 							HaveTTL(BeNumerically("==", 180)),
+						))
+
+					Expect(m.Calls).Should(HaveLen(2))
+				})
+			})
+		})
+	})
+
+	Describe("A request that is asked again should not be answered from the cache", func() {
+		When("The cached response of some query failed DNSSEC validation", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, A, "1.1.1.1")
+			})
+			It("Should ask the next resolver and cache its response instead", func() {
+				By("first request", func() {
+					Expect(sut.Resolve(ctx, newRequest("google.de.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							BeDNSRecord("google.de.", A, "1.1.1.1"),
+						))
+
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+
+				By("the request asked again", func() {
+					answer, ok := mockAnswer.Answer[0].(*dns.A)
+					Expect(ok).Should(BeTrue())
+
+					answer.A = net.ParseIP("2.2.2.2")
+
+					again := newRequest("google.de.", A)
+					again.AskedAgain = true
+
+					Expect(sut.Resolve(ctx, again)).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							BeDNSRecord("google.de.", A, "2.2.2.2"),
+						))
+
+					Expect(m.Calls).Should(HaveLen(2))
+				})
+
+				By("next request", func() {
+					Expect(sut.Resolve(ctx, newRequest("google.de.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeCACHED),
+							BeDNSRecord("google.de.", A, "2.2.2.2"),
 						))
 
 					Expect(m.Calls).Should(HaveLen(2))
