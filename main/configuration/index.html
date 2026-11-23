@@ -5686,7 +5686,7 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 </tr>
 <tr>
 <td><strong>Insecure</strong></td>
-<td>The domain, or a part of the answer such as the target of a <abbr title="Canonical Name">CNAME</abbr>, is in a zone that its parent zone proves to be unsigned, or is a name that does not exist in a range that NSEC3 Opt-Out leaves open for unsigned delegations (RFC 5155 §9.2)</td>
+<td>The domain, or a part of the answer such as the target of a <abbr title="Canonical Name">CNAME</abbr>, is in a zone that its parent zone proves to be unsigned, or that has DS records, none with both a key algorithm and a digest type that blocky supports (see <a href="#supported-algorithms">Supported Algorithms</a>), or is a name that does not exist in a range that NSEC3 Opt-Out leaves open for unsigned delegations (RFC 5155 §9.2)</td>
 <td>AD flag cleared, response returned</td>
 </tr>
 <tr>
@@ -5877,7 +5877,7 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 </tr>
 </tbody>
 </table>
-<p>Signatures of other algorithms, ED448 (16) among them, do not verify.</p>
+<p>Blocky verifies no signature of another algorithm, ED448 (16) among them. It uses a DS record only if it supports both the key algorithm and the digest type of that record: SHA-1 (1), SHA-256 (2) or SHA-384 (4). A zone that has DS records of which blocky uses none is treated as Insecure, like an unsigned zone (RFC 4035 §5.2, RFC 6840 §5.2). In a zone that has a DS record that blocky uses, a signature of another algorithm is left out: a record set is validated with its other signatures, and fails validation if it has none (RFC 6840 §5.11).</p>
 <p>RSASHA256 and RSASHA512 keys are used with public exponents up to 2^32+1, RSASHA1 and RSASHA1-NSEC3-SHA1 keys with exponents up to 2^31-1. A signature made with a larger exponent does not verify, and a zone whose DS records name only keys with larger exponents, all of them in its DNSKEY record set, is treated as Insecure.</p>
 <p>Blocky automatically selects the strongest available algorithm when multiple signatures are present, providing protection against algorithm downgrade attacks per RFC 6840 §5.11.</p>
 <h3 id="performance-considerations">Performance Considerations</h3>
