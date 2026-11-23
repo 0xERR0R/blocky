@@ -132,6 +132,20 @@ var uniZoneSpecs = []uniZoneSpec{
 	{"c.b.deep.", uniNSEC3, `www A 192.0.2.29`, ""},
 	{"f.e.d.c.b.deep.", uniNSEC, `www A 192.0.2.30`, ""},
 	{"i.h.g.f.e.d.c.b.deep.", uniNSEC3, `www A 192.0.2.31`, "nx"},
+	// Signed, but Insecure: their DS RRsets name nothing that the validator supports (see uniNoPath)
+	{"ed448.", uniNSEC, `www A 192.0.2.33`, "nx"},
+	{"unassigned-algorithm.", uniNSEC, `www A 192.0.2.34`, "nx"},
+	{"unassigned-digest.", uniNSEC, `www A 192.0.2.35`, "nx"},
+}
+
+// uniNoPath lists the zones whose DS RRset is one record with the key algorithm and the digest type
+// given here, one of which the validator does not support. That leaves no path to them (RFC 4035
+// §5.2, RFC 6840 §5.2), so they are Insecure unless their own key is a trust anchor. A zone of
+// another algorithm than Ed25519 has a made-up key (see uniMadeUpKey).
+var uniNoPath = map[string]struct{ algorithm, digestType uint8 }{
+	"ed448.":                {dns.ED448, dns.SHA256},
+	"unassigned-algorithm.": {100, dns.SHA256},
+	"unassigned-digest.":    {dns.ED25519, 100},
 }
 
 // uniNSEC3Root is a second universe: a root signed with NSEC3, which is then the closest encloser
@@ -151,7 +165,7 @@ var uniMutated = []string{
 // question that makes the validator ask it.
 var uniSubMutated = []string{
 	"www.sec.nsec./A", "www.insecure.nsec./A", "www.unsigned.optout./A", "www.rsa./A", "www.sec.optout./A",
-	"www.sec.nsec3./A", "www.insecure.nsec3./A", "www.c.b.deep./A", "www.f.e.d.c.b.deep./A",
+	"www.sec.nsec3./A", "www.insecure.nsec3./A", "www.c.b.deep./A", "www.f.e.d.c.b.deep./A", "www.ed448./A",
 }
 
 type uniKey struct {
@@ -161,6 +175,10 @@ type uniKey struct {
 }
 
 func (k uniKey) sign(rrset []dns.RR) *dns.RRSIG {
+	if k.priv == nil {
+		return uniJunk(rrset[0].Header().Name, rrset[0].Header().Rrtype, k.DNSKEY)
+	}
+
 	sig := &dns.RRSIG{
 		Hdr: dns.RR_Header{Ttl: uniTTL}, Algorithm: k.Algorithm, KeyTag: k.KeyTag(), SignerName: k.Hdr.Name,
 		Inception: uniInception, Expiration: uniExpiration,
@@ -183,6 +201,17 @@ func uniEd25519Key(zone string, flags uint16, seed string) uniKey {
 	return uniKey{&dns.DNSKEY{
 		Hdr: uniHdr(zone, dns.TypeDNSKEY), Flags: flags, Protocol: 3, Algorithm: dns.ED25519, PublicKey: public,
 	}, priv}
+}
+
+// uniMadeUpKey returns a key of zone of algorithm, one that nothing here signs with: its public key
+// is fixed bytes, of the length of an Ed448 key, and so are its signatures (see uniJunk).
+func uniMadeUpKey(zone string, algorithm uint8) uniKey {
+	public := sha512.Sum512([]byte("universe test key: " + zone))
+
+	return uniKey{&dns.DNSKEY{
+		Hdr: uniHdr(zone, dns.TypeDNSKEY), Flags: 257, Protocol: 3, Algorithm: algorithm,
+		PublicKey: base64.StdEncoding.EncodeToString(public[:57]),
+	}, nil}
 }
 
 // uniRSAKeys reads the DNSKEY RRset of zone from testdata: RSA keys with public exponents that
@@ -282,6 +311,8 @@ func newUniverse(prefix string, specs []uniZoneSpec) *universe {
 		switch z.name {
 		case "rsa.", "exp4096.":
 			z.keys = uniRSAKeys(z.name)
+		case "ed448.", "unassigned-algorithm.":
+			z.keys = []uniKey{uniMadeUpKey(z.name, uniNoPath[z.name].algorithm)}
 		case ".", "nsec3.":
 			z.keys, z.zsk = []uniKey{ksk, uniEd25519Key(z.name, 256, z.name+" zsk")}, 1
 		case "twin.": // the first seed of this form that gives the key tag of the key-signing key
@@ -305,7 +336,12 @@ func newUniverse(prefix string, specs []uniZoneSpec) *universe {
 		parent.rrsets[z.name] = map[uint16][]dns.RR{dns.TypeNS: z.rrsets[z.name][dns.TypeNS]}
 
 		if z.kind != uniUnsigned && parent.kind != uniUnsigned {
-			parent.rrsets[z.name][dns.TypeDS] = []dns.RR{z.keys[0].ToDS(dns.SHA256)}
+			ds := z.keys[0].ToDS(dns.SHA256)
+			if noPath, listed := uniNoPath[z.name]; listed {
+				ds.DigestType = noPath.digestType
+			}
+
+			parent.rrsets[z.name][dns.TypeDS] = []dns.RR{ds}
 		}
 	}
 
@@ -594,9 +630,14 @@ func (u *universe) zoneOf(name string, qtype uint16) *uniZone {
 func (u *universe) zone(name string) *uniZone { return u.zoneOf(name, dns.TypeSOA) }
 
 // secure reports whether a chain of trust leads to z from the root or from one of the zones
-// anchors, whose keys are trust anchors too.
+// anchors, whose keys are trust anchors too. None leads through a delegation whose DS RRset names
+// nothing that the validator supports (see uniNoPath).
 func (u *universe) secure(z *uniZone, anchors []string) bool {
 	for z.kind != uniUnsigned && z != u.zones[0] && !slices.Contains(anchors, z.name) {
+		if _, noPath := uniNoPath[z.name]; noPath {
+			return false
+		}
+
 		z = u.zoneOf(z.name, dns.TypeDS)
 	}
 
@@ -1732,6 +1773,32 @@ func (u *universe) curated() []uniCase {
 	attack("cname-ds/wildcard-without-proof", "y.cwild.nsec3./DS", msg(noError, expandedCNAME), nil)
 	attack("cname-ds/wildcard-with-proof-only", "y.cwild.nsec3./DS",
 		msg(noError, expandedCNAME, nsec3.denials("y.cwild.nsec3.")), nil)
+
+	// What the validator does not support never makes a zone Insecure that it has a path to (RFC
+	// 6840 §5.2, §5.11). A DS RRset of other. with the record of its key beside one of an Ed448 key
+	// and one of a digest type that is not assigned: the zone stays Secure, and a forged answer is
+	// refused, with an RRSIG of Ed448 too. Such an RRSIG beside the one that verifies changes
+	// nothing, and alone it is no signature of a zone that signs with another algorithm. And the key
+	// of unassigned-digest. as a second trust anchor: its DS RRset no longer says what the zone is.
+	ed448, otherA := uniMadeUpKey("other.", dns.ED448), honest("www.other./A").Answer
+	otherDS := uniParts(honest("other./DS"))[0].rrs
+	noDigest := dns.Copy(otherDS[0]).(*dns.DS)
+	noDigest.DigestType = uniNoPath["unassigned-digest."].digestType
+	mixedDS := map[string]*dns.Msg{
+		"other./DS": msg(noError, root.signed(append(otherDS, ed448.ToDS(dns.SHA256), noDigest))),
+	}
+	add("Secure", "unsupported/mixed-ds", "www.other./A", honest("www.other./A"), mixedDS)
+	attack("unsupported/mixed-ds-forged", "www.other./A", msg(noError, forged("www.other.")), mixedDS)
+	attack("unsupported/mixed-ds-forged-ed448", "www.other./A", msg(noError, ed448.signed(forged("www.other."))), mixedDS)
+	add("Secure", "unsupported/rrsig-beside-valid", "www.other./A",
+		msg(noError, append(otherA, ed448.sign(otherA[:1]))), nil)
+	attack("unsupported/rrsig-alone", "www.other./A", msg(noError, ed448.signed(forged("www.other."))), nil)
+
+	anchoredNoPath := []string{"unassigned-digest."}
+	add("Secure", "unsupported/anchor-below-ds", "www.unassigned-digest./A",
+		honest("www.unassigned-digest./A"), nil).anchors = anchoredNoPath
+	attack("unsupported/anchor-below-ds-forged", "www.unassigned-digest./A",
+		msg(noError, forged("www.unassigned-digest.")), nil).anchors = anchoredNoPath
 
 	return cases
 }

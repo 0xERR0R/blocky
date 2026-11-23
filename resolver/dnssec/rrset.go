@@ -15,14 +15,13 @@ import (
 
 // Algorithm strength scores for preventing downgrade attacks
 const (
-	algorithmStrengthED448           = 100 // Strongest
-	algorithmStrengthED25519         = 90  // Very strong
-	algorithmStrengthECDSAP384SHA384 = 80  // Strong
-	algorithmStrengthECDSAP256SHA256 = 70  // Strong
-	algorithmStrengthRSASHA512       = 50  // Moderate
-	algorithmStrengthRSASHA256       = 40  // Moderate
-	algorithmStrengthRSASHA1         = 10  // Deprecated/weak
-	algorithmStrengthUnsupported     = 0   // Unsupported
+	algorithmStrengthED25519         = 90 // Very strong
+	algorithmStrengthECDSAP384SHA384 = 80 // Strong
+	algorithmStrengthECDSAP256SHA256 = 70 // Strong
+	algorithmStrengthRSASHA512       = 50 // Moderate
+	algorithmStrengthRSASHA256       = 40 // Moderate
+	algorithmStrengthRSASHA1         = 10 // Deprecated/weak
+	algorithmStrengthUnsupported     = 0  // Unsupported
 
 	// DNSKEY validation constants
 	dnskeyProtocolValue = 3  // Required protocol field value
@@ -36,8 +35,6 @@ var errRRSIGVerificationFailed = errors.New("signature verification failed")
 // Higher scores indicate stronger algorithms (used to prevent downgrade attacks)
 func (v *Validator) getAlgorithmStrength(alg uint8) int {
 	switch alg {
-	case dns.ED448: // Algorithm 16 - strongest
-		return algorithmStrengthED448
 	case dns.ED25519: // Algorithm 15 - very strong
 		return algorithmStrengthED25519
 	case dns.ECDSAP384SHA384: // Algorithm 14 - strong
@@ -184,6 +181,14 @@ func (v *Validator) verifyRRset(
 	b := budgetFrom(ctx)
 
 	for _, sig := range sigs {
+		// RFC 6840 §5.11: an RRSIG of an algorithm that nothing here verifies is no signature that
+		// failed. It takes no try, and the other RRSIGs say what the RRset is.
+		if !v.isSupportedAlgorithm(sig.Algorithm) {
+			errs = append(errs, unsupported("unsupported DNSSEC algorithm: %d", sig.Algorithm))
+
+			continue
+		}
+
 		if (r.rrType == dns.TypeDS || r.rrType == dns.TypeDNSKEY) && isWildcardExpansion(r.owner, sig) {
 			errs = append(errs, fmt.Errorf("RRSIG %d was made for a wildcard, which has no such RRset for %s",
 				sig.KeyTag, r.owner))
@@ -287,33 +292,28 @@ func (l Lifetimes) Bound(rrs []dns.RR) []dns.RR {
 	return bound
 }
 
-// isSupportedAlgorithm checks if the DNSSEC algorithm is supported
-// Per RFC 4035 §2.2, validators must treat unsupported algorithms as Insecure
+// isSupportedAlgorithm reports whether a signature of the DNSSEC algorithm alg can be verified:
+// the algorithms that getAlgorithmStrength scores are those that miekg/dns verifies with. ED448
+// (RFC 8080) is none of them.
 func (v *Validator) isSupportedAlgorithm(alg uint8) bool {
-	// Supported algorithms as per RFC 8624 (DNSSEC Algorithm Implementation Status)
-	// These are the algorithms supported by the miekg/dns library
-	switch alg {
-	case dns.RSASHA1, // Algorithm 5 (deprecated but still supported)
-		dns.RSASHA1NSEC3SHA1, // Algorithm 7 (same as 5, used with NSEC3)
-		dns.RSASHA256,        // Algorithm 8 (recommended)
-		dns.RSASHA512,        // Algorithm 10 (recommended)
-		dns.ECDSAP256SHA256,  // Algorithm 13 (recommended)
-		dns.ECDSAP384SHA384,  // Algorithm 14 (recommended)
-		dns.ED25519,          // Algorithm 15 (recommended)
-		dns.ED448:            // Algorithm 16 (recommended, RFC 8080)
-		return true
-	default:
-		return false
-	}
+	return v.getAlgorithmStrength(alg) != algorithmStrengthUnsupported
+}
+
+// isSupportedDigest reports whether the digest of a DS record of digestType can be computed:
+// SHA-1, SHA-256 and SHA-384 (RFC 4034 §5.1.3, RFC 4509, RFC 6605). Type 5 is GOST R 34.11-2012
+// (RFC 9558), for which miekg/dns computes SHA-512.
+func isSupportedDigest(digestType uint8) bool {
+	return digestType == dns.SHA1 || digestType == dns.SHA256 || digestType == dns.SHA384
 }
 
 // checkRRSIG verifies the signature of rrsig over rrset with key, a key that may verify it (see
-// mayVerify): its algorithm, its Labels field, the zone of its signer if it was made for a
-// wildcard, the signature itself, which counts as a verification on the budget of ctx, and then
-// its validity period. Whether a wildcard answers for the owner name of rrset is for the caller
-// to check (see proveExpansions). A failure that an extended DNS error names is an extendedError
-// with its code: an algorithm or a key that nothing here verifies with (RFC 8914 §4.2), and, for
-// a signature that verifies, a validity period that has ended or not begun (§4.8, §4.9).
+// mayVerify) of an algorithm that is supported (see verifyRRset): its Labels field, the zone of
+// its signer if it was made for a wildcard, the signature itself, which counts as a verification
+// on the budget of ctx, and then its validity period. Whether a wildcard answers for the owner
+// name of rrset is for the caller to check (see proveExpansions). A failure that an extended DNS
+// error names is an extendedError with its code: a key that nothing here verifies with (RFC 8914
+// §4.2), and, for a signature that verifies, a validity period that has ended or not begun (§4.8,
+// §4.9).
 func (v *Validator) checkRRSIG(ctx context.Context, rrset []dns.RR, rrsig *dns.RRSIG, key *dns.DNSKEY) error {
 	// Log DNSKEY details including public key prefix for debugging
 	pkeyPrefix := key.PublicKey
@@ -325,12 +325,6 @@ func (v *Validator) checkRRSIG(ctx context.Context, rrset []dns.RR, rrsig *dns.R
 			"Header.Name='%s', pubkey_prefix=%s... to verify RRSIG keytag=%d, algorithm=%d, SignerName='%s'",
 		key.Flags, key.Protocol, key.Algorithm, key.Header().Name, pkeyPrefix,
 		rrsig.KeyTag, rrsig.Algorithm, rrsig.SignerName)
-
-	// Check algorithm support per RFC 4035 §2.2
-	// Unsupported algorithms should be treated as Insecure, not Bogus
-	if !v.isSupportedAlgorithm(rrsig.Algorithm) {
-		return unsupported("unsupported DNSSEC algorithm: %d", rrsig.Algorithm)
-	}
 
 	// RFC 4035 §5.3.1: the Labels field counts no more labels than the owner name has, as an RRSIG
 	// made for that name counts them (see isWildcardExpansion)
