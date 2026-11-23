@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>Blocky — Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'%3E%3Cpath d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z'/%3E%3C/svg%3E">
+<style>
+/* No external fonts: dashboard must work on an offline LAN. */
+:root {
+  --bg: #f6f7f9; --surface: #fff; --surface-2: #f1f3f6; --line: #e4e7ec; --line-strong: #d0d5dd;
+  --text: #101828; --text-2: #475467; --text-3: #98a2b3;
+  --accent: #5b5bf0; --accent-soft: rgba(91,91,240,.1);
+  --ok: #12a05c; --bad: #e5384f; --warn: #d98a0b; --info: #0e91c7; --violet: #8b5cf6;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.04);
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0d12; --surface: #12151c; --surface-2: #181c25; --line: #222733; --line-strong: #2f3646;
+    --text: #eef0f4; --text-2: #a4acbb; --text-3: #667085;
+    --accent: #7c7cff; --accent-soft: rgba(124,124,255,.14);
+    --ok: #3ddc97; --bad: #ff5c75; --warn: #fbbf24; --info: #4cc2f1; --violet: #a78bfa;
+    --shadow: 0 0 0 1px rgba(255,255,255,.02);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0d12; --surface: #12151c; --surface-2: #181c25; --line: #222733; --line-strong: #2f3646;
+  --text: #eef0f4; --text-2: #a4acbb; --text-3: #667085;
+  --accent: #7c7cff; --accent-soft: rgba(124,124,255,.14);
+  --ok: #3ddc97; --bad: #ff5c75; --warn: #fbbf24; --info: #4cc2f1; --violet: #a78bfa;
+  --shadow: 0 0 0 1px rgba(255,255,255,.02);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Top bar */
+.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 28px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 16px; letter-spacing: -.01em; }
+.logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--violet)); }
+.status { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 550;
+  background: var(--surface); border: 1px solid var(--line); color: var(--text-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.status.on .dot { background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: pulse 2s infinite; }
+.status.off .dot { background: var(--bad); }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.grow { flex: 1; }
+.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 500; box-shadow: var(--shadow); transition: .15s; }
+.btn:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.switch { position: relative; width: 40px; height: 22px; border-radius: 99px; background: var(--line-strong); border: 0; cursor: pointer; transition: .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .2s; }
+.switch[aria-checked="true"] { background: var(--ok); }
+.switch[aria-checked="true"]::after { transform: translateX(18px); }
+select.btn { appearance: none; padding-right: 10px; }
+.live { font-size: 12px; color: var(--text-3); }
+
+/* Layout */
+main { max-width: 1320px; margin: 0 auto; padding: 24px 28px 48px; display: grid; gap: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+.kpi { padding: 16px 18px; position: relative; overflow: hidden; }
+.kpi .label { font-size: 12px; font-weight: 550; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.kpi .label i { width: 8px; height: 8px; border-radius: 3px; background: var(--c); }
+.kpi .value { font-size: 30px; font-weight: 650; letter-spacing: -.02em; margin-top: 6px; line-height: 1.15; }
+.kpi .sub { font-size: 12px; color: var(--text-3); margin-top: 2px; min-height: 18px; }
+.kpi svg.spark { position: absolute; right: 0; bottom: 0; width: 55%; height: 44px; opacity: .9; }
+.row { display: grid; gap: 16px; grid-template-columns: 2fr 1fr; }
+.grid3 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+@media (max-width: 900px) { .row { grid-template-columns: 1fr; } .top { padding: 12px 16px; } main { padding: 16px; } }
+.ph { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 0; }
+.ph h2 { font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
+.ph .hint { font-size: 12px; color: var(--text-3); }
+.pb { padding: 14px 18px 18px; }
+
+/* Segmented control */
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--surface-2); }
+.seg button { border: 0; background: transparent; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 550; color: var(--text-2); cursor: pointer; }
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+/* Chart */
+.chart { position: relative; height: 240px; }
+.chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.tip { position: absolute; top: 0; pointer-events: none; transform: translateX(-50%); padding: 8px 10px; border-radius: 10px; font-size: 12px;
+  background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.25); white-space: nowrap; opacity: 0; transition: opacity .1s; z-index: 2; }
+.tip b { display: block; margin-bottom: 2px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--c); }
+
+/* Donut */
+.donut-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.donut { position: relative; width: 160px; height: 160px; flex: none; }
+.donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.donut .mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.donut .mid b { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
+.donut .mid span { font-size: 11px; color: var(--text-3); }
+.leg { flex: 1; min-width: 140px; display: grid; gap: 7px; font-size: 13px; }
+.leg div { display: flex; align-items: center; gap: 8px; }
+.leg i { width: 9px; height: 9px; border-radius: 3px; background: var(--c); flex: none; }
+.leg span { flex: 1; color: var(--text-2); text-transform: capitalize; }
+.leg b { font-weight: 550; }
+
+/* Ranked bars */
+.rank { display: grid; gap: 4px; }
+.rk { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; font-size: 13px; overflow: hidden; }
+.rk::before { content: ""; position: absolute; inset: 0; width: var(--w); background: var(--c); opacity: .11; border-radius: inherit; transition: width .5s; }
+.rk span { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12.5px; }
+.rk b { position: relative; font-weight: 550; color: var(--text-2); }
+.empty { padding: 20px 0; text-align: center; color: var(--text-3); font-size: 13px; }
+
+/* Lookup */
+.lookup { display: flex; gap: 8px; }
+.lookup input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface-2); }
+.lookup input:focus { border-color: var(--accent); outline: 0; box-shadow: 0 0 0 3px var(--accent-soft); }
+.lookup select { height: 38px; width: 84px; padding: 0 8px; }
+.res { margin-top: 12px; display: grid; gap: 8px; font-size: 13px; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; background: var(--accent-soft); color: var(--accent); margin-right: 6px; }
+.badge.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.badge.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.res code { display: block; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font: 12px/1.5 var(--mono); word-break: break-all; color: var(--text-2); }
+
+/* Toast + skeleton */
+#toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; transition: .25s;
+  padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+.sk { background: linear-gradient(90deg, var(--surface-2), var(--line), var(--surface-2)); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 6px; color: transparent !important; }
+@keyframes sk { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/></svg></span>
+    Blocky
+  </div>
+  <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+  <span class="grow"></span>
+  <span class="live num" id="upd"></span>
+  <div class="actions">
+    <label class="btn" style="gap:10px;cursor:pointer">Blocking
+      <button class="switch" id="sw" role="switch" aria-checked="false" aria-label="Toggle blocking"></button>
+    </label>
+    <select class="btn" id="pauseSel" aria-label="Pause blocking">
+      <option value="">Pause…</option><option value="5m">5 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option>
+    </select>
+    <button class="btn" id="refresh" title="Reload block/allow lists"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Lists</button>
+    <button class="btn" id="flush" title="Clear DNS cache"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/></svg>Cache</button>
+    <button class="btn icon" id="theme" aria-label="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="row">
+    <div class="card">
+      <div class="ph"><h2>Traffic <span class="hint">· last 24 hours</span></h2>
+        <div class="legend"><span style="--c:var(--accent)"><i></i>Queries</span><span style="--c:var(--bad)"><i></i>Blocked</span></div></div>
+      <div class="pb"><div class="chart" id="chart"></div></div>
+    </div>
+    <div class="card">
+      <div class="ph"><h2>Outcomes</h2></div>
+      <div class="pb"><div class="donut-wrap" id="donut"></div></div>
+    </div>
+  </section>
+
+  <section class="row" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="ph"><h2>Leaderboard</h2>
+        <div class="seg" role="tablist" id="seg">
+          <button role="tab" aria-selected="true" data-k="topDomains">Domains</button>
+          <button role="tab" aria-selected="false" data-k="topBlockedDomains">Blocked</button>
+          <button role="tab" aria-selected="false" data-k="topClients">Clients</button>
+        </div></div>
+      <div class="pb"><div class="rank" id="rank"></div></div>
+    </div>
+    <div class="card">
+      <div class="ph"><h2>DNS lookup</h2><span class="hint">test how blocky resolves a name</span></div>
+      <div class="pb">
+        <form class="lookup" id="qf">
+          <input id="qd" placeholder="example.com" autocomplete="off" spellcheck="false" required aria-label="Domain">
+          <select class="btn" id="qt" aria-label="Record type"><option>A</option><option>AAAA</option><option>CNAME</option><option>MX</option><option>TXT</option><option>NS</option></select>
+          <button class="btn primary">Resolve</button>
+        </form>
+        <div class="res" id="qr"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid3">
+    <div class="card"><div class="ph"><h2>Query types</h2></div><div class="pb"><div class="rank" id="qtypes"></div></div></div>
+    <div class="card"><div class="ph"><h2>Response codes</h2></div><div class="pb"><div class="rank" id="rcodes"></div></div></div>
+    <div class="card"><div class="ph"><h2>Lists</h2><span class="hint">entries per group</span></div><div class="pb"><div class="rank" id="lists"></div></div></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const API = '/api', $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = n => n.toLocaleString();
+const compact = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : fmt(n);
+const post = (p, body) => fetch(API + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+let toastT, stats, tab = 'topDomains';
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+
+function spark(vals, color) {
+  const max = Math.max(1, ...vals), n = vals.length - 1 || 1;
+  const pts = vals.map((v, i) => `${i / n * 100},${38 - v / max * 34}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none"><polygon points="0,40 ${pts} 100,40" fill="${color}" opacity=".12"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+
+function kpis(s) {
+  const m = s.summary, h = s.perHour, pct = m.queries ? (m.blocked / m.queries * 100).toFixed(1) + '% of traffic' : '—';
+  const items = [
+    ['Total queries', compact(m.queries), 'last 24h', 'var(--accent)', spark(h.map(p => p.queries), 'var(--accent)')],
+    ['Blocked', compact(m.blocked), pct, 'var(--bad)', spark(h.map(p => p.blocked), 'var(--bad)')],
+    ['Cache hit rate', (m.cacheHitRate * 100).toFixed(1) + '%', fmt(s.cache.entries) + ' entries cached', 'var(--info)', ''],
+    ['Avg response', m.avgResponseMs + ' ms', fmt(m.forwarded) + ' forwarded upstream', 'var(--ok)', ''],
+    ['Errors', compact(m.errors), m.errors ? 'failed to resolve' : 'all healthy', 'var(--warn)', ''],
+  ];
+  $('kpis').innerHTML = items.map(([l, v, sub, c, sp]) => `<div class="card kpi" style="--c:${c}"><div class="label"><i></i>${l}</div><div class="value num">${v}</div><div class="sub">${sub}</div>${sp}</div>`).join('');
+}
+
+function chart(pts) {
+  const el = $('chart'), W = 800, H = 240, P = { t: 12, b: 24, l: 36, r: 6 };
+  const max = Math.max(4, ...pts.map(p => p.queries)), n = Math.max(pts.length - 1, 1);
+  const X = i => P.l + i / n * (W - P.l - P.r), Y = v => P.t + (1 - v / max) * (H - P.t - P.b);
+  const line = k => pts.map((p, i) => `${i ? 'L' : 'M'}${X(i)},${Y(p[k])}`).join('');
+  const area = k => `${line(k)}L${X(pts.length - 1)},${H - P.b}L${X(0)},${H - P.b}Z`;
+  let grid = '';
+  for (let i = 0; i <= 4; i++) { const v = max / 4 * i, y = Y(v); grid += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" stroke="var(--line)" ${i ? 'stroke-dasharray="3 4"' : ''}/><text x="${P.l - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--text-3)">${compact(Math.round(v))}</text>`; }
+  const lbl = pts.map((p, i) => i % 4 === 0 ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--text-3)">${new Date(p.hour).toLocaleTimeString([], { hour: 'numeric' })}</text>` : '').join('');
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="csvg">
+    <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+    ${grid}${lbl}<path d="${area('queries')}" fill="url(#g1)"/><path d="${line('queries')}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <path d="${line('blocked')}" fill="none" stroke="var(--bad)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <line id="cx" y1="${P.t}" y2="${H - P.b}" stroke="var(--line-strong)" opacity="0"/></svg><div class="tip" id="tip"></div>`;
+  el.onmousemove = e => {
+    const r = el.getBoundingClientRect(), i = Math.max(0, Math.min(pts.length - 1, Math.round(((e.clientX - r.left) / r.width * W - P.l) / (W - P.l - P.r) * n))), p = pts[i];
+    const x = X(i) / W * r.width, tip = $('tip');
+    $('cx').setAttribute('x1', X(i)); $('cx').setAttribute('x2', X(i)); $('cx').setAttribute('opacity', 1);
+    tip.style.left = Math.max(70, Math.min(r.width - 70, x)) + 'px'; tip.style.opacity = 1;
+    tip.innerHTML = `<b>${new Date(p.hour).toLocaleString([], { weekday: 'short', hour: 'numeric' })}</b>${fmt(p.queries)} queries · ${fmt(p.blocked)} blocked`;
+  };
+  el.onmouseleave = () => { $('tip').style.opacity = 0; $('cx').setAttribute('opacity', 0); };
+}
+
+function donut(m) {
+  const parts = [['cached', m.cached, 'var(--info)'], ['forwarded', m.forwarded, 'var(--ok)'], ['blocked', m.blocked, 'var(--bad)'], ['filtered', m.filtered, 'var(--warn)'], ['local', m.local, 'var(--violet)'], ['dropped', m.dropped, 'var(--text-3)'], ['errors', m.errors, 'var(--bad)']].filter(p => p[1] > 0);
+  const tot = parts.reduce((a, p) => a + p[1], 0) || 1, C = 2 * Math.PI * 60;
+  let off = 0;
+  const arcs = parts.map(([, v, c]) => { const len = v / tot * C, s = `<circle cx="80" cy="80" r="60" fill="none" stroke="${c}" stroke-width="16" stroke-dasharray="${Math.max(len - 2, 0)} ${C}" stroke-dashoffset="${-off}"/>`; off += len; return s; }).join('');
+  $('donut').innerHTML = `<div class="donut"><svg viewBox="0 0 160 160"><circle cx="80" cy="80" r="60" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${arcs}</svg><div class="mid"><b class="num">${compact(m.queries)}</b><span>queries</span></div></div>
+    <div class="leg">${parts.map(([n, v, c]) => `<div style="--c:${c}"><i></i><span>${n}</span><b class="num">${(v / tot * 100).toFixed(1)}%</b></div>`).join('') || '<div class="empty">No data yet</div>'}</div>`;
+}
+
+function rank(el, rows, color) {
+  rows = rows.filter(r => r.count > 0).slice(0, 10);
+  if (!rows.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
+  const max = Math.max(...rows.map(r => r.count));
+  el.innerHTML = rows.map(r => `<div class="rk" style="--w:${r.count / max * 100}%;--c:${color}"><span title="${esc(r.name)}">${esc(r.name)}</span><b class="num">${fmt(r.count)}</b></div>`).join('');
+}
+const obj = o => Object.entries(o || {}).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+const tabColor = { topDomains: 'var(--accent)', topBlockedDomains: 'var(--bad)', topClients: 'var(--info)' };
+const drawTab = () => stats && rank($('rank'), stats[tab], tabColor[tab]);
+
+function render(s) {
+  stats = s; kpis(s); chart(s.perHour); donut(s.summary); drawTab();
+  rank($('qtypes'), obj(s.byQueryType), 'var(--violet)');
+  rank($('rcodes'), obj(s.byResponseCode), 'var(--info)');
+  rank($('lists'), [...obj(s.lists.denylist).map(r => ({ ...r, name: '⊘ ' + r.name })), ...obj(s.lists.allowlist).map(r => ({ ...r, name: '✓ ' + r.name }))], 'var(--ok)');
+  $('upd').textContent = 'Updated ' + new Date(s.end).toLocaleTimeString();
+}
+
+async function load() {
+  try {
+    const [sr, br] = await Promise.all([fetch(API + '/stats'), fetch(API + '/blocking/status')]);
+    const b = await br.json();
+    $('status').className = 'status ' + (b.enabled ? 'on' : 'off');
+    $('statusText').textContent = b.enabled ? 'Protection on' : 'Protection off' + (b.autoEnableInSec ? ` · resumes in ${Math.ceil(b.autoEnableInSec / 60)}m` : '');
+    $('sw').setAttribute('aria-checked', b.enabled);
+    if (!sr.ok) { $('kpis').innerHTML = `<div class="card empty" style="grid-column:1/-1">${esc(await sr.text())} — set <code>statistics.enable: true</code> in config.</div>`; return; }
+    render(await sr.json());
+  } catch (e) { $('statusText').textContent = 'Unreachable'; $('status').className = 'status off'; }
+}
+
+$('sw').onclick = async () => { const on = $('sw').getAttribute('aria-checked') === 'true'; await fetch(API + (on ? '/blocking/disable' : '/blocking/enable')); toast(on ? 'Blocking disabled' : 'Blocking enabled'); load(); };
+$('pauseSel').onchange = async e => { if (!e.target.value) return; await fetch(API + '/blocking/disable?duration=' + e.target.value); toast('Blocking paused for ' + e.target.selectedOptions[0].text); e.target.value = ''; load(); };
+$('flush').onclick = async () => { await post('/cache/flush'); toast('Cache cleared'); load(); };
+$('refresh').onclick = async () => { const r = await post('/lists/refresh'); toast(r.ok ? 'Lists reloaded' : 'List refresh failed'); load(); };
+$('theme').onclick = () => {
+  const d = document.documentElement, dark = getComputedStyle(d).getPropertyValue('--bg').trim() === '#0b0d12';
+  d.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem('blocky-theme', d.dataset.theme); } catch {}
+};
+try { const t = localStorage.getItem('blocky-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+$('seg').onclick = e => { const k = e.target.dataset.k; if (!k) return; tab = k; [...$('seg').children].forEach(b => b.setAttribute('aria-selected', b.dataset.k === k)); drawTab(); };
+$('qf').onsubmit = async e => {
+  e.preventDefault();
+  $('qr').innerHTML = '<div class="sk" style="height:60px"></div>';
+  const r = await post('/query', { query: $('qd').value.trim(), type: $('qt').value });
+  if (!r.ok) { $('qr').innerHTML = `<span class="badge bad">Error</span>${esc(await r.text())}`; return; }
+  const q = await r.json(), blocked = /BLOCK/.test(q.responseType), good = q.returnCode === 'NOERROR' && !blocked;
+  $('qr').innerHTML = `<div><span class="badge ${blocked ? 'bad' : good ? 'ok' : ''}">${esc(q.responseType)}</span><span class="badge">${esc(q.returnCode)}</span></div>
+    <code>${esc(q.response || '(empty)')}</code><div class="hint" style="color:var(--text-3);font-size:12px">${esc(q.reason)}</div>`;
+};
+load(); setInterval(load, 5000);
+</script>
+</body>
+</html>

@@ -207,6 +207,8 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 
 	configureStaticAssetsHandler(router)
 
+	configureDashboardHandler(router)
+
 	configureRootHandler(cfg, router)
 
 	configureRobotsHandler(router)
@@ -236,6 +238,14 @@ func configureStaticAssetsHandler(router *chi.Mux) {
 
 	fs := http.FileServer(http.FS(assets))
 	router.Handle("/static/*", http.StripPrefix("/static/", fs))
+}
+
+func configureDashboardHandler(router *chi.Mux) {
+	router.Get("/dashboard", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set(contentTypeHeader, htmlContentType)
+		_, err := writer.Write(web.DashboardHTML)
+		logAndResponseWithError(err, "can't write dashboard: ", writer)
+	})
 }
 
 func configureRobotsHandler(router *chi.Mux) {
@@ -268,6 +278,10 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 
 		pd.Links = []HandlerLink{
+			{
+				URL:   "/dashboard",
+				Title: "Dashboard",
+			},
 			{
 				URL:   "/docs/openapi.yaml",
 				Title: "Rest API Documentation (OpenAPI)",

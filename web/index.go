@@ -11,6 +11,11 @@ import (
 //go:embed index.html
 var IndexTmpl string
 
+// DashboardHTML is the single-file web dashboard
+//
+//go:embed dashboard.html
+var DashboardHTML []byte
+
 //go:embed all:static
 var static embed.FS
 
