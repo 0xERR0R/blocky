@@ -384,11 +384,11 @@ func packForCache(ctx context.Context, msg *dns.Msg) ([]byte, error) {
 }
 
 // isCacheableResponseType reports whether the response originates from the general
-// upstreams, directly (RESOLVED) or via DNS64 synthesis (SYNTHESIZED). Only such
-// answers may be cached: the rebinding protection resolver sits above the cache and
-// inspects CACHED responses, so caching answers from trusted local sources
-// (conditional upstream, special-use domains) would re-label them as CACHED on hits
-// and subject them to inspection.
+// upstreams, directly (RESOLVED) or via DNS64 synthesis (SYNTHESIZED, which no resolver
+// below the cache returns: DNS64 sits above it). Only such answers may be cached: the
+// rebinding protection resolver sits above the cache and inspects CACHED responses, so
+// caching answers from trusted local sources (conditional upstream, special-use domains)
+// would re-label them as CACHED on hits and subject them to inspection.
 func isCacheableResponseType(rType model.ResponseType) bool {
 	return rType == model.ResponseTypeRESOLVED || rType == model.ResponseTypeSYNTHESIZED
 }
