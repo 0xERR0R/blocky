@@ -1307,7 +1307,7 @@ You can choose which information from processed DNS request and response should 
 - `clientName`: resolved client name(s) from the origins request
 - `responseReason`: reason for the response (e.g. from which upstream resolver), response type and code. For blocked
   queries the reason also names the matched rule per group, e.g. `BLOCKED (ads: *.docler.com)`, so you can tell which
-  denylist entry caused the block
+  denylist entry caused the block. With `log.privacy` enabled, only the group names are logged, e.g. `BLOCKED (ads)`
 - `responseAnswer`: returned DNS answer
 - `question`: DNS question from the request
 - `duration`: request processing time in milliseconds
