@@ -4,8 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 )
 
 var _ = Describe("Caches", func() {
@@ -13,6 +18,37 @@ var _ = Describe("Caches", func() {
 		cache   stringCache
 		factory cacheFactory
 	)
+
+	Describe("logMatch", func() {
+		var hook *test.Hook
+
+		BeforeEach(func() {
+			hooks := log.Log().ReplaceHooks(make(logrus.LevelHooks))
+			DeferCleanup(func() { log.Log().ReplaceHooks(hooks) })
+			hook = test.NewLocal(log.Log())
+
+			level := log.Log().GetLevel()
+			log.Log().SetLevel(logrus.DebugLevel)
+			DeferCleanup(func() { log.Log().SetLevel(level) })
+		})
+
+		It("logs the rule and the searched string", func() {
+			logMatch("string_map", "block rule", "ads.example.com", "ads.example.com")
+
+			Expect(hook.LastEntry().Message).
+				Should(Equal("block rule 'ads.example.com' matched with 'ads.example.com'"))
+		})
+
+		It("obfuscates the rule and the searched string when log privacy is enabled", func() {
+			util.LogPrivacy.Store(true)
+			DeferCleanup(func() { util.LogPrivacy.Store(false) })
+
+			logMatch("string_map", "block rule", "ads.example.com", "ads.example.com")
+
+			Expect(hook.LastEntry().Message).
+				Should(Equal("block rule '***.*******.***' matched with '***.*******.***'"))
+		})
+	})
 
 	Describe("String StringCache", func() {
 		It("should not return a cache when empty", func() {

@@ -464,7 +464,7 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	modelResp.ReasonLabel = reasonLabel
 	r.blockHandler.handleBlock(question, modelResp.Res)
 
-	logger.Debugf("blocking request '%s'", reason)
+	logger.Debugf("blocking request '%s'", logReason(reason, reasonLabel))
 
 	return modelResp, nil
 }
@@ -492,7 +492,7 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 		logger := withDebugField(logger, logFieldDomain, domain)
 
 		if matches := r.matches(groupsToCheck, r.allowlistMatcher, domain); len(matches) > 0 {
-			logger.WithField("matches", matches).Debug("domain is allowlisted")
+			logger.WithField("matches", obfuscateMatches(matches)).Debug("domain is allowlisted")
 
 			resp, err := r.next.Resolve(ctx, request)
 			if err != nil {
@@ -550,7 +550,7 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 				logger := withDebugField(logger, "response_entry", entryToCheck)
 
 				if matches := r.matches(groupsToCheck, r.allowlistMatcher, entryToCheck); len(matches) > 0 {
-					logger.WithField("matches", matches).Debugf("%s is allowlisted", tName)
+					logger.WithField("matches", obfuscateMatches(matches)).Debugf("%s is allowlisted", tName)
 				} else if matches := r.matches(groupsToCheck, r.denylistMatcher, entryToCheck); len(matches) > 0 {
 					return r.handleBlocked(logger, request, request.Req.Question[0],
 						formatBlockReason(matches, tName), formatBlockReasonLabel(matches, tName))
@@ -718,6 +718,21 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	domain string,
 ) map[string]string {
 	return m.Match(domain, groupsToCheck)
+}
+
+// obfuscateMatches returns matches with each rule obfuscated when log privacy is enabled,
+// for logging. Group names are configuration, so they are kept.
+func obfuscateMatches(matches map[string]string) map[string]string {
+	if !util.LogPrivacy.Load() {
+		return matches
+	}
+
+	res := make(map[string]string, len(matches))
+	for group, rule := range matches {
+		res[group] = util.Obfuscate(rule)
+	}
+
+	return res
 }
 
 // formatBlockReason renders a block reason of the form
