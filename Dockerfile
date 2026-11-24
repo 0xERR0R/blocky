@@ -16,7 +16,7 @@ ARG OPTS=""
 ENV GO_SKIP_GENERATE=1\
   GO_BUILD_FLAGS="-tags static -v ${OPTS}" \
   CGO_ENABLED=0 \
-  BIN_USER=100:100 \
+  BIN_USER=100\
   BIN_AUTOCAB=1 \
   BIN_OUT_DIR="/bin" \
   GOPROXY=$GOPROXY
@@ -67,7 +67,7 @@ LABEL org.opencontainers.image.title="blocky" \
 
 
 COPY <<'EOF' /etc/passwd
-blocky:x:100:100:Blocky:/app:/sbin/nologin
+blocky:x:100:0:Blocky:/app:/sbin/nologin
 EOF
 COPY <<'EOF' /etc/group
 blocky:x:100:

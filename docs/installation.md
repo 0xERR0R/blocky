@@ -75,7 +75,8 @@ ports:
 
     !!! note "Writable mounts and file permissions"
 
-        The container runs as the unprivileged user `blocky` (**UID 100**, **GID 100**). Any directory Blocky
+        The container runs as the unprivileged user `blocky` (**UID 100**, primary **GID 0**). A
+        named group `blocky` (**GID 100**) is also defined, so `user: "blocky:blocky"` works. Any directory Blocky
         writes to - the query log target, or `loading.downloads.cachePath` - must be
         writable by that user, otherwise Blocky logs a `permission denied` error and
         continues without writing.
