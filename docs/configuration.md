@@ -1620,7 +1620,7 @@ Blocky classifies DNSSEC validation results into four categories:
 | Result          | Description                                                          | Response Handling                        |
 | --------------- | -------------------------------------------------------------------- | ---------------------------------------- |
 | **Secure**      | Valid DNSSEC signatures and complete chain of trust for every part of the response | AD flag set, response returned           |
-| **Insecure**    | The domain, or a part of the answer such as the target of a CNAME, is in a zone that its parent zone proves to be unsigned, or is a name that does not exist in a range that NSEC3 Opt-Out leaves open for unsigned delegations (RFC 5155 §9.2) | AD flag cleared, response returned       |
+| **Insecure**    | The domain, or a part of the answer such as the target of a CNAME, is in a zone that its parent zone proves to be unsigned, or that has DS records, none with both a key algorithm and a digest type that blocky supports (see [Supported Algorithms](#supported-algorithms)), or is a name that does not exist in a range that NSEC3 Opt-Out leaves open for unsigned delegations (RFC 5155 §9.2) | AD flag cleared, response returned       |
 | **Bogus**       | Invalid DNSSEC signatures or broken chain of trust, missing signatures or proofs in a signed zone, records that do not answer the question, a validation that needs more work than its limits allow (see [DoS Protection](#dos-protection)), or, for a name below a trust anchor, a validation that cannot be completed because a DNSKEY or DS lookup fails (RFC 4035 §5.5) | SERVFAIL returned with the EDE code that says why (see below), response type `BOGUS` |
 | **Indeterminate** | No trust anchor is above the name, so nothing says whether its zone is signed (RFC 4033 §5). This needs custom trust anchors without one for the root: no lookup is made for such a name | AD flag cleared, response returned |
 
@@ -1729,7 +1729,7 @@ Blocky supports the following DNSSEC algorithms per RFC 8624:
 | ECDSAP384SHA384 | 14 | Recommended | Strong |
 | ED25519   | 15 | Recommended | Very Strong |
 
-Signatures of other algorithms, ED448 (16) among them, do not verify.
+Blocky verifies no signature of another algorithm, ED448 (16) among them. It uses a DS record only if it supports both the key algorithm and the digest type of that record: SHA-1 (1), SHA-256 (2) or SHA-384 (4). A zone that has DS records of which blocky uses none is treated as Insecure, like an unsigned zone (RFC 4035 §5.2, RFC 6840 §5.2). In a zone that has a DS record that blocky uses, a signature of another algorithm is left out: a record set is validated with its other signatures, and fails validation if it has none (RFC 6840 §5.11).
 
 RSASHA256 and RSASHA512 keys are used with public exponents up to 2^32+1, RSASHA1 and RSASHA1-NSEC3-SHA1 keys with exponents up to 2^31-1. A signature made with a larger exponent does not verify, and a zone whose DS records name only keys with larger exponents, all of them in its DNSKEY record set, is treated as Insecure.
 

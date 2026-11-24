@@ -164,12 +164,17 @@ func findMatchingRRSIGs(sigs []*dns.RRSIG, ownerName string, rrType uint16) []*d
 
 // verifyRRSIG is checkRRSIG followed, for an rrsig made for a wildcard, by the proof that the
 // wildcard answers for the owner name of rrset, read from nsRecords as verified records (see
-// legacyDenialSet). It refused a key of another algorithm than that of rrsig, if rrsig has a
-// supported one: mayVerify refuses such a key before checkRRSIG is asked.
+// legacyDenialSet). It refused an rrsig of an algorithm that is not supported, and a key of another
+// algorithm than that of rrsig: verifyRRset leaves out such an RRSIG, and mayVerify refuses such a
+// key, before checkRRSIG is asked.
 func (v *Validator) verifyRRSIG(
 	rrset []dns.RR, rrsig *dns.RRSIG, key *dns.DNSKEY, nsRecords []dns.RR, _ string,
 ) error {
-	if v.isSupportedAlgorithm(rrsig.Algorithm) && rrsig.Algorithm != key.Algorithm {
+	if !v.isSupportedAlgorithm(rrsig.Algorithm) {
+		return unsupported("unsupported DNSSEC algorithm: %d", rrsig.Algorithm)
+	}
+
+	if rrsig.Algorithm != key.Algorithm {
 		return fmt.Errorf("algorithm mismatch: RRSIG uses %d, DNSKEY uses %d", rrsig.Algorithm, key.Algorithm)
 	}
 

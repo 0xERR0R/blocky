@@ -2647,22 +2647,21 @@ var _ = Describe("DNSSECValidator", func() {
 			Expect(best.KeyTag).Should(Equal(uint16(22222)))
 		})
 
-		It("should prefer ED448 over ED25519 (algorithm strength ordering)", func() {
+		It("should prefer ED25519 over ED448, which is not supported", func() {
 			rrsigs := []*dns.RRSIG{
 				{
-					Algorithm: dns.ED25519, // Strong
+					Algorithm: dns.ED448, // Not verified with
 					KeyTag:    1,
 				},
 				{
-					Algorithm: dns.ED448, // Stronger
+					Algorithm: dns.ED25519, // Strong
 					KeyTag:    2,
 				},
 			}
 
 			best := sut.selectBestRRSIG(rrsigs)
 
-			// ED448 is stronger than ED25519
-			Expect(best.Algorithm).Should(Equal(dns.ED448))
+			Expect(best.Algorithm).Should(Equal(dns.ED25519))
 			Expect(best.KeyTag).Should(Equal(uint16(2)))
 		})
 
