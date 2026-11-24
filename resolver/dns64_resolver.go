@@ -111,8 +111,8 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 	// Pass query to next resolver
 	response, err := r.next.Resolve(ctx, request)
 	// RFC 6147 §5.1.2: return a name error and treat any other RCODE as an
-	// empty answer. SERVFAIL is returned too: it is a validation failure
-	// (§5.5), or the upstream's, which comes as a response over DoH and DoQ.
+	// empty answer. SERVFAIL is returned as well, on purpose: it may be a
+	// validation failure (§5.5), blocky's or the upstream's.
 	if err != nil || response.Res.Rcode == dns.RcodeNameError || response.Res.Rcode == dns.RcodeServerFailure {
 		return response, err
 	}
