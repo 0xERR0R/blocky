@@ -202,8 +202,9 @@ func parseClientIdentifier(id string) (string, error) {
 		}
 
 		return ipNet.String(), nil
-	case strings.Contains(id, ":") || strings.Trim(id, "0123456789.") == "":
-		// a client name cannot contain ':', and digits and dots alone are taken for IPv4
+	case strings.Contains(id, ":") || (strings.Contains(id, ".") && strings.Trim(id, "0123456789.") == ""):
+		// a client name cannot contain ':'; digits with dots are taken for IPv4, but digits
+		// alone stay a name, as a DoH client ID can be one (/dns-query/42)
 		ip := net.ParseIP(id)
 		if ip == nil {
 			return "", fmt.Errorf("invalid IP address '%s'", id)

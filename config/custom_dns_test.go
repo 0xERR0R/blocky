@@ -343,6 +343,10 @@ www A 1.2.3.4
 				[]string{"laptop*", "10.0.0.0/8", "2001:db8::1", "192.168.1.2"}))
 		})
 
+		It("takes digits without a dot for a client name", func() {
+			Expect(ParseClientIdentifiers("42")).Should(Equal([]string{"42"}))
+		})
+
 		It("returns the identifiers it parsed along with the first error", func() {
 			ids, err := ParseClientIdentifiers("laptop,10.0.0.0/33,phone")
 
