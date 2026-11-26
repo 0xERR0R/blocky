@@ -3,6 +3,8 @@ package dnssec
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/log"
@@ -69,6 +71,52 @@ var _ = Describe("Query functions", func() {
 			Expect(sut.consumeQueryBudget(ctx)).Should(Succeed())
 			Expect(sut.consumeQueryBudget(derived)).Should(Succeed())
 			Expect(sut.consumeQueryBudget(ctx)).Should(MatchError(ContainSubstring("budget exhausted")))
+		})
+	})
+
+	Describe("budgetFrom", func() {
+		It("should compute each NSEC3 hash once and no more hashes than the budget holds", func() {
+			b := budgetFrom(withQueryBudget(ctx, 0))
+
+			for i := range maxNSEC3Hashes {
+				name := fmt.Sprintf("n%d.example.", i)
+
+				Expect(b.nsec3Hash(name, "", 0)).Should(Equal(nsec3Hash(name, "", 0)))
+				Expect(b.nsec3Hash(strings.ToUpper(name), "", 0)).Should(Equal(nsec3Hash(name, "", 0)))
+			}
+
+			Expect(b.hashes.Load()).Should(BeEquivalentTo(maxNSEC3Hashes))
+
+			// One more is refused, and a hash that is known is still there
+			Expect(b.nsec3Hash("more.example.", "", 0)).Should(BeEmpty())
+			Expect(b.nsec3Hash("n0.example.", "", 0)).Should(Equal(nsec3Hash("n0.example.", "", 0)))
+			Expect(b.hashes.Load()).Should(BeEquivalentTo(maxNSEC3Hashes))
+		})
+
+		It("should keep no zone status that a validation finds after it ran out of budget", func() {
+			validation := withQueryBudget(ctx, 0)
+			sut.setCachedValidation(validation, "before.example.", ValidationResultBogus)
+
+			for i := range maxNSEC3Hashes + 1 {
+				budgetFrom(validation).nsec3Hash(fmt.Sprintf("n%d.example.", i), "", 0)
+			}
+
+			sut.setCachedValidation(validation, "after.example.", ValidationResultBogus)
+
+			_, found := sut.getCachedValidation(ctx, "before.example.")
+			Expect(found).Should(BeTrue())
+
+			_, found = sut.getCachedValidation(ctx, "after.example.")
+			Expect(found).Should(BeFalse())
+		})
+
+		It("should keep no zone status for a context that belongs to no validation", func() {
+			Expect(budgetFrom(ctx)).Should(BeNil())
+
+			sut.setCachedValidation(ctx, "outside.example.", ValidationResultSecure)
+
+			_, found := sut.getCachedValidation(ctx, "outside.example.")
+			Expect(found).Should(BeFalse())
 		})
 	})
 
@@ -243,7 +291,7 @@ var _ = Describe("Query functions", func() {
 			Expect(err).Should(MatchError(errDNSKEYUnavailable))
 		})
 
-		It("should not treat NXDOMAIN as unavailable keys", func() {
+		It("should treat NXDOMAIN as unavailable keys", func() {
 			ctx := withQueryBudget(context.Background(), 10)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
@@ -251,8 +299,7 @@ var _ = Describe("Query functions", func() {
 			}
 
 			_, _, err := sut.queryDNSKEY(ctx, "example.com")
-			Expect(err).Should(HaveOccurred())
-			Expect(err).ShouldNot(MatchError(errDNSKEYUnavailable))
+			Expect(err).Should(MatchError(errDNSKEYUnavailable))
 		})
 
 		It("should handle no DNSKEY records in response", func() {

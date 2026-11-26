@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache"
@@ -195,9 +195,13 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 
 	// clamp the record TTLs before packing so the stored (and Redis-synced) bytes
 	// carry the same TTLs the normal put path produces.
-	ttl := r.adjustTTLs(response.Res.Answer)
+	msg := response.Res.Copy()
+	ttl := r.prepareCacheTTLs(msg)
+	if ttl <= 0 && hasCacheSignatures(msg) {
+		return nil, 0
+	}
 
-	packed, err := packForCache(ctx, response.Res)
+	packed, err := packForCache(ctx, msg)
 	if err != nil {
 		return nil, 0
 	}
@@ -233,7 +237,16 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			logger = logger.WithField(logFieldDomain, util.Obfuscate(domain))
 		}
 
-		val, ttl := r.getFromCache(logger, domain, cacheKey)
+		var (
+			val *dns.Msg
+			ttl time.Duration
+		)
+
+		// A request that is asked again is not answered with the response that is held for it,
+		// which is the one that failed: that of the next resolver takes its place if it can be held
+		if !request.AskedAgain {
+			val, ttl = r.getFromCache(logger, domain, cacheKey)
+		}
 
 		if val != nil {
 			logger.Debug("domain is cached")
@@ -257,7 +270,11 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 		response, err = r.next.Resolve(ctx, request)
 
 		if err == nil {
-			cacheTTL := r.adjustTTLs(response.Res.Answer)
+			// The next resolver may return the same response to concurrent callers.
+			owned := *response
+			owned.Res = response.Res.Copy()
+			response = &owned
+			cacheTTL := r.prepareCacheTTLs(response.Res)
 			r.putInCache(ctx, cacheKey, response, cacheTTL)
 		} else {
 			return nil, err
@@ -269,7 +286,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 
 func (r *CachingResolver) getFromCache(logger *logrus.Entry, domain, key string) (*dns.Msg, time.Duration) {
 	val, ttl := r.resultCache.Get(key)
-	if val == nil {
+	if val == nil || ttl <= 0 {
 		return nil, 0
 	}
 
@@ -290,21 +307,10 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, domain, key string)
 // already spent in the cache, so that every section counts down instead of repeating the
 // TTLs the upstream sent. `ttl` is the entry's remaining lifetime.
 func (r *CachingResolver) setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
-	// Mirrors putInCache: only a successful, non-empty answer is stored with the smallest
-	// answer TTL (see adjustTTLs). Everything else -- NXDOMAIN (even one carrying a CNAME
-	// chain) and NODATA -- is stored with the negative cache time. That baseline is what
-	// the remaining lifetime has been counting down from.
-	baseTTL := r.cfg.CacheTimeNegative.SecondsU32()
-
-	if resp.Rcode == dns.RcodeSuccess && len(resp.Answer) > 0 {
-		baseTTL = uint32(math.MaxInt32)
-		for _, rr := range resp.Answer {
-			baseTTL = min(baseTTL, rr.Header().Ttl)
-		}
-	}
+	baseTTL := boundedTTL(int64(r.cacheLifetime(resp, hasCacheSignatures(resp)) / time.Second))
 
 	var elapsed uint32
-	if remaining := uint32(ttl.Seconds()); baseTTL > remaining {
+	if remaining := boundedTTL(int64(ttl / time.Second)); baseTTL > remaining {
 		elapsed = baseTTL - remaining
 	}
 
@@ -378,11 +384,11 @@ func packForCache(ctx context.Context, msg *dns.Msg) ([]byte, error) {
 }
 
 // isCacheableResponseType reports whether the response originates from the general
-// upstreams, directly (RESOLVED) or via DNS64 synthesis (SYNTHESIZED). Only such
-// answers may be cached: the rebinding protection resolver sits above the cache and
-// inspects CACHED responses, so caching answers from trusted local sources
-// (conditional upstream, special-use domains) would re-label them as CACHED on hits
-// and subject them to inspection.
+// upstreams, directly (RESOLVED) or via DNS64 synthesis (SYNTHESIZED, which no resolver
+// below the cache returns: DNS64 sits above it). Only such answers may be cached: the
+// rebinding protection resolver sits above the cache and inspects CACHED responses, so
+// caching answers from trusted local sources (conditional upstream, special-use domains)
+// would re-label them as CACHED on hits and subject them to inspection.
 func isCacheableResponseType(rType model.ResponseType) bool {
 	return rType == model.ResponseTypeRESOLVED || rType == model.ResponseTypeSYNTHESIZED
 }
@@ -390,7 +396,7 @@ func isCacheableResponseType(rType model.ResponseType) bool {
 func (r *CachingResolver) putInCache(
 	ctx context.Context, cacheKey string, response *model.Response, ttl time.Duration,
 ) {
-	if !isCacheableResponseType(response.RType) {
+	if !isCacheableResponseType(response.RType) || (ttl <= 0 && hasCacheSignatures(response.Res)) {
 		return
 	}
 
@@ -405,42 +411,80 @@ func (r *CachingResolver) putInCache(
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cfg.CacheTimeNegative.IsAboveZero() {
 			// put negative cache if result code is NXDOMAIN
-			r.resultCache.Put(cacheKey, &packed, r.cfg.CacheTimeNegative.ToDuration())
+			r.resultCache.Put(cacheKey, &packed, ttl)
 		}
 	}
 }
 
-// adjustTTLs calculates and returns the min TTL (considers also the min and max cache time)
-// for all records from answer or a negative cache time for empty answer
-// adjust the TTL in the answer header accordingly
-func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
-	minTTL := uint32(math.MaxInt32)
-
-	if len(answer) == 0 {
-		return r.cfg.CacheTimeNegative.ToDuration()
+// boundedTTL clamps a lifetime in seconds to the range of a DNS TTL field.
+func boundedTTL(seconds int64) uint32 {
+	if seconds < 0 {
+		return 0
+	}
+	if seconds > math.MaxUint32 {
+		return math.MaxUint32
 	}
 
-	for _, a := range answer {
-		// if TTL < mitTTL -> adjust the value, set minTTL
-		if r.cfg.MinCachingTime.IsAboveZero() {
-			if atomic.LoadUint32(&a.Header().Ttl) < r.cfg.MinCachingTime.SecondsU32() {
-				atomic.StoreUint32(&a.Header().Ttl, r.cfg.MinCachingTime.SecondsU32())
-			}
-		}
+	return uint32(seconds)
+}
 
+func hasCacheSignatures(msg *dns.Msg) bool {
+	isSig := func(rr dns.RR) bool {
+		_, ok := rr.(*dns.RRSIG)
+
+		return ok
+	}
+
+	return slices.ContainsFunc(msg.Answer, isSig) || slices.ContainsFunc(msg.Ns, isSig)
+}
+
+func (r *CachingResolver) prepareCacheTTLs(msg *dns.Msg) time.Duration {
+	signed := hasCacheSignatures(msg)
+	for _, rr := range msg.Answer {
+		h := rr.Header()
+		if !signed && r.cfg.MinCachingTime.IsAboveZero() {
+			h.Ttl = max(h.Ttl, r.cfg.MinCachingTime.SecondsU32())
+		}
 		if r.cfg.MaxCachingTime.IsAboveZero() {
-			if atomic.LoadUint32(&a.Header().Ttl) > r.cfg.MaxCachingTime.SecondsU32() {
-				atomic.StoreUint32(&a.Header().Ttl, r.cfg.MaxCachingTime.SecondsU32())
-			}
+			h.Ttl = min(h.Ttl, r.cfg.MaxCachingTime.SecondsU32())
 		}
-
-		headerTTL := atomic.LoadUint32(&a.Header().Ttl)
-		if minTTL > headerTTL {
-			minTTL = headerTTL
+	}
+	if signed {
+		// Validation happens above the cache. Preserve the lifetime bounds for
+		// every candidate proof so the validator sees their aged TTLs on hits.
+		now := time.Now().Unix()
+		for _, section := range [][]dns.RR{msg.Answer, msg.Ns} {
+			for _, rr := range section {
+				if sig, ok := rr.(*dns.RRSIG); ok {
+					remaining := boundedTTL(int64(sig.Expiration) - now)
+					sig.Hdr.Ttl = min(sig.Hdr.Ttl, sig.OrigTtl, remaining)
+				}
+			}
 		}
 	}
 
-	return time.Duration(minTTL) * time.Second
+	return r.cacheLifetime(msg, signed)
+}
+
+// Derive the insertion and aging baseline from the same packed record TTLs.
+func (r *CachingResolver) cacheLifetime(msg *dns.Msg, signed bool) time.Duration {
+	ttl := time.Duration(math.MaxInt32) * time.Second
+	if msg.Rcode != dns.RcodeSuccess || len(msg.Answer) == 0 {
+		ttl = r.cfg.CacheTimeNegative.ToDuration()
+		if !signed {
+			return ttl
+		}
+	}
+	for _, rr := range msg.Answer {
+		ttl = min(ttl, time.Duration(rr.Header().Ttl)*time.Second)
+	}
+	if signed {
+		for _, rr := range msg.Ns {
+			ttl = min(ttl, time.Duration(rr.Header().Ttl)*time.Second)
+		}
+	}
+
+	return ttl
 }
 
 func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {

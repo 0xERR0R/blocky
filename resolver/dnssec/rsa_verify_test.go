@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/miekg/dns"
@@ -22,7 +23,12 @@ const (
 // Go's crypto/rsa refuses such keys, which is exactly the class of key issue #2364 exercises.
 // It returns the DNSKEY, its exponent, modulus and private exponent (for signing).
 func generateBigExponentRSAKey(name string) (*dns.DNSKEY, *big.Int, *big.Int, *big.Int) {
-	e := new(big.Int).SetUint64(bigRSAExponent)
+	return generateRSAKeyWithExponent(name, new(big.Int).SetUint64(bigRSAExponent))
+}
+
+// generateRSAKeyWithExponent builds an RFC 3110 RSA DNSKEY whose public exponent is e, which is
+// odd. It returns the DNSKEY, its exponent, modulus and private exponent (for signing).
+func generateRSAKeyWithExponent(name string, e *big.Int) (*dns.DNSKEY, *big.Int, *big.Int, *big.Int) {
 	one := big.NewInt(1)
 
 	for {
@@ -47,8 +53,13 @@ func generateBigExponentRSAKey(name string) (*dns.DNSKEY, *big.Int, *big.Int, *b
 // bigExponentDNSKEY encodes an RSA DNSKEY per RFC 3110 from exponent e and modulus n.
 func bigExponentDNSKEY(name string, e, n *big.Int) *dns.DNSKEY {
 	exp := e.Bytes()
-	pub := append([]byte{byte(len(exp))}, exp...)
-	pub = append(pub, n.Bytes()...)
+
+	length := []byte{byte(len(exp))}
+	if len(exp) > 255 { // RFC 3110 §2: a zero octet, then the length of the exponent in two octets
+		length = []byte{0, byte(len(exp) >> 8), byte(len(exp))}
+	}
+
+	pub := slices.Concat(length, exp, n.Bytes())
 
 	return &dns.DNSKEY{
 		Hdr:       dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeDNSKEY, Class: dns.ClassINET, Ttl: 3600},
@@ -82,6 +93,14 @@ func signRRsetWithBigExponent(rrset []dns.RR, rtype uint16, key *dns.DNSKEY, n, 
 		SignerName:  dns.Fqdn(key.Hdr.Name),
 	}
 
+	signWithBigExponent(rrset, sig, n, d)
+
+	return sig
+}
+
+// signWithBigExponent gives sig the signature over rrset and its own fields, made with the private
+// exponent d of modulus n
+func signWithBigExponent(rrset []dns.RR, sig *dns.RRSIG, n, d *big.Int) {
 	signedData, err := buildRRSIGSignedData(rrset, sig)
 	Expect(err).Should(Succeed())
 
@@ -91,8 +110,6 @@ func signRRsetWithBigExponent(rrset []dns.RR, rtype uint16, key *dns.DNSKEY, n, 
 
 	sig.Signature = base64.StdEncoding.EncodeToString(leftPadBig(new(big.Int).Exp(
 		new(big.Int).SetBytes(em), d, n).Bytes(), k))
-
-	return sig
 }
 
 // pkcs1v15EncodeSHA256 builds the EMSA-PKCS1-v1_5 encoding of a SHA-256 digest for a k-byte modulus.
@@ -158,6 +175,11 @@ var _ = Describe("big-exponent RSA verification", func() {
 			Expect(err).Should(Succeed())
 			rsaPriv := priv.(*rsa.PrivateKey)
 
+			// RFC 4034 §6.3: by RDATA the key with the lower flags comes first, though its RDATA is longer
+			zsk, _, _, _ := generateBigExponentRSAKey("signed.example.")
+			zsk.Flags = 256
+			rrset := []dns.RR{key, zsk}
+
 			sig := new(dns.RRSIG)
 			sig.Hdr = dns.RR_Header{Name: key.Hdr.Name, Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: key.Hdr.Ttl}
 			sig.TypeCovered = dns.TypeDNSKEY
@@ -168,9 +190,9 @@ var _ = Describe("big-exponent RSA verification", func() {
 			sig.Inception = uint32(time.Now().Add(-time.Hour).Unix())
 			sig.KeyTag = key.KeyTag()
 			sig.SignerName = key.Hdr.Name
-			Expect(sig.Sign(rsaPriv, []dns.RR{key})).Should(Succeed())
+			Expect(sig.Sign(rsaPriv, rrset)).Should(Succeed())
 
-			Expect(verifyRSAWithBigExponent([]dns.RR{key}, sig, key)).Should(Succeed())
+			Expect(verifyRSAWithBigExponent(rrset, sig, key)).Should(Succeed())
 		})
 
 		It("verifies a DNSKEY RRset signed by a key whose exponent is 2^32+1", func() {

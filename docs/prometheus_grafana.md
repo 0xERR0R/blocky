@@ -44,6 +44,15 @@ Following metrics will be exported:
     matched rule (e.g. `BLOCKED (ads: *.docler.com)`) is still available in the [query log](configuration.md#query-logging).
     This avoids unbounded metric cardinality when large deny lists are used.
 
+!!! note "`reason` label for DNSSEC validation failures"
+
+    Responses that fail DNSSEC validation (`response_type="BOGUS"`) have the kind of failure as the `reason`
+    label of `blocky_response_total`: `DNSSEC validation failed: ` followed by the name of the Extended DNS
+    Error of the response, e.g. `DNSSEC validation failed: No Reachable Authority` or
+    `DNSSEC validation failed: DNSSEC Bogus` (see [Validation Results](configuration.md#validation-results)).
+    The one value that the label had before, `DNSSEC validation failed: bogus signatures`, is no longer used.
+    The full reason, such as the lookup that failed, is in the [query log](configuration.md#query-logging).
+
 !!! note "`client` label cardinality"
 
     The `client` label (used by `blocky_query_total` and `blocky_client_response_total`) is derived

@@ -188,6 +188,37 @@ var _ = Describe("EdeResolver", func() {
 			})
 		})
 
+		When("resolver returns a DNSSEC validation failure that says why", func() {
+			BeforeEach(func() {
+				failed := new(dns.Msg)
+				util.SetEdns0Option(failed, &dns.EDNS0_EDE{
+					InfoCode: dns.ExtendedErrorCodeNoReachableAuthority, ExtraText: "no reply",
+				})
+
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    failed,
+					RType:  ResponseTypeBOGUS,
+					Reason: "DNSSEC validation failed: no reply",
+				}, nil)
+			})
+
+			// the DNSSEC resolver sets the extended error of its SERVFAIL from the reason that
+			// validation failed for, which the response type does not tell
+			It("leaves the extended error of the DNSSEC resolver in place", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								SatisfyAll(
+									HaveField("InfoCode", Equal(dns.ExtendedErrorCodeNoReachableAuthority)),
+									HaveField("ExtraText", Equal("no reply")),
+								)),
+						))
+			})
+		})
+
 		When("resolver returns a blocked response with an oversized reason", func() {
 			longReason := "BLOCKED (ads: /" + strings.Repeat("a", 500) + "/)"
 

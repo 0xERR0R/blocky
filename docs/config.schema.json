@@ -601,7 +601,7 @@
               "type": "integer"
             }
           ],
-          "description": "Minimum TTL for cached entries; if the response TTL is smaller, this value is used instead.",
+          "description": "Minimum TTL for cached entries; if the response TTL is smaller, this value is used instead.\nNot used for a response whose answer or authority section has DNSSEC signatures (RRSIG records):\nsuch a response is cached for no longer than the smallest TTL of the records of these two sections.",
           "examples": [
             "30s",
             "1h"
@@ -631,7 +631,7 @@
               "type": "integer"
             }
           ],
-          "description": "TTL for negative responses (NXDOMAIN / empty). Use -1 to disable caching of negative results.",
+          "description": "TTL for negative responses (NXDOMAIN / empty). Use -1 to disable caching of negative results.\nThe limit that minTime describes for a response with DNSSEC signatures applies to a negative result too.",
           "default": "30m",
           "examples": [
             "30s",
@@ -1629,12 +1629,12 @@
         },
         "maxChainDepth": {
           "type": "integer",
-          "description": "Maximum domain label depth for chain of trust validation (DoS protection).",
+          "description": "Maximum number of zones in a chain of trust below its trust anchor (DoS protection).",
           "default": 10
         },
         "cacheExpirationHours": {
           "type": "integer",
-          "description": "How long to cache DNSSEC validation results, in hours.",
+          "description": "How long to cache DNSSEC validation results at most, in hours.",
           "default": 1
         },
         "maxNSEC3Iterations": {
@@ -1644,7 +1644,7 @@
         },
         "maxUpstreamQueries": {
           "type": "integer",
-          "description": "DoS protection: max upstream queries per validation",
+          "description": "DoS protection: max upstream queries that the validation for one client query makes",
           "default": 30
         },
         "clockSkewToleranceSec": {

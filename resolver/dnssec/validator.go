@@ -27,16 +27,17 @@
 //	)
 //
 //	// Validate a response
-//	result := validator.ValidateResponse(ctx, response, question)
-//	switch result {
+//	verdict := validator.Validate(ctx, response, question)
+//	switch verdict.Result {
 //	case dnssec.ValidationResultSecure:
 //		// Response is cryptographically validated
 //	case dnssec.ValidationResultInsecure:
 //		// Unsigned zone (no DNSSEC)
 //	case dnssec.ValidationResultBogus:
-//		// Invalid DNSSEC (should reject)
+//		// Invalid DNSSEC, or validation that could not be completed (should reject, and
+//		// verdict.EDE and verdict.Text say why)
 //	case dnssec.ValidationResultIndeterminate:
-//		// Could not complete validation
+//		// No trust anchor above the name
 //	}
 package dnssec
 
@@ -46,13 +47,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"slices"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
 	expirationcache "github.com/0xERR0R/expiration-cache"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -61,38 +61,70 @@ import (
 
 const ednsUDPSize = 4096 // EDNS UDP buffer size for DNSSEC queries
 
-var (
-	errUnsupportedRSAExponent = errors.New("unsupported RSA exponent exceeds Go crypto limit")
-	errInsecureChain          = errors.New("chain of trust is insecure (no DS records in parent)")
-	// errIndeterminateChain marks an RRSIG that was skipped because its signer's chain of
-	// trust could not be completed (a DS/DNSKEY sub-query timed out or the upstream was
-	// unreachable), as opposed to a genuine cryptographic failure. It must propagate as
-	// Indeterminate ("could not validate"), never Bogus - see determineFinalValidationResult.
-	errIndeterminateChain = errors.New("chain of trust is indeterminate (incomplete/unreachable)")
-	// errDNSKEYUnavailable marks a transient failure to fetch a zone's DNSKEY RRset (upstream
-	// error/timeout or SERVFAIL). Like errIndeterminateChain this is "could not validate",
-	// not proof of an invalid signature, so it must not be funnelled to Bogus. Distinct from a
-	// DNSKEY response that arrives but contains no key, which stays a genuine failure.
-	errDNSKEYUnavailable = errors.New("DNSKEY could not be retrieved (unreachable)")
-	// errBogusChain marks an RRSIG skipped because its signer's chain of trust is provably
-	// invalid (e.g. a DS digest mismatch) - genuine evidence of tampering, NOT mere
-	// unreachability. It is a genuine failure and must dominate any Indeterminate sibling, so
-	// Bogus always wins within an RRset (mirroring the cross-RRset precedence in validateRRsets).
-	errBogusChain = errors.New("chain of trust is bogus")
-)
+// errDNSKEYUnavailable marks a lookup of a zone's DNSKEY RRset that could not be completed (see
+// lookup). This is "could not validate", not proof of an invalid signature, so the zone gets no
+// status that is kept. Distinct from a DNSKEY RRset that arrives and does not verify, which is a
+// genuine failure.
+var errDNSKEYUnavailable = errors.New("DNSKEY could not be retrieved (unreachable)")
+
+// extendedError is why a validation failed, with what a client is told of it: the INFO-CODE and
+// the EXTRA-TEXT of an extended DNS error (RFC 8914 §2). cause, if there is one, is for the log.
+type extendedError struct {
+	code  uint16
+	text  string
+	cause error
+}
+
+func (e *extendedError) Error() string {
+	if e.cause == nil {
+		return e.text
+	}
+
+	return e.text + ": " + e.cause.Error()
+}
+
+func (e *extendedError) Unwrap() error {
+	return e.cause
+}
+
+// extended returns the extendedError with code and the text that format and args give
+func extended(code uint16, format string, args ...any) *extendedError {
+	return &extendedError{code: code, text: fmt.Sprintf(format, args...)}
+}
+
+// bogus is extended for a failure that only "DNSSEC Bogus" names (RFC 8914 §4.7)
+func bogus(format string, args ...any) *extendedError {
+	return extended(dns.ExtendedErrorCodeDNSBogus, format, args...)
+}
+
+// unsupported is extended for an RRSIG of an algorithm, or of a key, that nothing here verifies
+// with (RFC 8914 §4.2)
+func unsupported(format string, args ...any) *extendedError {
+	return extended(dns.ExtendedErrorCodeUnsupportedDNSKEYAlgorithm, format, args...)
+}
 
 // Resolver is the interface for DNS resolution (minimal interface to avoid import cycles)
 type Resolver interface {
 	Resolve(ctx context.Context, request *model.Request) (*model.Response, error)
 }
 
-// ValidationResult represents the result of DNSSEC validation ENUM(
-// Secure // Valid DNSSEC signatures and chain of trust
+// ValidationResult represents the result of DNSSEC validation. The results are ordered from worst
+// to best, so a result that was never set is Bogus. ENUM(
+// Bogus // Invalid DNSSEC (failed validation, or validation that could not be completed)
+// Indeterminate // No trust anchor above the name
 // Insecure // No DNSSEC (unsigned zone)
-// Bogus // Invalid DNSSEC (failed validation)
-// Indeterminate // Validation could not be completed
+// Secure // Valid DNSSEC signatures and chain of trust
 // )
 type ValidationResult int
+
+// worst returns the lowest of the given results
+func worst(result ValidationResult, others ...ValidationResult) ValidationResult {
+	for _, other := range others {
+		result = min(result, other)
+	}
+
+	return result
+}
 
 // Validator validates DNSSEC signatures and chains of trust
 type Validator struct {
@@ -100,11 +132,10 @@ type Validator struct {
 	logger                *logrus.Entry
 	upstream              Resolver // Used to query for DNSKEY and DS records
 	validationCache       cache.ExpiringCache[zoneStatus]
-	nsec3HashCache        sync.Map // Cache for NSEC3 hash computations: key = "name:alg:salt:iterations"
 	cacheExpiration       time.Duration
-	maxChainDepth         uint // Maximum depth for chain of trust validation
+	maxChainDepth         uint // Maximum number of zones in a chain of trust below its trust anchor
 	maxNSEC3Iterations    uint // Maximum NSEC3 iterations (RFC 5155 §10.3)
-	maxUpstreamQueries    uint // Maximum upstream queries per validation (DoS protection)
+	maxUpstreamQueries    uint // Maximum upstream queries for the validations of one client query (DoS protection)
 	clockSkewToleranceSec uint // Clock skew tolerance in seconds (RFC 6781 §4.1.2)
 	validationMetrics     *prometheus.CounterVec
 	cacheHitMetrics       prometheus.Counter
@@ -150,9 +181,11 @@ func (v *Validator) initializeMetrics() {
 //   - logger: Logger for validation events and debugging
 //   - upstream: Resolver to use for querying DNSKEY and DS records
 //   - cacheExpirationHours: How long to cache validation results (0 defaults to 1 hour)
-//   - maxChainDepth: Maximum domain label depth to validate (0 defaults to 10, prevents DoS)
+//   - maxChainDepth: Maximum number of zones in a chain of trust below its trust anchor (0
+//     defaults to 10, prevents DoS)
 //   - maxNSEC3Iterations: Maximum NSEC3 iterations (0 defaults to 150, prevents DoS)
-//   - maxUpstreamQueries: Maximum upstream queries per validation (0 defaults to 30, prevents DoS)
+//   - maxUpstreamQueries: Maximum upstream queries for the validations of one client query (0
+//     defaults to 30, prevents DoS)
 //   - clockSkewToleranceSec: Clock skew tolerance in seconds (0 defaults to 3600 = 1 hour)
 //
 // Returns a configured Validator ready for use.
@@ -204,169 +237,518 @@ func NewValidator(
 	return v
 }
 
-// ValidateResponse validates a DNS response's DNSSEC signatures according to RFC 4035.
+// Verdict is what validation says of a reply: its status and, for a Bogus reply, why, as the
+// extended DNS error that tells a client so (RFC 8914 §2). EDE and Text mean something only if
+// Result is Bogus: the zero value of EDE is a code too. For a Secure reply it says how long each
+// RRset of the reply is authentic.
 //
-// This function performs the following validation steps:
-//  1. Checks if the response contains DNSSEC signatures (RRSIG records)
-//  2. If unsigned, returns ValidationResultInsecure
-//  3. If signed, validates all RRsets in the answer section:
-//     - Verifies RRSIG signatures match the RRset data
-//     - Validates signature time windows (inception/expiration)
-//     - Walks the chain of trust from root to the domain
-//     - Verifies DNSKEYs against DS records or trust anchors
-//  4. Returns ValidationResultSecure if all checks pass
-//  5. Returns ValidationResultBogus if validation fails
+// RanOut says that the validation of a Bogus reply asked for more than it had of one of its
+// budgets: signature verifications, NSEC3 hashes or upstream queries (see budget). The same
+// question asked again has no more of it: Unbound does not restart a validation that went over
+// its limits either (val_can_restart).
+//
+// NoReply says that a DS or DNSKEY lookup of the validation ended without a reply: the upstream
+// resolver returned an error or timed out, after its own tries, for the first try of the lookup
+// or for its second (see lookup). Whatever the verdict rests on, the same question asked again
+// makes that lookup again and waits for it again: a reply that is Bogus with it is not asked for
+// again.
+type Verdict struct {
+	Result    ValidationResult
+	EDE       uint16    // The INFO-CODE, one of dns.ExtendedErrorCode*
+	Text      string    // The EXTRA-TEXT
+	Lifetimes Lifetimes // Of the RRsets of the answer and authority sections
+	RanOut    bool      // The validation ran out of a budget
+	NoReply   bool      // A DS or DNSKEY lookup of the validation got no reply
+}
+
+// newVerdict returns the verdict for a reply with the status result. err is why it is Bogus, if
+// it is: the extendedError that err holds says what a client is told, and without one that is
+// "DNSSEC Bogus". sections are the RRsets of the reply as validation left them, which say how long
+// a Secure reply is authentic.
+func newVerdict(result ValidationResult, err error, sections ...[]rrsetResult) Verdict {
+	if result == ValidationResultSecure {
+		return Verdict{Result: result, Lifetimes: newLifetimes(sections...)}
+	}
+
+	if result != ValidationResultBogus {
+		return Verdict{Result: result}
+	}
+
+	why, told := errors.AsType[*extendedError](err)
+	if !told {
+		why = bogus("the reply failed validation")
+	}
+
+	return Verdict{Result: result, EDE: why.code, Text: why.text}
+}
+
+// Validate validates response as the reply to question according to RFC 4035 and returns its
+// status:
+//   - Secure: its answer section is the answer to the question, the zones of the RRsets of its
+//     answer and authority sections signed them, each along a chain of trust from a trust anchor,
+//     and what it denies is proven
+//   - Insecure: a part of its answer is below a delegation that the parent zone proves to be
+//     unsigned, and nothing is wrong with the rest
+//   - Indeterminate: no trust anchor is above a name of its answer, and nothing is wrong with
+//     the rest (RFC 4033 §5)
+//   - Bogus: anything else. That includes a reply whose validation could not be completed, for
+//     whatever reason (RFC 4035 §5.5, see classifyUndetermined): the verdict says why.
+//
+// The additional section is not validated, and nothing in it is read (RFC 4035 §3.2.3). Neither
+// are the NS RRsets of the authority section that ValidatedAuthority leaves out. Validation does
+// not change response.
 //
 // Parameters:
 //   - ctx: Context for the validation operation
 //   - response: DNS response message to validate
-//   - question: Original DNS question for context
-//
-// Returns one of: ValidationResultSecure, ValidationResultInsecure,
-// ValidationResultBogus, or ValidationResultIndeterminate
+//   - question: The question that response is the reply to
+func (v *Validator) Validate(ctx context.Context, response *dns.Msg, question dns.Question) Verdict {
+	verdict, _ := v.verdict(ctx, response, question)
+
+	return verdict
+}
+
+// ValidateResponse is Validate for a caller that needs the status of the reply only
 func (v *Validator) ValidateResponse(
 	ctx context.Context,
 	response *dns.Msg,
 	question dns.Question,
 ) ValidationResult {
+	return v.Validate(ctx, response, question).Result
+}
+
+// verdict implements Validate and also returns the budget of the validation, which tells what it
+// cost
+func (v *Validator) verdict(ctx context.Context, response *dns.Msg, question dns.Question) (Verdict, *budget) {
 	start := time.Now()
 	v.logger.Debugf("DNSSEC validation requested for %s", question.Name)
 
 	// Initialize query budget for this validation request (DoS protection); every sub-query of
 	// the validation draws from it
-	ctx = withQueryBudget(ctx, int(v.maxUpstreamQueries))
+	ctx = v.withBudget(ctx)
 
-	var result ValidationResult
+	verdict := v.responseStatus(ctx, response, question)
 
-	// Dispatch to appropriate validator based on response type
+	// A validation that ran out of budget is incomplete. The response itself can force this, so
+	// its answer is refused whether or not a trust anchor is above its names. A lookup that the
+	// query budget refuses is one that could not be completed (see lookup).
+	b := budgetFrom(ctx)
+	if b.ranOut() {
+		v.logger.Warnf("Validation of %s needs more signature verifications or NSEC3 hashes than one reply gets - "+
+			"treating as Bogus", question.Name)
+
+		verdict = newVerdict(ValidationResultBogus,
+			bogus("validation needs more signature verifications or NSEC3 hashes than one reply gets"))
+	}
+
+	verdict.RanOut = verdict.Result == ValidationResultBogus && b.overdrawn()
+	verdict.NoReply = b.unanswered()
+
+	v.recordMetrics(start, verdict.Result)
+
+	return verdict, b
+}
+
+// ValidatedAuthority returns the records of the authority section of response that the status of
+// the reply covers: all but the NS RRsets that no RRSIG covers. A forwarder that holds the NS
+// RRset of a zone without its RRSIG, from a referral, may add it to a reply that does not depend
+// on it. A signed zone signs its NS RRset, so the reply would be Bogus with the RRset, and it
+// says the same without. An NS RRset that is the only RRset of the authority section of a reply
+// without answer is covered: such a reply has nothing else to say. Unbound takes the first such
+// RRset out of a reply of a signed zone (remove_spurious_authority).
+func ValidatedAuthority(response *dns.Msg) []dns.RR {
+	if len(orderedRRsets(response.Answer)) == 0 && len(orderedRRsets(response.Ns)) == 1 {
+		return response.Ns
+	}
+
+	sigs := rrsigsByRRset(response.Ns)
+
+	return slices.DeleteFunc(slices.Clone(response.Ns), func(rr dns.RR) bool {
+		return rr.Header().Rrtype == dns.TypeNS && len(sigs[rrsetKeyOf(rr)]) == 0
+	})
+}
+
+// CoversNoRRset returns what reports whether a record is an RRSIG record that covers no RRset of
+// rrs, the records of its section: none of them has its owner name and the type of its Type
+// Covered field (RFC 4035 §5.3.1). Validation gives an RRset its status with the RRSIGs that
+// cover it and does not read an RRSIG without its RRset (see validateSection), so the status of a
+// reply says nothing of such a record.
+func CoversNoRRset(rrs []dns.RR) func(dns.RR) bool {
+	rrsets := groupRRsetsByNameAndType(rrs)
+
+	return func(rr dns.RR) bool {
+		sig, isSig := rr.(*dns.RRSIG)
+
+		return isSig && len(rrsets[rrsetKey{name: dns.CanonicalName(sig.Hdr.Name), rrType: sig.TypeCovered}]) == 0
+	}
+}
+
+// responseStatus returns the status of response as the reply to question. It is the status of
+// the answer: the worst of the statuses of the RRsets of the chain that the answer section must
+// be (see followAnswer) and, for a chain that ends without data, of the proof of that (see
+// unansweredStatus). A name error for a chain that ends with data is Bogus: the name that has the
+// data exists. The RRsets that the reply carries beside its answer, in the authority section and
+// as the DNAME RRset above a CNAME, must be authentic for the reply to be (RFC 4035 §3.2.3). The
+// additional section is no part of the reply's status.
+//
+// An RRset of either section that an RRSIG made for a wildcard verified is Bogus without the
+// proof that the wildcard answers for its name, which the verified RRsets of the authority
+// section give (see proveExpansions).
+//
+// The status comes as a verdict, which says why a reply is Bogus, and for how long each RRset of
+// a Secure reply is authentic (see newVerdict).
+func (v *Validator) responseStatus(ctx context.Context, response *dns.Msg, question dns.Question) Verdict {
+	chain := followAnswer(response, question)
+
 	switch {
-	case !v.hasAnySignatures(response):
-		// A response with no RRSIGs does NOT automatically mean the zone is unsigned.
-		// Determine the zone's security status first: if the zone is signed (chains to
-		// a trust anchor) then a missing-signature answer is forged, not insecure.
-		result = v.classifyUnsignedResponse(ctx, question)
-	case len(response.Answer) > 0:
-		result = v.validateAnswer(ctx, response, question)
-	case v.isNegativeResponse(response):
-		result = v.validateNegativeResponse(ctx, response, question)
-	case v.hasAuthorityOrAdditional(response):
-		result = v.validateAuthorityOrAdditional(ctx, response, question)
-	default:
-		result = ValidationResultInsecure
+	case chain.stray:
+		v.logger.Warnf("Answer section holds an RRset that is no part of the answer for %s - treating as Bogus",
+			question.Name)
+
+		return newVerdict(ValidationResultBogus, bogus("the answer section holds an RRset that is no part of the answer"))
+	case chain.found && response.Rcode == dns.RcodeNameError:
+		v.logger.Warnf("Name error with the data asked for at %s - treating as Bogus", chain.end)
+
+		return newVerdict(ValidationResultBogus, bogus("name error for %s, which has the data asked for", chain.end))
 	}
 
-	// A validation that ran out of query budget is incomplete. Unlike an unreachable upstream, the
-	// response itself can force this, so its answer is refused instead of passed on unvalidated.
-	if result == ValidationResultIndeterminate && queryBudgetExhausted(ctx) {
-		v.logger.Warnf("Query budget exhausted while validating %s - treating as Bogus", question.Name)
+	var authority []rrsetResult
 
-		result = ValidationResultBogus
+	keys := chainKeys{v: v, parentSide: chain.parentSide}
+	results := keys.validateAnswer(ctx, response.Answer, chain.synthesized)
+
+	// An RRset that is Bogus for good makes the reply Bogus, so nothing after it is verified
+	if !anyRefused(results) {
+		authority = validateSection(ctx, ValidatedAuthority(response), keys)
+		v.proveExpansions(ctx, authority, results, authority)
 	}
 
-	v.recordMetrics(start, result)
+	answer, beside := chain.split(results)
+	beside = append(beside, authority...)
+	status, why := worstStatus(answer), whyBogus(answer)
 
-	return result
+	if !chain.found && status != ValidationResultBogus && worstStatus(beside) != ValidationResultBogus {
+		var proof ValidationResult
+
+		nameError := response.Rcode == dns.RcodeNameError
+		proof, why = v.unansweredStatus(ctx, authority, chain, question.Qtype, nameError)
+		status = worst(status, proof)
+	}
+
+	// The reply has the status of its answer, which the RRsets beside the answer change in one
+	// way: the reply is Bogus if one of them is, and if the answer is Secure and one of them is
+	// not. They make no answer Insecure, and none better than it is.
+	if rest := worstStatus(beside); rest == ValidationResultBogus ||
+		status == ValidationResultSecure && rest != ValidationResultSecure {
+		v.logger.Warnf("Reply for %s carries an RRset beside its answer that is %s - treating as Bogus",
+			question.Name, rest.String())
+
+		// A Bogus answer says why itself, and else the first Bogus RRset beside it does
+		if status != ValidationResultBogus {
+			if why = whyBogus(beside); why == nil {
+				why = bogus("an RRset beside the authenticated answer is %s", rest.String())
+			}
+		}
+
+		return newVerdict(ValidationResultBogus, why)
+	}
+
+	v.logger.Debugf("Reply for %s is %s", question.Name, status.String())
+
+	return newVerdict(status, why, results, authority)
 }
 
-// hasAnySignatures checks if response contains any RRSIG records
-func (v *Validator) hasAnySignatures(response *dns.Msg) bool {
-	return len(extractRRSIGs(response.Answer)) > 0 ||
-		len(extractRRSIGs(response.Ns)) > 0 ||
-		len(extractRRSIGs(response.Extra)) > 0
+// answerChain is the answer that a reply gives to a question (see followAnswer)
+type answerChain struct {
+	synthesized map[rrsetKey]rrsetKey // CNAME -> DNAME supplying its exact substitution
+	rrsets      map[rrsetKey]bool     // The RRsets of the chain
+	end         string                // The name at which the chain ends, in canonical form
+	found       bool                  // The chain ends with the RRsets asked for, and else at a name without them
+	stray       bool                  // The answer section holds an RRset that the chain does not lead to
+
+	// The CNAME RRset that answers a DS question, if the chain is that RRset: like the DS RRset
+	// asked for, an RRset of the zone above its owner name (see holder)
+	parentSide rrsetKey
 }
 
-// classifyUnsignedResponse determines the validation result for a response that
-// carries no RRSIG records. Per RFC 4035 §5.2 the absence of signatures only means
-// "insecure" if the queried name is provably below an insecure delegation. If the
-// enclosing zone is secure (chains to a trust anchor) with no authenticated proof of
-// an insecure delegation, an unsigned answer is bogus, not insecure.
-func (v *Validator) classifyUnsignedResponse(ctx context.Context, question dns.Question) ValidationResult {
-	status := v.checkZoneSecurityStatus(ctx, question.Name)
-	if status == ValidationResultSecure {
-		v.logger.Warnf("No RRSIG for %s but zone is secure - treating unsigned answer as bogus", question.Name)
-
-		return ValidationResultBogus
+// followAnswer follows the answer that reply gives to question (RFC 1034 §4.3.2): the chain from
+// the query name along the CNAME RRsets of its answer section to the RRset of the query type. A
+// query for CNAME takes the CNAME RRset of the query name as that RRset, and a query for ANY
+// takes every RRset of the query name and follows no CNAME. An RRSIG is part of the RRset that it
+// covers and no data by itself. Names are compared in canonical form (RFC 4034 §6.2).
+//
+// A query for DS asks the zone above a name whether the name is a zone cut (RFC 4035 §2.4). A
+// name that owns a CNAME RRset has no other data (RFC 1034 §3.6.2, RFC 2181 §10.1), so it is
+// none, and that RRset is all that the zone above has to answer with: the chain of trust walk
+// reads it so too (see ownsCNAME). What the target of the CNAME has is another question. So the
+// CNAME RRset of the query name is the RRset asked for if the reply ends with it: the answer
+// section holds no other RRset, and the reply says nothing of the target (see endsWithAnswer).
+// It is then an RRset of the zone above the name, as the DS RRset would be (see holder). A reply
+// that goes on says what the target has, and the chain follows it there as for any other type.
+//
+// The rule is for the CNAME RRset that the name owns. One that a wildcard gives the query name
+// comes with the NSEC or NSEC3 records that prove so, in a reply that therefore does not end with
+// its answer: it is validated as one that goes on.
+//
+// A CNAME made from a DNAME comes with the DNAME RRset of a name above it (RFC 6672 §3.1). That
+// RRset supplies the unsigned CNAME if the substitution is exact. Every other RRset that the
+// chain does not lead to is a stray: such a section answers another question, or none.
+func followAnswer(reply *dns.Msg, question dns.Question) answerChain {
+	rest := groupRRsetsByNameAndType(reply.Answer)
+	chain := answerChain{rrsets: make(map[rrsetKey]bool), end: dns.CanonicalName(question.Name)}
+	dnames := indexDNAMEs(rest)
+	if len(dnames) != 0 {
+		chain.synthesized = make(map[rrsetKey]rrsetKey)
 	}
 
-	// Insecure (genuinely unsigned zone) or Indeterminate (cannot determine).
-	v.logger.Debugf("No RRSIG for %s - zone status %s", question.Name, status.String())
+	// take moves the RRset of the name at the end of the chain with the type rrType into the
+	// chain. An RRset is taken once, so the chain ends where its CNAMEs loop.
+	take := func(rrType uint16) []dns.RR {
+		key := rrsetKey{name: chain.end, rrType: rrType}
 
-	return status
+		rrset, held := rest[key]
+		if held {
+			delete(rest, key)
+			chain.rrsets[key] = true
+		}
+
+		if held && rrType == dns.TypeCNAME && len(dnames) != 0 {
+			chain.takeCoveringDNAME(key, rrset, dnames, rest)
+		}
+
+		return rrset
+	}
+
+	if question.Qtype == dns.TypeANY {
+		for key := range rest {
+			if key.name == chain.end {
+				take(key.rrType)
+
+				chain.found = true
+			}
+		}
+	}
+
+	for question.Qtype != dns.TypeANY {
+		if take(question.Qtype) != nil {
+			chain.found = true
+
+			break
+		}
+
+		target, isAlias := cnameTarget(take(dns.TypeCNAME))
+		if !isAlias {
+			break
+		}
+
+		// The CNAME RRset of the query name is the answer to a DS question that the reply takes no
+		// further
+		if question.Qtype == dns.TypeDS && len(chain.rrsets) == 1 && len(rest) == 0 && endsWithAnswer(reply) {
+			chain.found, chain.parentSide = true, rrsetKey{name: chain.end, rrType: dns.TypeCNAME}
+
+			break
+		}
+
+		chain.end = target
+	}
+
+	chain.stray = chain.stray || len(rest) > 0
+
+	return chain
 }
 
-// validateAnswer validates the answer section of a response
-func (v *Validator) validateAnswer(
-	ctx context.Context, response *dns.Msg, question dns.Question,
-) ValidationResult {
-	result := v.validateRRsets(ctx, response.Answer, question.Name, response.Ns, question.Name)
-	if result != ValidationResultSecure {
-		v.logger.Warnf("Answer validation failed for %s: %s", question.Name, result.String())
-	} else {
-		v.logger.Debugf("DNSSEC validation succeeded for %s", question.Name)
+// Keep DNAMEs available for later substitutions even after they have been taken from rest.
+func indexDNAMEs(rest map[rrsetKey][]dns.RR) map[rrsetKey][]dns.RR {
+	var dnames map[rrsetKey][]dns.RR
+	for key, rrset := range rest {
+		if key.rrType != dns.TypeDNAME {
+			continue
+		}
+		if dnames == nil {
+			dnames = make(map[rrsetKey][]dns.RR)
+		}
+		dnames[key] = rrset
 	}
 
-	return result
+	return dnames
 }
 
-// isNegativeResponse checks if response is NXDOMAIN or NODATA
-// Per RFC 4035 §5.4: NXDOMAIN (Rcode=3) or NODATA (Rcode=0 with no answer RRs)
-func (v *Validator) isNegativeResponse(response *dns.Msg) bool {
-	if response.Rcode == dns.RcodeNameError {
-		return true // NXDOMAIN
-	}
-	// NODATA: Success with no answer section
-	if response.Rcode == dns.RcodeSuccess && len(response.Answer) == 0 {
-		return true
-	}
+func (chain *answerChain) takeCoveringDNAME(key rrsetKey, rrset []dns.RR, dnames, rest map[rrsetKey][]dns.RR) {
+	// Walk whole DNS labels: a quoted dot belongs to its label. Only the closest DNAME applies.
+	for off, end := dns.NextLabel(key.name, 0); !end; off, end = dns.NextLabel(key.name, off) {
+		above := rrsetKey{key.name[off:], dns.TypeDNAME}
+		ds := dnames[above]
+		if ds == nil {
+			continue
+		}
 
-	return false
+		if matchesDNAME(key.name[:off], ds, rrset) {
+			chain.synthesized[key] = above
+			delete(rest, above)
+		} else {
+			chain.stray = true
+		}
+
+		return
+	}
 }
 
-// validateNegativeResponse validates NXDOMAIN or NODATA responses
-func (v *Validator) validateNegativeResponse(
-	ctx context.Context, response *dns.Msg, question dns.Question,
-) ValidationResult {
-	nsSigs := extractRRSIGs(response.Ns)
-	if len(nsSigs) == 0 {
-		v.logger.Debugf("No signatures in authority section for denial of existence: %s", question.Name)
-
-		return ValidationResultInsecure
+// matchesDNAME checks RFC 6672 §3.1: preserve every label below the DNAME owner
+// and replace only that owner with the DNAME target (possibly the root).
+func matchesDNAME(prefix string, ds, cs []dns.RR) bool {
+	if len(ds) != 1 || len(cs) != 1 {
+		return false
 	}
-
-	result := v.validateDenialOfExistence(ctx, response, question)
-	if result != ValidationResultSecure {
-		v.logger.Warnf("Denial of existence validation failed for %s: %s", question.Name, result.String())
-	} else {
-		v.logger.Debugf("Denial of existence validated for %s", question.Name)
+	d, dok := ds[0].(*dns.DNAME)
+	c, cok := cs[0].(*dns.CNAME)
+	if !dok || !cok || d.Hdr.Class != c.Hdr.Class {
+		return false
 	}
+	target := prefix
+	if d.Target != "." {
+		target += dns.CanonicalName(d.Target)
+	}
+	_, valid := dns.IsDomainName(target)
 
-	return result
+	return valid && target == dns.CanonicalName(c.Target)
 }
 
-// hasAuthorityOrAdditional checks if response has signatures in NS or Extra sections
-func (v *Validator) hasAuthorityOrAdditional(response *dns.Msg) bool {
-	return len(extractRRSIGs(response.Ns)) > 0 || len(extractRRSIGs(response.Extra)) > 0
+// endsWithAnswer reports whether reply says nothing beyond its answer section about the name
+// that the section leads to: it is no name error, and its authority section holds no RRset that
+// is validated (see ValidatedAuthority). Such a reply neither names what that name has nor denies
+// it.
+func endsWithAnswer(reply *dns.Msg) bool {
+	return reply.Rcode == dns.RcodeSuccess && len(orderedRRsets(ValidatedAuthority(reply))) == 0
 }
 
-// validateAuthorityOrAdditional validates authority or additional sections
-func (v *Validator) validateAuthorityOrAdditional(
-	ctx context.Context, response *dns.Msg, question dns.Question,
-) ValidationResult {
-	// Combine authority and additional sections for validation
-	sectionsToValidate := make([]dns.RR, 0, len(response.Ns)+len(response.Extra))
-	sectionsToValidate = append(sectionsToValidate, response.Ns...)
-	sectionsToValidate = append(sectionsToValidate, response.Extra...)
-
-	if len(sectionsToValidate) == 0 {
-		return ValidationResultInsecure
+// cnameTarget returns the name that rrset, a CNAME RRset, points to, in canonical form. A name
+// has one CNAME record (RFC 2181 §10.1), so it is the target of the first.
+func cnameTarget(rrset []dns.RR) (target string, isAlias bool) {
+	if len(rrset) == 0 {
+		return "", false
 	}
 
-	result := v.validateRRsets(ctx, sectionsToValidate, question.Name, response.Ns, question.Name)
-	if result != ValidationResultSecure {
-		v.logger.Warnf("Authority/Additional validation failed for %s: %s", question.Name, result.String())
+	cname, isAlias := rrset[0].(*dns.CNAME)
+	if !isAlias {
+		return "", false
 	}
 
-	return result
+	return dns.CanonicalName(cname.Target), true
+}
+
+// split returns the RRsets of results, those of the answer section, that are part of the chain,
+// and the others
+func (c answerChain) split(results []rrsetResult) (answer, beside []rrsetResult) {
+	for _, r := range results {
+		if c.rrsets[rrsetKeyOf(r.rrs[0])] {
+			answer = append(answer, r)
+		} else {
+			beside = append(beside, r)
+		}
+	}
+
+	return answer, beside
+}
+
+// unansweredStatus returns the status of chain, an answer that ends at a name without an RRset
+// of qtype. authority holds the RRsets of the authority section of the reply, none of them Bogus.
+// The zone that holds the missing RRset gives the denial (RFC 4035 §5.4): its NSEC or NSEC3
+// records in the reply (see denialZone) must prove what the reply says, for a name error that the
+// name does not exist, and else that it has no RRset of qtype. For a name behind a CNAME, a reply
+// without name error may say either (RFC 2308 §2.2.1, RFC 6604 §3).
+//
+// An answer that no zone proves so has the status of unsigned data at the name where it ends:
+// Insecure only below a proven insecure delegation (RFC 4035 §4.3), and Bogus in a Secure zone,
+// which denies what it does not have. Only Secure NSEC and NSEC3 records are a proof: what another
+// one is says nothing about that name. The error says why the status is Bogus.
+func (v *Validator) unansweredStatus(
+	ctx context.Context, authority []rrsetResult, chain answerChain, qtype uint16, nameError bool,
+) (ValidationResult, error) {
+	// The RRset that the answer ends without
+	missing := rrsetResult{owner: chain.end, rrType: qtype}
+	proof := ValidationResultBogus
+
+	if zone, found := v.denialZone(authority, v.holder(&missing)); found {
+		d := v.newDenialSet(ctx, zone, authority, chain.end, qtype)
+		behindCNAME := len(chain.rrsets) > 0
+
+		switch {
+		case nameError:
+			proof = d.nameError()
+		case behindCNAME:
+			if proof = d.noData(); proof == ValidationResultBogus {
+				proof = d.nameError()
+			}
+		default:
+			proof = d.noData()
+		}
+	}
+
+	if proof == ValidationResultBogus {
+		v.logger.Debugf("No proof for %s, which has no data of type %d", chain.end, qtype)
+
+		return v.unsignedDataStatus(ctx, &missing)
+	}
+
+	return proof, nil
+}
+
+// holder returns the name whose zone holds r: the owner name of r, or the name above it if r is
+// on the parent's side of a zone cut at its owner name. That is a DS RRset (RFC 4035 §2.4), the
+// CNAME RRset that answers a question for one (see followAnswer), and the NSEC record of a
+// delegation, which lists what the zone above has at the name (RFC 6840 §4.1). The root has no
+// zone above it. An NSEC3 record is held by the zone that its owner name names after the hash
+// (RFC 5155 §3). r may be an RRset that a reply lacks: an owner name and a type.
+func (v *Validator) holder(r *rrsetResult) string {
+	parentSide := r.parentSide || r.rrType == dns.TypeDS
+
+	if len(r.rrs) > 0 {
+		switch rr := r.rrs[0].(type) {
+		case *dns.NSEC3:
+			return nsec3Zone(rr)
+		case *dns.NSEC:
+			parentSide = isDelegation(rr.TypeBitMap)
+		}
+	}
+
+	if parent := v.getParentDomain(r.owner); parentSide && parent != "" {
+		return parent
+	}
+
+	return r.owner
+}
+
+// unsignedDataStatus returns the status of r, an RRset that has no RRSIG: that of the zone that
+// holds it (see holder), which the chain of trust walk finds (see walk). Per RFC 4035 §5.2 the
+// absence of signatures only means "insecure" if the name is provably below an insecure
+// delegation. If the zone is secure (chains to a trust anchor) with no authenticated proof of an
+// insecure delegation, unsigned data is bogus, not insecure: a signed zone signs all that it
+// holds, and proves what it does not hold. A walk that could not be completed says nothing about
+// the zone (see classifyUndetermined). The error says why the status is Bogus.
+func (v *Validator) unsignedDataStatus(ctx context.Context, r *rrsetResult) (ValidationResult, error) {
+	name := v.holder(r)
+	zone := v.walk(ctx, name, false)
+
+	switch zone.result {
+	case ValidationResultSecure:
+		v.logger.Warnf("No RRSIG for %s but zone is secure - treating unsigned answer as bogus", r.owner)
+
+		if len(r.rrs) == 0 {
+			return ValidationResultBogus, bogus("no proof that %s has no %s RRset", r.owner, dns.Type(r.rrType))
+		}
+
+		return ValidationResultBogus, &extendedError{
+			code: dns.ExtendedErrorCodeRRSIGsMissing,
+			text: fmt.Sprintf("no RRSIG for %s %s in a signed zone", r.owner, dns.Type(r.rrType)),
+		}
+	case ValidationResultIndeterminate:
+		return v.classifyUndetermined(name, zone.err)
+	case ValidationResultInsecure, ValidationResultBogus:
+		// Below an insecure delegation, or in a zone that is Bogus itself
+		v.logger.Debugf("No RRSIG for %s - zone status %s", r.owner, zone.result.String())
+	}
+
+	return zone.result, zone.err
 }
 
 // recordMetrics records validation metrics
@@ -376,29 +758,35 @@ func (v *Validator) recordMetrics(start time.Time, result ValidationResult) {
 	v.validationDuration.WithLabelValues(result.String()).Observe(duration.Seconds())
 }
 
-// extractRRSIGs extracts all RRSIG records from a slice of RRs
-func extractRRSIGs(rrs []dns.RR) []*dns.RRSIG {
-	return util.ExtractRecordsFromSlice[*dns.RRSIG](rrs)
-}
-
 // rrsetKey uniquely identifies an RRset by owner name and type
 // Per RFC 4035: An RRset is a set of RRs with the same owner name, class, and type
 type rrsetKey struct {
-	name   string // Owner name (FQDN)
+	name   string // Owner name in canonical form (RFC 4034 §6.2)
 	rrType uint16 // Record type
+}
+
+// rrsetKeyOf returns the key of the RRset that rr is part of. Owner names that differ in case are
+// one name (RFC 4343), so the key holds the name in canonical form.
+func rrsetKeyOf(rr dns.RR) rrsetKey {
+	return rrsetKey{name: dns.CanonicalName(rr.Header().Name), rrType: rr.Header().Rrtype}
 }
 
 // groupRRsetsByNameAndType groups RRs by their owner name and type (excluding RRSIGs)
 // This is critical for DNSSEC validation: each RRset must contain only records
 // with the same owner name. For CNAME chains, each CNAME is a separate RRset.
+// A record that spells the owner name in another case than the first record of its RRset joins
+// the RRset as a copy with the spelling of the first: miekg/dns verifies an RRset only if its
+// records spell the name alike.
 func groupRRsetsByNameAndType(rrs []dns.RR) map[rrsetKey][]dns.RR {
 	rrsets := make(map[rrsetKey][]dns.RR)
 	for _, rr := range rrs {
 		if _, isSig := rr.(*dns.RRSIG); !isSig {
-			key := rrsetKey{
-				name:   dns.Fqdn(rr.Header().Name),
-				rrType: rr.Header().Rrtype,
+			key := rrsetKeyOf(rr)
+			if rrset := rrsets[key]; len(rrset) > 0 && rr.Header().Name != rrset[0].Header().Name {
+				rr = dns.Copy(rr)
+				rr.Header().Name = rrset[0].Header().Name
 			}
+
 			rrsets[key] = append(rrsets[key], rr)
 		}
 	}
@@ -406,395 +794,21 @@ func groupRRsetsByNameAndType(rrs []dns.RR) map[rrsetKey][]dns.RR {
 	return rrsets
 }
 
-// validateRRsets validates all RRsets in a section
-func (v *Validator) validateRRsets(
-	ctx context.Context, rrs []dns.RR, domain string, nsRecords []dns.RR, qname string,
-) ValidationResult {
-	// Extract all RRSIGs
-	sigs := extractRRSIGs(rrs)
-	if len(sigs) == 0 {
-		v.logger.Debugf("No RRSIGs found in section for %s", domain)
+// orderedRRsets returns the RRsets of rrs in the order of their first records
+func orderedRRsets(rrs []dns.RR) [][]dns.RR {
+	grouped := groupRRsetsByNameAndType(rrs)
+	rrsets := make([][]dns.RR, 0, len(grouped))
 
-		return ValidationResultInsecure
-	}
+	for _, rr := range rrs {
+		key := rrsetKeyOf(rr)
+		if rrset, pending := grouped[key]; pending {
+			rrsets = append(rrsets, rrset)
 
-	// Group RRs by owner name and type
-	// Per RFC 4035: Each RRset must have the same owner name, class, and type
-	rrsets := groupRRsetsByNameAndType(rrs)
-
-	// Track mixed security statuses (can occur in CNAME chains crossing zone boundaries)
-	hasSecure := false
-	hasInsecure := false
-	hasIndeterminate := false
-
-	// Validate each RRset
-	for key, rrset := range rrsets {
-		// Use the actual RRset owner name instead of the generic domain parameter
-		result := v.validateSingleRRset(ctx, key.rrType, rrset, sigs, key.name, nsRecords, qname)
-
-		switch result {
-		case ValidationResultBogus:
-			// A genuine cryptographic failure fails the whole answer immediately, and must
-			// take precedence over any Indeterminate sibling: rrsets is a map (unordered), so
-			// deferring here would let a transient Indeterminate RRset mask a real Bogus one.
-			return ValidationResultBogus
-		case ValidationResultIndeterminate:
-			// "Could not validate" (transient/unreachable). Remember it but keep scanning in
-			// case another RRset is genuinely Bogus, which must win.
-			hasIndeterminate = true
-		case ValidationResultSecure:
-			hasSecure = true
-		case ValidationResultInsecure:
-			hasInsecure = true
+			delete(grouped, key)
 		}
 	}
 
-	// No RRset was Bogus. If any RRset could not be validated, the answer as a whole could not
-	// be validated - Indeterminate takes precedence over a Secure/Insecure verdict so we never
-	// assert AD (or a clean Insecure) over a partially-unvalidated answer (issue #2120).
-	if hasIndeterminate {
-		return ValidationResultIndeterminate
-	}
-
-	// Per RFC 4035 §5.2: A mix of Secure and Insecure RRsets is acceptable
-	// This happens with CNAME chains crossing from unsigned to signed zones (or vice versa)
-	if hasSecure {
-		// At least one RRset is validated with DNSSEC signatures
-		return ValidationResultSecure
-	}
-
-	if hasInsecure {
-		// All RRsets are from unsigned (insecure) zones - no DNSSEC validation possible
-		return ValidationResultInsecure
-	}
-
-	// Shouldn't reach here, but return Secure as fallback
-	return ValidationResultSecure
-}
-
-// validateSingleRRset validates a single RRset with its signatures
-func (v *Validator) validateSingleRRset(
-	ctx context.Context, rrType uint16, rrset []dns.RR, sigs []*dns.RRSIG,
-	domain string, nsRecords []dns.RR, qname string,
-) ValidationResult {
-	// Find matching RRSIGs for this RRset
-	// Per RFC 6840 §5.11, we should prefer stronger algorithms to prevent downgrade attacks
-	// RRSIGs must match both the type covered AND the owner name
-	matchingRRSIGs := findMatchingRRSIGs(sigs, dns.Fqdn(domain), rrType)
-
-	if len(matchingRRSIGs) == 0 {
-		// RFC 4035 §5.2: Before treating missing RRSIG as Bogus, check if the zone is insecure (unsigned)
-		// This handles cases where CNAME chains cross zone boundaries with different security statuses
-		rrsetName := dns.Fqdn(rrset[0].Header().Name)
-
-		return v.handleMissingRRSIG(ctx, rrType, rrsetName)
-	}
-
-	// RFC 4035 §5.3.1: Try all RRSIGs in order of preference (strongest algorithm first)
-	// Per RFC 4035 §2.2: If ANY signature verifies successfully, the RRset is Secure
-	// Only if ALL signatures fail should we return Bogus or Insecure
-	sortedSigs := v.sortRRSIGsByStrength(matchingRRSIGs)
-
-	var (
-		lastErr                 error
-		hasUnsupportedSignature bool
-		hasOtherFailure         bool
-		hasInsecureChain        bool
-		hasIndeterminateChain   bool
-	)
-
-	for _, matchingSig := range sortedSigs {
-		success, err := v.tryVerifyWithRRSIG(ctx, rrset, matchingSig, domain, nsRecords, qname, rrType)
-		if success {
-			// Check if signature verified but chain is insecure
-			if errors.Is(err, errInsecureChain) {
-				// Signature verified cryptographically, but no chain of trust to root
-				// Per RFC 5155 §6: Zone is signed but delegation is insecure (NSEC3 Opt-Out)
-				hasInsecureChain = true
-
-				continue
-			}
-
-			// At least one signature verified successfully with full chain of trust
-			return ValidationResultSecure
-		}
-
-		switch {
-		case err == nil:
-			// Skipped for a non-failure reason (e.g. signer-name mismatch) - track nothing.
-		case errors.Is(err, errUnsupportedRSAExponent):
-			// Track unsupported signatures but continue trying others
-			hasUnsupportedSignature = true
-		case errors.Is(err, errIndeterminateChain):
-			// Validation data could not be gathered (transient/unreachable) - this is
-			// "could not determine", not a cryptographic failure (issue #2120).
-			hasIndeterminateChain = true
-			lastErr = err
-		default:
-			// A genuine failure (signature did not verify, no matching key, bogus chain, ...).
-			// This dominates any Indeterminate sibling so Bogus wins within the RRset.
-			hasOtherFailure = true
-			lastErr = err
-		}
-	}
-
-	// Determine final result based on failure types
-	return v.determineFinalValidationResult(
-		domain, len(sortedSigs), hasInsecureChain, hasUnsupportedSignature, hasOtherFailure,
-		hasIndeterminateChain, lastErr,
-	)
-}
-
-// determineFinalValidationResult determines the validation result when all RRSIGs have been tried
-func (v *Validator) determineFinalValidationResult(
-	domain string, sigCount int, hasInsecureChain, hasUnsupportedSignature, hasOtherFailure,
-	hasIndeterminateChain bool, lastErr error,
-) ValidationResult {
-	// Check if any signature verified with insecure chain
-	// This takes precedence over other failure types
-	if hasInsecureChain {
-		v.logger.Debugf("RRSIG verified for %s but chain of trust is insecure (no DS in parent) - treating as Insecure",
-			domain)
-
-		return ValidationResultInsecure
-	}
-
-	// All RRSIGs failed - determine result based on failure types
-	// Per RFC 4035 §2.2: Treat unsupported algorithms as Insecure only if NO other errors occurred
-	if hasUnsupportedSignature && !hasOtherFailure && !hasIndeterminateChain {
-		v.logger.Warnf(
-			"All RRSIG signatures for %s use unsupported algorithms - treating as Insecure per RFC 4035 §2.2",
-			domain)
-
-		return ValidationResultInsecure
-	}
-
-	// No signature failed cryptographically, but at least one could not be validated because
-	// its chain of trust was unreachable (transient DS/DNSKEY sub-query failure). This is
-	// "validation could not be completed" - Indeterminate, NOT Bogus. Reporting it Bogus turns
-	// a momentary upstream blip into SERVFAIL "bogus signatures" (issue #2120). At the resolver
-	// layer Indeterminate clears AD and serves the answer; the next query re-validates once the
-	// upstream recovers. A genuine forged/invalid signature still sets hasOtherFailure -> Bogus,
-	// and an unsigned answer (no RRSIG) never reaches here - it stays fail-closed (GHSA-x845).
-	if hasIndeterminateChain && !hasOtherFailure {
-		v.logger.Warnf("Could not complete chain of trust for %s (tried %d signatures), last error: %v - "+
-			"treating as Indeterminate", domain, sigCount, lastErr)
-
-		return ValidationResultIndeterminate
-	}
-
-	// At least one signature failed validation (not just unsupported) - this is Bogus
-	v.logger.Warnf("All RRSIG verification attempts failed for %s (tried %d signatures), last error: %v",
-		domain, sigCount, lastErr)
-
-	return ValidationResultBogus
-}
-
-// tryVerifyWithRRSIG attempts to verify an RRset with a single RRSIG
-// Returns true if verification succeeded, false otherwise
-func (v *Validator) tryVerifyWithRRSIG(
-	ctx context.Context, rrset []dns.RR, matchingSig *dns.RRSIG, domain string,
-	nsRecords []dns.RR, qname string, rrType uint16,
-) (bool, error) {
-	// Validate signer name
-	signerName := matchingSig.SignerName
-	rrsetName := dns.Fqdn(rrset[0].Header().Name)
-
-	// RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner (self-signed at zone apex).
-	// Names are compared in canonical (case-insensitive) form per RFC 4034 §6.
-	if rrType == dns.TypeDNSKEY {
-		if dns.CanonicalName(signerName) != dns.CanonicalName(rrsetName) {
-			v.logger.Debugf("Skipping RRSIG: DNSKEY signer %s must equal owner %s (RFC 4035 §2.2)", signerName, rrsetName)
-
-			return false, nil
-		}
-	} else {
-		// For non-DNSKEY RRsets, signer must be a parent of the RRset owner
-		if !validateSignerName(signerName, rrsetName) {
-			v.logger.Debugf("Skipping RRSIG: signer name %s is not a parent of RRset owner %s", signerName, rrsetName)
-
-			return false, nil
-		}
-	}
-
-	// Validate the signer's DNSKEY RRset via the chain of trust. Only keys from that validated
-	// RRset may verify the signature: a key from any other DNSKEY response is unauthenticated.
-	chainResult, signerKeys := v.walkChainOfTrust(ctx, signerName)
-
-	// Skip verification if the chain of trust could not be established. Distinguish the two
-	// reasons: an Indeterminate chain (a DS/DNSKEY sub-query timed out / upstream unreachable)
-	// is a transient "could not validate" and must propagate as Indeterminate, NOT Bogus
-	// (issue #2120); a Bogus chain (e.g. a DS digest mismatch) is a genuine failure and stays
-	// Bogus via the default in determineFinalValidationResult.
-	if chainResult == ValidationResultIndeterminate {
-		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust is indeterminate (unreachable)",
-			matchingSig.Algorithm, matchingSig.KeyTag)
-
-		return false, errIndeterminateChain
-	}
-
-	if chainResult == ValidationResultBogus {
-		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust validation failed: %s",
-			matchingSig.Algorithm, matchingSig.KeyTag, chainResult.String())
-
-		// A provably-bogus chain is a genuine failure: report it as such so it dominates any
-		// Indeterminate sibling RRSIG and is surfaced in the final Bogus log (not "<nil>").
-		return false, errBogusChain
-	}
-
-	if chainResult == ValidationResultInsecure {
-		// The signer is below an insecure delegation (e.g. NSEC3 Opt-Out): it has no
-		// authenticated keys, so its signatures prove nothing (RFC 4035 §5.2). The RRset is
-		// insecure too, unless a trust anchor below the signer covers it.
-		if v.hasTrustAnchorBelow(signerName, rrsetName) {
-			return false, errBogusChain
-		}
-
-		return true, errInsecureChain
-	}
-
-	// Verify the signature with the matching key of the signer's validated DNSKEY RRset
-	return v.verifyWithSignerKeys(rrset, matchingSig, signerKeys, nsRecords, qname, domain)
-}
-
-// verifyWithSignerKeys verifies an RRset with the key of signerKeys, the signer's validated
-// DNSKEY RRset, that the RRSIG names
-func (v *Validator) verifyWithSignerKeys(
-	rrset []dns.RR, matchingSig *dns.RRSIG, signerKeys []*dns.DNSKEY, nsRecords []dns.RR, qname, domain string,
-) (bool, error) {
-	matchingKey := findMatchingDNSKEY(signerKeys, matchingSig.KeyTag, matchingSig.Algorithm)
-	if matchingKey == nil {
-		return false, fmt.Errorf("no DNSKEY with key tag %d and algorithm %d in the validated DNSKEY RRset of %s",
-			matchingSig.KeyTag, matchingSig.Algorithm, matchingSig.SignerName)
-	}
-
-	// Check for unsupported RSA exponents (Go crypto limitation). RSA/SHA-256 and RSA/SHA-512
-	// keys with an exponent above 2^31-1 are verified by the math/big fallback in verifyRRSIG;
-	// only RSA/SHA-1 (deprecated) remains unsupported and degrades the zone to Insecure.
-	if hasUnsupportedRSAExponent(matchingKey) && !rsaKeyNeedsBigMath(matchingKey) {
-		v.logger.Debugf(
-			"DNSKEY for %s (algorithm=%d, keytag=%d) has an RSA exponent that neither Go crypto "+
-				"nor the math/big fallback can verify - treating zone as Insecure per RFC 4035 §2.2",
-			domain, matchingSig.Algorithm, matchingSig.KeyTag)
-
-		return false, errUnsupportedRSAExponent
-	}
-
-	if err := v.verifyRRSIG(rrset, matchingSig, matchingKey, nsRecords, qname); err != nil {
-		v.logger.Debugf("RRSIG verification failed for algorithm=%d, keytag=%d: %v (trying next RRSIG if available)",
-			matchingSig.Algorithm, matchingSig.KeyTag, err)
-
-		return false, err
-	}
-
-	// Verification succeeded with full chain of trust!
-	v.logger.Debugf("Successfully verified RRset for %s with algorithm=%d, keytag=%d",
-		domain, matchingSig.Algorithm, matchingSig.KeyTag)
-
-	return true, nil
-}
-
-// handleMissingRRSIG determines the validation result when no RRSIG is found for an RRset
-// Per RFC 4035 §5.2, we must check if the zone is unsigned before treating it as Bogus
-func (v *Validator) handleMissingRRSIG(ctx context.Context, rrType uint16, rrsetName string) ValidationResult {
-	// Check if this zone is unsigned by checking for DS records
-	zoneSecurityStatus := v.checkZoneSecurityStatus(ctx, rrsetName)
-
-	if zoneSecurityStatus == ValidationResultInsecure {
-		// Zone is unsigned/insecure - unsigned RRsets are acceptable per RFC 4035 §5.2
-		v.logger.Debugf("RRset type %d in %s has no RRSIG, but zone is insecure - acceptable", rrType, rrsetName)
-
-		return ValidationResultInsecure
-	}
-
-	if zoneSecurityStatus == ValidationResultIndeterminate {
-		// Cannot determine zone security status - treat conservatively as Indeterminate
-		v.logger.Warnf("Cannot determine security status for zone of %s - treating as indeterminate", rrsetName)
-
-		return ValidationResultIndeterminate
-	}
-
-	// Zone is secure (has DS records) but RRSIG missing - this is Bogus
-	v.logger.Warnf("No RRSIG found for RRset type %d in %s (zone is secure)", rrType, rrsetName)
-
-	return ValidationResultBogus
-}
-
-// checkZoneSecurityStatus determines if a zone is signed (Secure) or unsigned (Insecure)
-// by checking for DS records in the parent zone.
-// Per RFC 4035 §5.2: A zone is insecure if there's an authenticated NSEC/NSEC3 proving no DS exists.
-// A zone is secure if DS records exist.
-// Returns: Secure, Insecure, or Indeterminate
-func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) ValidationResult {
-	domain = dns.Fqdn(domain)
-
-	// Check cache first - we may have already validated this zone
-	if cached, found := v.getCachedValidation(ctx, domain); found {
-		v.logger.Debugf("Using cached security status for %s: %s", domain, cached.String())
-
-		return cached
-	}
-
-	// A configured trust anchor is an operator-asserted secure entry point: by
-	// definition the zone is signed. This covers both the IANA root anchor and any
-	// custom anchor, and is what lets us reject unsigned answers for a signed zone.
-	if v.trustAnchors.HasTrustAnchor(domain) {
-		v.logger.Debugf("Domain %s has a configured trust anchor - secure", domain)
-
-		return ValidationResultSecure
-	}
-
-	// Get parent domain to query for DS records
-	parentDomain := v.getParentDomain(domain)
-	if parentDomain == "" {
-		// Reached the root without a configured trust anchor: security status cannot be
-		// established from the chain.
-		v.logger.Debugf("Domain %s has no parent and no trust anchor", domain)
-
-		return v.classifyUndetermined(domain)
-	}
-
-	// Query DS records for this domain from the parent zone
-	dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
-	if err != nil {
-		// Could not reach the upstream (e.g. answering from cache after the upstream is
-		// gone). Fail closed if the name lives under a trust anchor; we must not serve an
-		// unsigned answer for a secured hierarchy just because we cannot reach a resolver.
-		v.logger.Debugf("DS query failed for %s: %v", domain, err)
-
-		return v.classifyUndetermined(domain)
-	}
-
-	// Check if DS records exist
-	dsRecords, extractErr := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns)
-	if extractErr != nil {
-		// No DS records - handle based on proof of absence
-		return v.handleNoDSRecords(ctx, domain, parentDomain, dsResponse)
-	}
-
-	// DS records are present, but their mere presence is not proof the zone is signed: an
-	// injected/forged DS could otherwise force an unsigned name to be classified secure and
-	// thus SERVFAIL its (legitimately unsigned) answers. Require the DS RRset to be signed
-	// by the parent zone before trusting it.
-	dsRRSIG := v.findDSRRSIG(dsResponse, domain)
-	if dsRRSIG == nil {
-		v.logger.Warnf("DS records for %s are present but unsigned - not treating zone as secure", domain)
-
-		return v.classifyUndetermined(domain)
-	}
-
-	res := v.validateDSRecordSignature(ctx, domain, parentDomain, convertDSToRRset(dsRecords), dsRRSIG)
-	if res != ValidationResultSecure {
-		v.logger.Warnf("DS RRSIG for %s failed validation (%s) - not treating zone as secure", domain, res.String())
-
-		return v.classifyUndetermined(domain)
-	}
-
-	// DS records exist and validate - zone is signed (secure).
-	v.logger.Debugf("Zone %s is secure (DS records exist and validate: %d)", domain, len(dsRecords))
-	// Don't cache as Secure here - full validation of the answer might still fail.
-
-	return ValidationResultSecure
+	return rrsets
 }
 
 // isUnderTrustAnchor reports whether domain, or any of its ancestors, has a trust anchor -
@@ -816,7 +830,8 @@ func (v *Validator) isUnderTrustAnchor(domain string) bool {
 }
 
 // hasTrustAnchorBelow reports whether a trust anchor covers name below signer, an ancestor of
-// name. The zone of that anchor, not signer, has to sign the RRsets of name.
+// name. The zone of that anchor, not signer, then has to sign what the zone of name holds (see
+// holder).
 func (v *Validator) hasTrustAnchorBelow(signer, name string) bool {
 	signer = dns.CanonicalName(signer)
 
@@ -829,102 +844,30 @@ func (v *Validator) hasTrustAnchorBelow(signer, name string) bool {
 	return false
 }
 
-// classifyUndetermined decides the security status when the chain status cannot be
-// established (no authenticated DS proof). It fails closed - Secure, so an unsigned answer
-// becomes bogus - for any name under a trust anchor (including the default root anchor),
-// because a name below a secure entry point must be proven insecure by an AUTHENTICATED
-// denial of existence before its unsigned answer may be trusted. Only names with no trust
-// anchor anywhere in their hierarchy stay Indeterminate (the answer passes through). This is
-// NOT cached: it is not derived from an authenticated proof, so a later reachable upstream
-// can still establish the real status.
-func (v *Validator) classifyUndetermined(domain string) ValidationResult {
-	if v.isUnderTrustAnchor(domain) {
-		v.logger.Debugf("Zone %s status undetermined but under a trust anchor - secure (fail closed)", domain)
+// classifyUndetermined returns the status of data for which the chain of trust walk to the zone
+// of name came back Indeterminate: the zone that an RRSIG names as the signer of the data, or
+// the zone that holds the data without RRSIG. why says which lookup of the walk could not be
+// completed (see lookup), if the walk made one.
+//
+// A name with a trust anchor above it, the default root anchor included, is in a secure part of
+// the tree until an authenticated denial says otherwise (RFC 4035 §5.2, GHSA-x845-2f78-7v36). If
+// the records that validate data there cannot be obtained, for whatever reason, the data is not
+// validated and is Bogus (RFC 4035 §5.5), with RRSIG as without: whoever answers the lookups, or
+// keeps them from being answered, does not decide that a reply is served. Only a name with no
+// trust anchor above it is Indeterminate (RFC 4033 §5), and no lookup is made for it. Neither
+// status is cached: the next validation walks again, and finds what the zone is once its lookups
+// are answered (issue #2120). The error says why the data is not validated.
+func (v *Validator) classifyUndetermined(name string, why error) (ValidationResult, error) {
+	name = dns.Fqdn(name)
 
-		return ValidationResultSecure
+	if !v.isUnderTrustAnchor(name) {
+		v.logger.Debugf("Zone of %s indeterminate (no trust anchor in hierarchy)", name)
+
+		return ValidationResultIndeterminate, fmt.Errorf("no trust anchor at or above %s", name)
 	}
 
-	v.logger.Debugf("Zone %s status indeterminate (no trust anchor in hierarchy)", domain)
+	v.logger.Debugf("Chain of trust to %s could not be completed under a trust anchor - treating as Bogus: %v",
+		name, why)
 
-	return ValidationResultIndeterminate
-}
-
-// handleNoDSRecords determines zone security status when no DS records are found.
-// A DS NODATA response can only downgrade a zone to insecure if it carries an
-// AUTHENTICATED denial of the DS type (a signed NSEC/NSEC3 that chains to a trust
-// anchor); the mere presence of NSEC/NSEC3 records is not proof.
-func (v *Validator) handleNoDSRecords(
-	ctx context.Context, domain, parentDomain string, dsResponse *dns.Msg,
-) ValidationResult {
-	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
-	hasNSEC3 := len(extractNSEC3Records(dsResponse.Ns)) > 0
-
-	if hasNSEC || hasNSEC3 {
-		if v.isAuthenticatedDSDenial(ctx, domain, dsResponse) {
-			// Authenticated proof that no DS exists: genuine insecure delegation.
-			v.logger.Debugf("Zone %s is insecure (authenticated NSEC/NSEC3 DS denial)", domain)
-			result := ValidationResultInsecure
-			v.setCachedValidation(ctx, domain, result)
-
-			return result
-		}
-
-		// Unauthenticated/forged denial - must NOT be trusted, and must NOT be cached.
-		// Fall through and determine status from the parent zone instead.
-		v.logger.Warnf("Unauthenticated NSEC/NSEC3 in DS response for %s - ignoring as DS denial", domain)
-	}
-
-	// No DS and no authenticated proof of absence. Determine status from the parent.
-	v.logger.Debugf("No authenticated DS-absence proof for %s, checking parent zone", domain)
-
-	if parentDomain != "" {
-		parentStatus := v.checkZoneSecurityStatus(ctx, parentDomain)
-		if parentStatus == ValidationResultInsecure {
-			// Below an insecure delegation - this name is also unsigned.
-			v.logger.Debugf("Parent zone %s is insecure, so %s is also insecure", parentDomain, domain)
-			result := ValidationResultInsecure
-			v.setCachedValidation(ctx, domain, result)
-
-			return result
-		}
-		if parentStatus == ValidationResultSecure {
-			// Parent is secure but there is no authenticated proof that this name is an
-			// insecure delegation. We cannot positively conclude from the parent alone that
-			// the name itself is signed (the proof may have been stripped, or this may be a
-			// forged unsigned answer), so defer to the trust-anchor-aware default: fail
-			// closed only when the operator explicitly anchored this hierarchy, otherwise
-			// stay indeterminate. Do NOT cache - not derived from an authenticated proof.
-			v.logger.Debugf("Parent zone %s secure but %s has no authenticated DS denial - undetermined", parentDomain, domain)
-
-			return v.classifyUndetermined(domain)
-		}
-	}
-
-	// No authenticated proof and no usable parent result - fall back to the
-	// trust-anchor-aware default (fail closed under a trust anchor).
-	return v.classifyUndetermined(domain)
-}
-
-// isAuthenticatedDSDenial reports whether dsResponse carries an authenticated proof
-// (a signed NSEC/NSEC3 chaining to a trust anchor) that the DS type is absent for
-// domain - i.e. a genuine insecure delegation. Mere presence of NSEC/NSEC3 is not
-// sufficient; the records must be cryptographically validated.
-func (v *Validator) isAuthenticatedDSDenial(ctx context.Context, domain string, dsResponse *dns.Msg) bool {
-	// First require the authority section (the NSEC/NSEC3 records and their RRSIGs) to
-	// cryptographically validate and chain to a trust anchor. An unsigned or forged denial
-	// proves nothing and must never downgrade a zone to insecure.
-	if v.validateRRsets(ctx, dsResponse.Ns, domain, dsResponse.Ns, domain) != ValidationResultSecure {
-		return false
-	}
-
-	// With an authenticated authority section, both an explicit NSEC/NSEC3 NODATA proof
-	// (Secure) and an NSEC3 Opt-Out span covering the name (Insecure) are authenticated
-	// proofs that no DS exists - i.e. a genuine insecure (unsigned) delegation. Opt-Out is
-	// the standard mechanism by which signed TLDs (.com/.net/.org, ...) delegate to their
-	// unsigned children, so rejecting the Insecure result would wrongly treat the bulk of
-	// the unsigned Internet as bogus.
-	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
-	proof := v.validateDSAbsenceProof(domain, dsResponse, hasNSEC)
-
-	return proof == ValidationResultSecure || proof == ValidationResultInsecure
+	return ValidationResultBogus, errors.Join(why, bogus("the chain of trust to %s could not be completed", name))
 }
