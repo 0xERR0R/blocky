@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -16,6 +17,23 @@ type httpServer struct {
 	inner http.Server
 
 	name string
+}
+
+type readyListener struct {
+	net.Listener
+	started func()
+	close   func() error
+}
+
+func newReadyListener(l net.Listener, started func()) *readyListener {
+	return &readyListener{l, sync.OnceFunc(started), sync.OnceValue(l.Close)}
+}
+
+func (l *readyListener) Close() error { return l.close() }
+
+func (l *readyListener) Accept() (net.Conn, error) {
+	l.started()
+	return l.Listener.Accept()
 }
 
 func newHTTPServer(name string, handler http.Handler, cfg *config.Config) *httpServer {
@@ -42,11 +60,8 @@ func (s *httpServer) String() string {
 }
 
 func (s *httpServer) Serve(ctx context.Context, l net.Listener) error {
-	go func() {
-		<-ctx.Done()
-
-		s.inner.Close()
-	}()
+	stop := context.AfterFunc(ctx, func() { _ = s.inner.Close() })
+	defer stop()
 
 	if err := s.inner.Serve(l); err != nil {
 		return fmt.Errorf("HTTP server '%s' failed to serve: %w", s.name, err)

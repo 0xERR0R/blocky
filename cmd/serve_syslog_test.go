@@ -13,6 +13,7 @@ import (
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
@@ -83,7 +84,7 @@ var _ = Describe("Serve command logging to syslog", func() {
 		Expect(err).Should(Succeed())
 		defer taken.Close()
 		writeConfig("error", "upstreams:", "  init:", "    strategy: fast", "  groups:",
-			"    default:", "      - 1.1.1.1", "ports:", "  dns: "+taken.Addr().String())
+			"    default:", "      - 127.0.0.1:1", "ports:", "  dns: "+taken.Addr().String())
 
 		result := make(chan error, 1)
 		go func() { result <- startServer(nil, nil) }()
@@ -96,7 +97,15 @@ var _ = Describe("Serve command logging to syslog", func() {
 			Expect(msgs).To(ContainSubstring("<30>")) // daemon.info
 		})
 
-		Expect(received(600 * time.Millisecond)).NotTo(ContainSubstring("service started"))
+		// The built-in healthcheck answers locally once UDP is serving, while TCP still can't bind.
+		client := dns.Client{Net: "udp", Timeout: time.Second}
+		query := new(dns.Msg).SetQuestion("healthcheck.blocky.", dns.TypeA)
+		Eventually(func(g Gomega) {
+			reply, _, err := client.Exchange(query, taken.Addr().String())
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(reply.Rcode).To(Equal(dns.RcodeSuccess))
+		}, "5s").Should(Succeed())
+		Expect(received(50 * time.Millisecond)).NotTo(ContainSubstring("service started"))
 		Expect(taken.Close()).To(Succeed())
 		msgs := received(5 * time.Second)
 		Expect(strings.Count(msgs, "service started")).To(Equal(1))

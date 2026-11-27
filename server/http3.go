@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 )
 
@@ -35,6 +36,16 @@ func newH3TLSConfig(base *tls.Config) *tls.Config {
 // and listener state.
 type http3Server struct {
 	inner *http3.Server
+}
+
+type readyQUICListener struct {
+	http3.QUICListener
+	started func()
+}
+
+func (l *readyQUICListener) Accept(ctx context.Context) (*quic.Conn, error) {
+	l.started()
+	return l.QUICListener.Accept(ctx)
 }
 
 func newHTTP3Server(handler http.Handler, tlsCfg *tls.Config) *http3Server {

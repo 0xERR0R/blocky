@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
@@ -842,26 +844,86 @@ var _ = Describe("Running DNS server", func() {
 				Expect(srv.http3PacketConns).To(HaveLen(2))
 			})
 
-			It("does not leak spurious errors when Stop closes after Serve has started", func() {
+			It("serves every endpoint on Ready and releases its sockets on Stop", func() {
 				cfg.Ports.DNS = config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)}
-				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
+				cfg.Ports.HTTP = config.ListenConfig{"127.0.0.1:0"}
+				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0", "127.0.0.1:0"}
 				cfg.HTTP3.Enable = true
 
 				srv, err := NewServer(ctx, &cfg)
 				Expect(err).Should(Succeed())
 
 				errCh := make(chan error, 10)
-				go srv.Start(ctx, errCh)
-
-				// Let the http3 Serve goroutine enter its Accept loop.
-				Consistently(errCh, "200ms").ShouldNot(Receive())
+				Expect(srv.Ready()).NotTo(BeClosed())
+				srv.Start(ctx, errCh)
+				Eventually(srv.Ready()).Should(BeClosed())
+				Expect(srv.DNSReady()).To(BeClosed())
+				h3 := &http3.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // test certificate
+				defer h3.Close()
+				h3Client := &http.Client{Transport: h3, Timeout: time.Second}
+				for _, pc := range srv.http3PacketConns {
+					resp, err := h3Client.Get("https://" + pc.LocalAddr().String() + "/robots.txt")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(resp.Body.Close()).To(Succeed())
+					Expect(resp.StatusCode).To(Equal(http.StatusOK))
+				}
+				client := &http.Client{Timeout: time.Second, Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test certificate
+				}}
+				defer client.CloseIdleConnections()
+				for l, endpoint := range srv.servers {
+					resp, err := client.Get(endpoint.name + "://" + l.Addr().String() + "/robots.txt")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(resp.Body.Close()).To(Succeed())
+					Expect(resp.StatusCode).To(Equal(http.StatusOK))
+					if endpoint.name == "https" {
+						Expect(resp.Header.Get("Strict-Transport-Security")).NotTo(BeEmpty())
+						for _, pc := range srv.http3PacketConns {
+							Expect(resp.Header.Get("Alt-Svc")).To(ContainSubstring(fmt.Sprintf(`h3=":%d"`, pc.LocalAddr().(*net.UDPAddr).Port)))
+						}
+					}
+				}
 
 				Expect(srv.Stop(ctx)).Should(Succeed())
 
 				// Stop must close the http3 server before its UDP packet
 				// conns; reverse order makes Serve return a non-sentinel
 				// error that would land here.
-				Consistently(errCh, "200ms").ShouldNot(Receive())
+				Expect(errCh).ShouldNot(Receive())
+				for l := range srv.servers {
+					rebound, err := net.Listen("tcp", l.Addr().String())
+					Expect(err).NotTo(HaveOccurred())
+					Expect(rebound.Close()).To(Succeed())
+				}
+				for _, pc := range srv.http3PacketConns {
+					rebound, err := net.ListenPacket("udp", pc.LocalAddr().String())
+					Expect(err).NotTo(HaveOccurred())
+					Expect(rebound.Close()).To(Succeed())
+				}
+			})
+
+			It("returns HTTP/3 packet socket close failures from Stop", func() {
+				pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(pc.Close()).To(Succeed())
+				srv := &Server{http3PacketConns: []net.PacketConn{pc}}
+				Expect(srv.Stop(ctx)).To(MatchError(net.ErrClosed))
+			})
+
+			It("does not signal Ready when QUIC initialization fails on a bound UDP socket", func() {
+				cfg.Redis.Address = ""
+				cfg.Ports.DNS = nil
+				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
+				cfg.HTTP3.Enable = true
+				srv, err := NewServer(ctx, &cfg)
+				Expect(err).NotTo(HaveOccurred())
+				DeferCleanup(srv.Stop)
+				srv.http3Server.inner.TLSConfig = nil
+				errCh := make(chan error, 1)
+				srv.Start(ctx, errCh)
+				Eventually(errCh).Should(Receive(MatchError(ContainSubstring("http3"))))
+				Expect(srv.DNSReady()).To(BeClosed())
+				Expect(srv.Ready()).NotTo(BeClosed())
 			})
 		})
 
@@ -1921,6 +1983,18 @@ type shutdownRecorder struct {
 	calls atomic.Int32
 }
 
+type closeErrorListener struct {
+	net.Listener
+	err error
+}
+
+func (l closeErrorListener) Close() error {
+	if err := l.Listener.Close(); err != nil {
+		return err
+	}
+	return l.err
+}
+
 func (r *shutdownRecorder) Shutdown(context.Context) error {
 	r.calls.Add(1)
 
@@ -1928,6 +2002,42 @@ func (r *shutdownRecorder) Shutdown(context.Context) error {
 }
 
 var _ = Describe("Stopping the server", func() {
+	It("honors the shutdown deadline while an HTTP listener is still closing", func(ctx context.Context) {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).NotTo(HaveOccurred())
+		entered, release := make(chan struct{}), make(chan struct{})
+		listener := newReadyListener(l, func() {})
+		listener.close = func() error {
+			close(entered)
+			<-release
+			return l.Close()
+		}
+		defer close(release)
+		srv := &Server{servers: map[net.Listener]*httpServer{listener: {}}}
+		stopCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- srv.Stop(stopCtx) }()
+		Eventually(entered).Should(BeClosed())
+		cancel()
+		Eventually(done).Should(Receive(MatchError(context.Canceled)))
+	})
+	It("retains HTTP close errors when startup context cancellation closes the listener first", func(ctx context.Context) {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).NotTo(HaveOccurred())
+		closeErr := errors.New("listener close failed")
+		started := make(chan struct{})
+		listener := newReadyListener(closeErrorListener{l, closeErr}, func() { close(started) })
+		srv := &Server{servers: map[net.Listener]*httpServer{listener: {}}, stopping: make(chan struct{})}
+		startCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		errCh := make(chan error, 1)
+		srv.Start(startCtx, errCh)
+		Eventually(started).Should(BeClosed())
+		cancel()
+		Eventually(errCh).Should(Receive(MatchError(http.ErrServerClosed)))
+		Expect(srv.Stop(ctx)).To(MatchError(closeErr))
+	})
 	It("finds the resolvers that hold work in the chain", func() {
 		Expect(sut.shutdowners).Should(ContainElement(BeAssignableToTypeOf(&resolver.QueryLoggingResolver{})))
 	})
@@ -1935,7 +2045,7 @@ var _ = Describe("Stopping the server", func() {
 	It("shuts down the resolvers that hold work, once the DNS listeners have stopped", func(ctx context.Context) {
 		recorder := &shutdownRecorder{}
 		srv := &Server{shutdowners: []resolver.Shutdowner{recorder}}
-		srv.dnsServeWG.Add(1) // a listener that is still serving
+		srv.serveWG.Add(1) // a listener that is still serving
 
 		stopped := make(chan error, 1)
 
@@ -1943,7 +2053,7 @@ var _ = Describe("Stopping the server", func() {
 
 		Consistently(recorder.calls.Load, "100ms").Should(BeZero())
 
-		srv.dnsServeWG.Done()
+		srv.serveWG.Done()
 
 		Eventually(stopped).Should(Receive(BeNil()))
 		Expect(recorder.calls.Load()).Should(BeNumerically("==", 1))

@@ -16,6 +16,7 @@ import (
 	"github.com/0xERR0R/blocky/server"
 	"github.com/0xERR0R/blocky/util"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -144,28 +145,44 @@ func startServer(_ *cobra.Command, _ []string) error {
 	srv.Start(ctx, errChan)
 
 	lifecycle := log.LifecycleLog(&cfg.Log, util.Version)
-	ready := srv.DNSReady()
+	ready := srv.Ready()
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
+	return waitForShutdown(ready, signals, errChan, lifecycle, func() error {
+		cancelFn()
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer stopCancel()
+
+		return srv.Stop(stopCtx)
+	})
+}
+
+func waitForShutdown(ready <-chan struct{}, signals <-chan os.Signal, errChan <-chan error,
+	lifecycle *logrus.Entry, stop func() error,
+) error {
+	reportStarted := func() {
+		lifecycle.Info("service started")
+		ready = nil // Disable this select case once the record has been emitted.
+	}
+
 	for {
 		select {
 		case <-ready:
-			lifecycle.Info("service started")
-			ready = nil
+			reportStarted()
 		case <-signals:
+			// select may choose SIGTERM even though the server is already ready.
+			select {
+			case <-ready:
+				reportStarted()
+			default:
+			}
+
 			log.Log().Infof("Terminating...")
 
-			// Cancel background operations (periodic refresh, etc.)
-			cancelFn()
-
-			// Create timeout context for graceful shutdown
-			stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-			defer stopCancel()
-
-			if err := srv.Stop(stopCtx); err != nil {
-				util.LogOnError(stopCtx, "can't stop server: ", err)
-			} else {
-				lifecycle.Info("service stopped")
+			if err := stop(); err != nil {
+				return fmt.Errorf("can't stop server: %w", err)
 			}
+
+			lifecycle.Info("service stopped")
 
 			return nil
 

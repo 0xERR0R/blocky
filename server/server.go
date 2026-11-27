@@ -51,12 +51,15 @@ const (
 type Server struct {
 	dnsServers    []*dns.Server
 	dnsReady      <-chan struct{}
+	ready         <-chan struct{}
+	endpointReady func()
 	queryResolver resolver.ChainedResolver
 	cfg           *config.Config
 
 	servers          map[net.Listener]*httpServer
 	http3Server      *http3Server     // nil when disabled
 	http3PacketConns []net.PacketConn // one per address in ports.https
+	http3Listeners   []*readyQUICListener
 	closers          []io.Closer
 	redisCancel      context.CancelFunc
 
@@ -70,7 +73,8 @@ type Server struct {
 	// second Start does not orphan the first one's context.
 	dnsStartCancels []context.CancelFunc
 	dnsCancelMu     sync.Mutex     // guards dnsStartCancels
-	dnsServeWG      sync.WaitGroup // tracks the DNS serve goroutines started in Start
+	serveWG         sync.WaitGroup // tracks all endpoint serve loops
+	stopping        chan struct{}
 
 	// The DNS startup state above is populated by Start and read by Stop, so
 	// Start must be called (and return) before Stop; the two are not concurrent.
@@ -216,9 +220,13 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		}
 	})
 
+	ready, endpointReady := readinessCounter(len(dnsServers) + len(httpListeners) + len(httpsListeners) + len(http3PacketConns))
 	server = &Server{
 		dnsServers:       dnsServers,
-		dnsReady:         trackDNSReadiness(dnsServers),
+		dnsReady:         trackDNSReadiness(dnsServers, endpointReady),
+		ready:            ready,
+		endpointReady:    endpointReady,
+		stopping:         make(chan struct{}),
 		queryResolver:    queryResolver,
 		cfg:              cfg,
 		servers:          make(map[net.Listener]*httpServer),
@@ -248,7 +256,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		srv := newHTTPServer("http", httpRouter, cfg)
 
 		for _, l := range httpListeners {
-			server.servers[l] = srv
+			server.servers[newReadyListener(l, endpointReady)] = srv
 		}
 	}
 
@@ -261,7 +269,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		srv := newHTTPServer("https", httpsHandler, cfg)
 
 		for _, l := range httpsListeners {
-			server.servers[l] = srv
+			server.servers[newReadyListener(l, endpointReady)] = srv
 		}
 	}
 
@@ -739,12 +747,12 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	s.dnsCancelMu.Unlock()
 
 	for _, srv := range s.dnsServers {
-		s.dnsServeWG.Go(func() {
+		s.serveWG.Go(func() {
 			if err := retryServe(dnsCtx, srv); err != nil && dnsCtx.Err() == nil {
 				// The error send is cancellation-aware: if the channel has no
 				// reader (or is full) while Stop cancels dnsCtx, we must not
 				// block, otherwise the serve goroutine never finishes and
-				// dnsServeWG.Wait() in Stop hangs past its deadline.
+				// serveWG.Wait() in Stop hangs past its deadline.
 				select {
 				case errCh <- fmt.Errorf("start %s listener failed: %w", srv.Net, err):
 				case <-dnsCtx.Done():
@@ -753,31 +761,46 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 		})
 	}
 
+	report := func(err error) {
+		if !s.stopped.Load() {
+			select {
+			case errCh <- err:
+			case <-s.stopping:
+			}
+		}
+	}
 	for listener, srv := range s.servers {
-		go func() {
+		s.serveWG.Go(func() {
 			logger().Infof("%s server is up and running on addr/port %s", srv, listener.Addr())
 
 			err := srv.Serve(ctx, listener)
 			if err != nil {
-				errCh <- fmt.Errorf("%s on %s: %w", srv, listener.Addr(), err)
+				report(fmt.Errorf("%s on %s: %w", srv, listener.Addr(), err))
 			}
-		}()
+		})
 	}
 
-	if s.http3Server != nil {
+	if s.http3Server != nil && len(s.http3Listeners) == 0 {
 		for _, pc := range s.http3PacketConns {
-			go func() {
+			ln, err := quic.ListenEarly(pc, s.http3Server.inner.TLSConfig, &quic.Config{Allow0RTT: true})
+			if err != nil {
+				s.serveWG.Go(func() { report(fmt.Errorf("http3 on %s: %w", pc.LocalAddr(), err)) })
+				continue
+			}
+			listener := &readyQUICListener{ln, sync.OnceFunc(s.endpointReady)}
+			s.http3Listeners = append(s.http3Listeners, listener)
+			s.serveWG.Go(func() {
 				logger().Infof("%s server is up and running on addr/port %s",
 					s.http3Server, pc.LocalAddr())
 
-				err := s.http3Server.inner.Serve(pc)
+				err := s.http3Server.inner.ServeListener(listener)
 				if err != nil &&
 					!errors.Is(err, quic.ErrServerClosed) &&
 					!errors.Is(err, http.ErrServerClosed) &&
 					!errors.Is(err, net.ErrClosed) {
-					errCh <- fmt.Errorf("%s on %s: %w", s.http3Server, pc.LocalAddr(), err)
+					report(fmt.Errorf("%s on %s: %w", s.http3Server, pc.LocalAddr(), err))
 				}
-			}()
+			})
 		}
 	}
 
@@ -788,23 +811,31 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 // listeners configured it is already closed.
 func (s *Server) DNSReady() <-chan struct{} { return s.dnsReady }
 
-func trackDNSReadiness(servers []*dns.Server) <-chan struct{} {
+// Ready closes once all configured DNS, HTTP, HTTPS and HTTP/3 listeners have started.
+func (s *Server) Ready() <-chan struct{} { return s.ready }
+
+func readinessCounter(count int) (<-chan struct{}, func()) {
 	ready := make(chan struct{})
-	if len(servers) == 0 {
-		close(ready)
-
-		return ready
-	}
-
 	var remaining atomic.Int64
-	remaining.Store(int64(len(servers)))
+	remaining.Store(int64(count))
+	if count == 0 {
+		close(ready)
+	}
+	return ready, func() {
+		if remaining.Add(-1) == 0 {
+			close(ready)
+		}
+	}
+}
+
+func trackDNSReadiness(servers []*dns.Server, endpointReady func()) <-chan struct{} {
+	ready, dnsStarted := readinessCounter(len(servers))
 	for _, srv := range servers {
 		notify := srv.NotifyStartedFunc
 		srv.NotifyStartedFunc = sync.OnceFunc(func() {
 			notify()
-			if remaining.Add(-1) == 0 {
-				close(ready)
-			}
+			dnsStarted()
+			endpointReady()
 		})
 	}
 
@@ -837,22 +868,10 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.dnsStartCancels = nil
 	s.dnsCancelMu.Unlock()
 
-	// Shut down HTTP/3 in order: server first (drains in-flight
-	// requests and unblocks the Serve goroutines), then UDP packet
-	// conns. Closing the packet conns first would cause Serve to
-	// return a non-sentinel error that would land in errCh as a
-	// spurious "server start failed".
-	if s.http3Server != nil {
-		if err := s.http3Server.Close(); err != nil {
-			logger().Warn("failed to close http3 server: ", err)
-		}
+	if s.stopping != nil {
+		close(s.stopping)
 	}
-
-	for _, pc := range s.http3PacketConns {
-		if err := pc.Close(); err != nil {
-			logger().Warn("failed to close http3 packet conn: ", err)
-		}
-	}
+	errs := []error{s.stopListeners(ctx)}
 
 	if s.redisCancel != nil {
 		s.redisCancel()
@@ -864,8 +883,6 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	errs := []error{s.waitForDNSServe(ctx)}
-
 	// After the DNS listeners, so the query log can write what they handed it.
 	for _, sd := range s.shutdowners {
 		errs = append(errs, sd.Shutdown(ctx))
@@ -874,31 +891,41 @@ func (s *Server) Stop(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// waitForDNSServe waits for the DNS serve goroutines to finish, bounded by the
-// shutdown timeout carried by ctx. When the caller's context is already done there
-// is no deadline left to enforce; the serve goroutines were already told
-// to stop and are shutdown-safe, so wait for them to finish rather
-// than failing immediately.
-func (s *Server) waitForDNSServe(ctx context.Context) error {
-	done := make(chan struct{})
+func (s *Server) stopListeners(ctx context.Context) error {
+	// An already-canceled shutdown context historically waits for completion.
+	deadline := ctx.Done()
+	if ctx.Err() != nil {
+		deadline = nil
+	}
+	done := make(chan error, 1)
 	go func() {
-		s.dnsServeWG.Wait()
-		close(done)
+		var errs []error
+		for l, srv := range s.servers {
+			// Close active connections. Collect each listener's saved Close error,
+			// even if context cancellation closed it first.
+			_ = srv.inner.Close()
+			errs = append(errs, l.Close())
+		}
+		// ServeListener leaves ownership of the QUIC listener and UDP socket here.
+		if s.http3Server != nil {
+			errs = append(errs, s.http3Server.Close())
+		}
+		for _, l := range s.http3Listeners {
+			errs = append(errs, l.Close())
+		}
+		for _, pc := range s.http3PacketConns {
+			errs = append(errs, pc.Close())
+		}
+		s.serveWG.Wait()
+		done <- errors.Join(errs...)
 	}()
 
-	if ctx.Err() == nil {
-		select {
-		case <-done:
-			return nil
-		case <-ctx.Done():
-			return fmt.Errorf("stopping DNS listeners timed out: %w", ctx.Err())
-		}
+	select {
+	case err := <-done:
+		return err
+	case <-deadline:
+		return fmt.Errorf("stopping listeners: %w", ctx.Err())
 	}
-
-	// The context is already done: there is no deadline left to enforce.
-	<-done
-
-	return nil
 }
 
 func extractClientIDFromHost(hostName string) string {
