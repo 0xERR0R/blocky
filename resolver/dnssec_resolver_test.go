@@ -1633,6 +1633,68 @@ var _ = Describe("DNSSECResolver", func() {
 				Expect(asked).Should(Equal(map[uint16]int{dns.TypeAAAA: 3, dns.TypeA: 3, dns.TypeDNSKEY: 1}))
 			})
 
+			// The order of the server (RFC 6147 §5.5): DNS64 synthesizes from the denial of the AAAA
+			// RRset and from the A RRset that validation has passed, the cache holds both as the
+			// upstream sent them, and each is validated again when the cache answers.
+			When("DNS64 is above and the cache is below", func() {
+				var dns64 ChainedResolver
+
+				// synthesized asks for the AAAA RRset of example.com. and returns what the client gets
+				synthesized := func() *model.Response {
+					resp, err := dns64.Resolve(ctx, &model.Request{Req: util.NewMsgWithQuestion("example.com.", AAAA)})
+					Expect(err).Should(Succeed())
+
+					return resp
+				}
+
+				JustBeforeEach(func() {
+					// Without a time for negative answers the cache does not hold the denial
+					negative := config.Duration(30 * time.Minute)
+					cache, err := NewCachingResolver(ctx, config.Caching{CacheTimeNegative: negative}, sutConfig, nil)
+					Expect(err).Should(Succeed())
+
+					dns64 = NewDNS64Resolver(config.DNS64{Enable: true})
+					dns64.Next(sut)
+					sut.Next(cache)
+					cache.Next(mockUpstream)
+
+					// example.com. has an A RRset and no AAAA RRset, which its NSEC record proves
+					replies = []*dns.Msg{{Answer: signed(a)}}
+					noData := &dns.Msg{Ns: slices.Concat(
+						signed(newRR("example.com. 300 IN SOA ns.example.com. hostmaster.example.com. 1 3600 600 86400 300")),
+						signed(newRR("example.com. 300 IN NSEC unsigned.example.com. A NS SOA RRSIG NSEC DNSKEY")))}
+					resolve := mockUpstream.ResolveFn
+					mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+						if req.Req.Question[0].Qtype != dns.TypeAAAA {
+							return resolve(ctx, req)
+						}
+
+						asked[dns.TypeAAAA]++
+
+						return &model.Response{Res: noData.Copy(), RType: model.ResponseTypeRESOLVED}, nil
+					}
+				})
+
+				It("lets DNS64 synthesize from a denial and an A RRset that are authentic, also from the cache", func() {
+					for range 2 {
+						resp := synthesized()
+						Expect(resp.RType).Should(Equal(model.ResponseTypeSYNTHESIZED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(resp.Res.Answer).Should(HaveLen(1))
+					}
+
+					Expect(asked).Should(Equal(map[uint16]int{dns.TypeAAAA: 1, dns.TypeA: 1, dns.TypeDNSKEY: 1}))
+				})
+
+				It("answers SERVFAIL for an A RRset that is not authentic", func() {
+					replies = []*dns.Msg{{Answer: []dns.RR{a}}}
+
+					Expect(told(synthesized()).InfoCode).Should(Equal(dns.ExtendedErrorCodeRRSIGsMissing))
+					Expect(asked[dns.TypeAAAA]).Should(Equal(1))
+					Expect(asked[dns.TypeA]).Should(Equal(2), "asked again")
+				})
+			})
+
 			It("does not ask again for a reply whose validation ran out of a budget, as it does for another", func() {
 				// A CNAME chain with more signed links than a validation verifies signatures
 				const links = 128
