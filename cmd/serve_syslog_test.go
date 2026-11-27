@@ -7,10 +7,12 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
@@ -47,6 +49,7 @@ var _ = Describe("Serve command logging to syslog", func() {
 			"log:",
 			"  level: "+level,
 			"  target: syslog",
+			"  format: json",
 			"  syslog:",
 			"    network: udp",
 			"    address: "+syslogConn.LocalAddr().String(),
@@ -74,6 +77,33 @@ var _ = Describe("Serve command logging to syslog", func() {
 			wait = 50 * time.Millisecond
 		}
 	}
+
+	It("reports service readiness and shutdown at info priority despite an error threshold", func() {
+		taken, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).Should(Succeed())
+		defer taken.Close()
+		writeConfig("error", "upstreams:", "  init:", "    strategy: fast", "  groups:",
+			"    default:", "      - 1.1.1.1", "ports:", "  dns: "+taken.Addr().String())
+
+		result := make(chan error, 1)
+		go func() { result <- startServer(nil, nil) }()
+		DeferCleanup(func() {
+			signals <- syscall.SIGTERM
+			Eventually(result, "10s").Should(Receive(BeNil()))
+			msgs := received(time.Second)
+			Expect(strings.Count(msgs, "service stopped")).To(Equal(1))
+			Expect(msgs).To(ContainSubstring(`"level":"info"`))
+			Expect(msgs).To(ContainSubstring("<30>")) // daemon.info
+		})
+
+		Expect(received(600 * time.Millisecond)).NotTo(ContainSubstring("service started"))
+		Expect(taken.Close()).To(Succeed())
+		msgs := received(5 * time.Second)
+		Expect(strings.Count(msgs, "service started")).To(Equal(1))
+		Expect(msgs).To(ContainSubstring(`"version":"` + util.Version + `"`))
+		Expect(msgs).To(ContainSubstring("<30>"))
+		Expect(msgs).NotTo(ContainSubstring("_/_/"))
+	})
 
 	It("should log the banner, then what loading the config logged, to syslog", func() {
 		writeConfig("info",
@@ -158,6 +188,7 @@ var _ = Describe("Serve command logging to syslog", func() {
 		go func() { errChan <- c.Execute() }()
 
 		Eventually(errChan, "10s").Should(Receive(MatchError(ContainSubstring("address already in use"))))
+		Expect(received(time.Second)).NotTo(ContainSubstring("service started"))
 
 		n := 0
 

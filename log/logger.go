@@ -106,6 +106,20 @@ func newGlobalLogger() *logrus.Logger {
 	return newLogger
 }
 
+// LifecycleLog borrows the configured service output without changing the
+// threshold for concurrent log entries. Configure the service logger first.
+func LifecycleLog(cfg *Config, version string) *logrus.Entry {
+	l := logrus.New()
+	l.SetOutput(logger.Out)
+	if _, ok := logger.Out.(syslogOutput); ok {
+		l.SetFormatter(levelFormatter{newSyslogFormatter(cfg)})
+	} else {
+		l.SetFormatter(newFormatter(cfg))
+	}
+
+	return l.WithField("version", version)
+}
+
 // Log returns the global logger
 func Log() *logrus.Logger {
 	return logger

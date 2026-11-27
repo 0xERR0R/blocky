@@ -50,6 +50,7 @@ const (
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
 	dnsServers    []*dns.Server
+	dnsReady      <-chan struct{}
 	queryResolver resolver.ChainedResolver
 	cfg           *config.Config
 
@@ -217,6 +218,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	server = &Server{
 		dnsServers:       dnsServers,
+		dnsReady:         trackDNSReadiness(dnsServers),
 		queryResolver:    queryResolver,
 		cfg:              cfg,
 		servers:          make(map[net.Listener]*httpServer),
@@ -780,6 +782,33 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	}
 
 	registerPrintConfigurationTrigger(ctx, s)
+}
+
+// DNSReady closes once every configured DNS listener has started. With no DNS
+// listeners configured it is already closed.
+func (s *Server) DNSReady() <-chan struct{} { return s.dnsReady }
+
+func trackDNSReadiness(servers []*dns.Server) <-chan struct{} {
+	ready := make(chan struct{})
+	if len(servers) == 0 {
+		close(ready)
+
+		return ready
+	}
+
+	var remaining atomic.Int64
+	remaining.Store(int64(len(servers)))
+	for _, srv := range servers {
+		notify := srv.NotifyStartedFunc
+		srv.NotifyStartedFunc = sync.OnceFunc(func() {
+			notify()
+			if remaining.Add(-1) == 0 {
+				close(ready)
+			}
+		})
+	}
+
+	return ready
 }
 
 // Stop stops the server

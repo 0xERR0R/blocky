@@ -21,7 +21,6 @@ import (
 
 //nolint:gochecknoglobals
 var (
-	done              = make(chan bool, 1)
 	isConfigMandatory = true
 	signals           = make(chan os.Signal, 1)
 
@@ -129,6 +128,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 	warnMissingPrivilegedPortCapability(cfg.Ports)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
@@ -143,10 +143,14 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	srv.Start(ctx, errChan)
 
-	var terminationErr error
-
-	go func() {
+	lifecycle := log.LifecycleLog(&cfg.Log, util.Version)
+	ready := srv.DNSReady()
+	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
+	for {
 		select {
+		case <-ready:
+			lifecycle.Info("service started")
+			ready = nil
 		case <-signals:
 			log.Log().Infof("Terminating...")
 
@@ -157,20 +161,20 @@ func startServer(_ *cobra.Command, _ []string) error {
 			stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 			defer stopCancel()
 
-			util.LogOnError(stopCtx, "can't stop server: ", srv.Stop(stopCtx))
-			done <- true
+			if err := srv.Stop(stopCtx); err != nil {
+				util.LogOnError(stopCtx, "can't stop server: ", err)
+			} else {
+				lifecycle.Info("service stopped")
+			}
+
+			return nil
 
 		case err := <-errChan:
 			log.Log().Error("server start failed: ", err)
-			terminationErr = err
-			done <- true
+
+			return err
 		}
-	}()
-
-	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
-	<-done
-
-	return terminationErr
+	}
 }
 
 func printBanner() {

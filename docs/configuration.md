@@ -128,7 +128,7 @@ All logging options are optional.
 
 | Parameter           | Type                                   | Default value | Description                                                                                                                                       |
 | ------------------- | -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| log.level           | enum (trace, debug, info, warn, error) | info          | Log level                                                                                                                                         |
+| log.level           | enum (trace, debug, info, warn, error) | info          | Minimum log level. Service startup completion and graceful shutdown are always logged at `info`. |
 | log.format          | enum (text, json)                      | text          | Log format (text or json).                                                                                                                        |
 | log.target          | enum (stdout, stderr, syslog)          | stdout        | Where log entries are written. `syslog` logs each entry at the priority matching its level.                                                       |
 | log.syslog.network  | string                                 |               | Empty for the local syslog socket, otherwise `udp` or `tcp`.                                                                                      |
