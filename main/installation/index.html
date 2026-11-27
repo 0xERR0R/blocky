@@ -1018,7 +1018,8 @@ a restricted runtime that drops all capabilities (for example the Kubernetes
 </div>
 <div class="admonition note">
 <p class="admonition-title">Writable mounts and file permissions</p>
-<p>The container runs as the unprivileged user <strong>UID 100</strong>. Any directory Blocky
+<p>The container runs as the unprivileged user <code>blocky</code> (<strong>UID 100</strong>, primary <strong>GID 0</strong>). A
+named group <code>blocky</code> (<strong>GID 100</strong>) is also defined, so <code>user: "blocky:blocky"</code> works. Any directory Blocky
 writes to - the query log target, or <code>loading.downloads.cachePath</code> - must be
 writable by that user, otherwise Blocky logs a <code>permission denied</code> error and
 continues without writing.</p>
