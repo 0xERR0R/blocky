@@ -345,6 +345,17 @@ func processServiceBinding(entry dns.RR, rrType uint16, question dns.Question) [
 	return []dns.RR{rr}
 }
 
+// copyQueryOptions gives the query for a CNAME target the client's header flags
+// and EDNS0 options, such as the client subnet and the DNSSEC OK bit.
+func copyQueryOptions(dst, src *dns.Msg) {
+	dst.CheckingDisabled = src.CheckingDisabled
+	dst.AuthenticatedData = src.AuthenticatedData
+
+	if opt := src.IsEdns0(); opt != nil {
+		dst.Extra = append(dst.Extra, dns.Copy(opt))
+	}
+}
+
 func (r *CustomDNSResolver) processCNAME(
 	ctx context.Context,
 	logger *logrus.Entry,
@@ -375,6 +386,7 @@ func (r *CustomDNSResolver) processCNAME(
 	clientIP := request.ClientIP.String()
 	clientID := request.RequestClientID
 	targetRequest := newRequestWithClientID(targetWithoutDot, dns.Type(question.Qtype), clientIP, clientID)
+	copyQueryOptions(targetRequest.Req, request.Req)
 
 	// resolve the target recursively
 	handled, targetResp, err := r.processRequest(ctx, logger, targetRequest, cnames)
