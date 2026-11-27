@@ -66,6 +66,13 @@ LABEL org.opencontainers.image.title="blocky" \
 
 
 
+COPY <<'EOF' /etc/passwd
+blocky:x:100:0:Blocky:/app:/sbin/nologin
+EOF
+COPY <<'EOF' /etc/group
+blocky:x:100:
+EOF
+
 USER 100
 WORKDIR /app
 
