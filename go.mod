@@ -31,7 +31,7 @@ require (
 	github.com/onsi/gomega v1.44.0
 	github.com/pires/go-proxyproto v0.16.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/quic-go/quic-go v0.65.0
+	github.com/quic-go/quic-go v0.66.0
 	github.com/ramr/go-reaper v0.3.1
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/rs/cors v1.11.1
