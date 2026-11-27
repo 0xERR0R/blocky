@@ -416,6 +416,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 
 	if r.cfg.Type == config.QueryLogTypeDnstap {
 		var err error
+		entry.ClientNames = request.ClientNames
 		entry.QueryWire, err = request.Req.Pack()
 		if err != nil {
 			log.PrefixedLog(queryLoggingResolverType).WithError(err).Warn("failed to pack query wire for dnstap")

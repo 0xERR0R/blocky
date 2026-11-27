@@ -526,6 +526,40 @@ var _ = Describe("QueryLoggingResolver", func() {
 				})
 			})
 		})
+
+		Describe("Dnstap log entries", func() {
+			It("includes client names regardless of queryLog.fields", func() {
+				sut.cfg.Type = config.QueryLogTypeDnstap
+				sut.cfg.Fields = []config.QueryLogField{
+					config.QueryLogFieldClientIP,
+				}
+
+				req := newRequestWithClient(
+					"query.example.",
+					A,
+					"192.0.2.100",
+					"client.example",
+				)
+
+				response := new(dns.Msg)
+				response.SetReply(req.Req)
+
+				entry := sut.createLogEntry(
+					req,
+					&Response{Res: response},
+					time.Now(),
+					1,
+				)
+
+				Expect(entry).ShouldNot(BeNil())
+				Expect(entry.ClientIP).Should(Equal("192.0.2.100"))
+				Expect(entry.ClientNames).Should(Equal([]string{
+					"client.example",
+				}))
+				Expect(entry.QueryWire).ShouldNot(BeEmpty())
+				Expect(entry.ResponseWire).ShouldNot(BeEmpty())
+			})
+		})
 	})
 
 	Describe("Slow writer", func() {
