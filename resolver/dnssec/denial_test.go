@@ -2,7 +2,7 @@ package dnssec
 
 import (
 	"context"
-	"errors"
+	"slices"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -26,15 +26,38 @@ var _ = Describe("Denial of existence validation", func() {
 		trustStore, err = NewTrustAnchorStore(nil)
 		Expect(err).Should(Succeed())
 
-		mockUpstream = &mockResolver{}
+		mockUpstream = &mockResolver{ResolveFn: benignEmptyResolve}
 		logger, _ := log.NewMockEntry()
 
 		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
 		ctx = withQueryBudget(ctx, 10)
 	})
 
+	Describe("ANY NODATA", func() {
+		It("distinguishes an NSEC owner from an empty non-terminal in the interval", func() {
+			rr := &dns.NSEC{
+				Hdr: dns.RR_Header{Name: "a.example.", Rrtype: dns.TypeNSEC}, NextDomain: "leaf.b.example.",
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC},
+			}
+			proof := func(name string) ValidationResult {
+				return legacyDenialSet(sut, []*dns.NSEC{rr}, name, dns.TypeANY).noData()
+			}
+			Expect(proof("b.example.")).Should(Equal(ValidationResultSecure))
+			Expect(proof(rr.Hdr.Name)).Should(Equal(ValidationResultBogus))
+			// The NSEC RRset itself exists regardless of the listed types.
+			rr.TypeBitMap = nil
+			Expect(proof(rr.Hdr.Name)).Should(Equal(ValidationResultBogus))
+		})
+
+		It("requires an empty bitmap at the original name for an NSEC3 match", func() {
+			d := denialSet{name: "b.example.", qtype: dns.TypeANY, logger: sut.logger}
+			Expect(d.nsec3MatchNoData(&dns.NSEC3{})).Should(Equal(ValidationResultSecure))
+			Expect(d.nsec3MatchNoData(&dns.NSEC3{TypeBitMap: []uint16{dns.TypeTXT}})).Should(Equal(ValidationResultBogus))
+		})
+	})
+
 	Describe("validateDenialOfExistence", func() {
-		It("should return Insecure when no NSEC or NSEC3 records", func() {
+		It("should return Bogus when no NSEC or NSEC3 records", func() {
 			response := &dns.Msg{
 				Ns: []dns.RR{},
 			}
@@ -47,141 +70,7 @@ var _ = Describe("Denial of existence validation", func() {
 			}
 
 			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).Should(Equal(ValidationResultInsecure))
-		})
-
-		It("should use NSEC validation when NSEC records present", func() {
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-			}
-
-			// Mock DNSKEY query for authority section validation
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
-					// Return empty DNSKEY response to make authority validation fail
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{},
-						},
-					}, nil
-				}
-
-				return nil, errors.New("mock error: only DNSKEY queries are handled")
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{nsec},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "m.example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Will fail on authority validation but should attempt NSEC validation
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			// Result depends on authority section validation
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should use NSEC3 validation when NSEC3 records present", func() {
-			nsec3 := &dns.NSEC3{
-				Hdr:        dns.RR_Header{Name: "hash.example.com.", Rrtype: dns.TypeNSEC3},
-				Hash:       dns.SHA1,
-				Salt:       "",
-				Iterations: 0,
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{nsec3},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Will attempt NSEC3 validation
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should prefer NSEC3 when both NSEC and NSEC3 present", func() {
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-			}
-			nsec3 := &dns.NSEC3{
-				Hdr:        dns.RR_Header{Name: "hash.example.com.", Rrtype: dns.TypeNSEC3},
-				Hash:       dns.SHA1,
-				Salt:       "",
-				Iterations: 0,
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{nsec, nsec3},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Should use NSEC3 (checked first in the code)
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should validate authority section first", func() {
-			// Invalid RRSIG in authority section
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{nsec},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "m.example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Authority section validation will determine the result
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should handle NODATA responses", func() {
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-				TypeBitMap: []uint16{dns.TypeA}, // Has A but not AAAA
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{nsec},
-			}
-			response.Rcode = dns.RcodeSuccess // NODATA, not NXDOMAIN
-
-			question := dns.Question{
-				Name:   "example.com.",
-				Qtype:  dns.TypeAAAA,
-				Qclass: dns.ClassINET,
-			}
-
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).ShouldNot(BeNil())
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
 		It("should handle non-NSEC/NSEC3 records in authority section", func() {
@@ -204,57 +93,7 @@ var _ = Describe("Denial of existence validation", func() {
 			}
 
 			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).Should(Equal(ValidationResultInsecure))
-		})
-
-		It("should handle mixed record types in authority section", func() {
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-			}
-			soa := &dns.SOA{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeSOA},
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{soa, nsec},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "m.example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Should detect and use NSEC
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should respect query budget during validation", func() {
-			// Exhaust query budget
-			exhaustedCtx := withQueryBudget(context.Background(), 0)
-
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{nsec},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "m.example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Should fail on query budget when trying to validate authority section
-			result := sut.validateDenialOfExistence(exhaustedCtx, response, question)
-			Expect(result).ShouldNot(BeNil())
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
 		It("should return early when authority section validation fails with Insecure", func() {
@@ -330,39 +169,7 @@ var _ = Describe("Denial of existence validation", func() {
 			}
 
 			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).Should(Equal(ValidationResultInsecure))
-		})
-
-		It("should detect both NSEC and NSEC3 when scanning authority section", func() {
-			// Mix of NSEC, NSEC3, and other record types
-			nsec := &dns.NSEC{
-				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
-				NextDomain: "z.example.com.",
-			}
-			nsec3 := &dns.NSEC3{
-				Hdr:        dns.RR_Header{Name: "hash.example.com.", Rrtype: dns.TypeNSEC3},
-				Hash:       dns.SHA1,
-				Salt:       "",
-				Iterations: 0,
-			}
-			soa := &dns.SOA{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeSOA},
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{soa, nsec, nsec3},
-			}
-			response.Rcode = dns.RcodeNameError
-
-			question := dns.Question{
-				Name:   "test.example.com.",
-				Qtype:  dns.TypeA,
-				Qclass: dns.ClassINET,
-			}
-
-			// Should use NSEC3 (checked first)
-			result := sut.validateDenialOfExistence(ctx, response, question)
-			Expect(result).ShouldNot(BeNil())
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
 		When("authority section validation succeeds", func() {
@@ -397,212 +204,107 @@ var _ = Describe("Denial of existence validation", func() {
 					Qclass: dns.ClassINET,
 				}
 
-				// Without RRSIG, authority validation will return Insecure
-				// But this tests the scanning logic
+				// Without RRSIG the SOA is unsigned data, which is Bogus under the root trust anchor
+				// unless a delegation above it is proven to be unsigned
 				result := sut.validateDenialOfExistence(ctx, response, question)
-				Expect(result).Should(Equal(ValidationResultInsecure))
-			})
-
-			It("should call validateNSECDenialOfExistence when NSEC present and authority validates", func() {
-				// Create a minimal NSEC record
-				nsec := &dns.NSEC{
-					Hdr: dns.RR_Header{
-						Name:   "example.com.",
-						Rrtype: dns.TypeNSEC,
-						Class:  dns.ClassINET,
-						Ttl:    300,
-					},
-					NextDomain: "z.example.com.",
-					TypeBitMap: []uint16{dns.TypeSOA, dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC},
-				}
-
-				response := &dns.Msg{
-					Ns: []dns.RR{nsec},
-				}
-				response.Rcode = dns.RcodeNameError
-
-				question := dns.Question{
-					Name:   "nonexistent.example.com.",
-					Qtype:  dns.TypeA,
-					Qclass: dns.ClassINET,
-				}
-
-				// This will fail authority validation (no RRSIG) but tests the flow
-				result := sut.validateDenialOfExistence(ctx, response, question)
-				// Should attempt NSEC validation path
-				Expect(result).ShouldNot(BeNil())
-			})
-
-			It("should call validateNSEC3DenialOfExistence when NSEC3 present and authority validates", func() {
-				// Create a minimal NSEC3 record
-				nsec3 := &dns.NSEC3{
-					Hdr: dns.RR_Header{
-						Name:   "ABC123.example.com.",
-						Rrtype: dns.TypeNSEC3,
-						Class:  dns.ClassINET,
-						Ttl:    300,
-					},
-					Hash:       dns.SHA1,
-					Flags:      0,
-					Iterations: 10,
-					SaltLength: 0,
-					Salt:       "",
-					HashLength: 20,
-					NextDomain: "DEF456",
-					TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG},
-				}
-
-				response := &dns.Msg{
-					Ns: []dns.RR{nsec3},
-				}
-				response.Rcode = dns.RcodeNameError
-
-				question := dns.Question{
-					Name:   "nonexistent.example.com.",
-					Qtype:  dns.TypeA,
-					Qclass: dns.ClassINET,
-				}
-
-				// This will fail authority validation (no RRSIG) but tests the flow
-				result := sut.validateDenialOfExistence(ctx, response, question)
-				// Should attempt NSEC3 validation path
-				Expect(result).ShouldNot(BeNil())
-			})
-
-			It("should handle multiple NSEC records with different names", func() {
-				nsec1 := &dns.NSEC{
-					Hdr: dns.RR_Header{
-						Name:   "a.example.com.",
-						Rrtype: dns.TypeNSEC,
-						Class:  dns.ClassINET,
-						Ttl:    300,
-					},
-					NextDomain: "m.example.com.",
-					TypeBitMap: []uint16{dns.TypeA},
-				}
-				nsec2 := &dns.NSEC{
-					Hdr: dns.RR_Header{
-						Name:   "m.example.com.",
-						Rrtype: dns.TypeNSEC,
-						Class:  dns.ClassINET,
-						Ttl:    300,
-					},
-					NextDomain: "z.example.com.",
-					TypeBitMap: []uint16{dns.TypeA},
-				}
-
-				response := &dns.Msg{
-					Ns: []dns.RR{nsec1, nsec2},
-				}
-				response.Rcode = dns.RcodeNameError
-
-				question := dns.Question{
-					Name:   "p.example.com.",
-					Qtype:  dns.TypeA,
-					Qclass: dns.ClassINET,
-				}
-
-				result := sut.validateDenialOfExistence(ctx, response, question)
-				Expect(result).ShouldNot(BeNil())
-			})
-
-			It("should handle NSEC3 with various hash iterations", func() {
-				// Test with different iteration counts
-				for _, iterations := range []uint16{0, 1, 10, 150} {
-					nsec3 := &dns.NSEC3{
-						Hdr: dns.RR_Header{
-							Name:   "ABC123.example.com.",
-							Rrtype: dns.TypeNSEC3,
-							Class:  dns.ClassINET,
-							Ttl:    300,
-						},
-						Hash:       dns.SHA1,
-						Flags:      0,
-						Iterations: iterations,
-						SaltLength: 0,
-						Salt:       "",
-						HashLength: 20,
-						NextDomain: "DEF456",
-						TypeBitMap: []uint16{dns.TypeA},
-					}
-
-					response := &dns.Msg{
-						Ns: []dns.RR{nsec3},
-					}
-					response.Rcode = dns.RcodeNameError
-
-					question := dns.Question{
-						Name:   "nonexistent.example.com.",
-						Qtype:  dns.TypeA,
-						Qclass: dns.ClassINET,
-					}
-
-					result := sut.validateDenialOfExistence(ctx, response, question)
-					Expect(result).ShouldNot(BeNil())
-				}
-			})
-
-			It("should handle NSEC3 with salt", func() {
-				nsec3 := &dns.NSEC3{
-					Hdr: dns.RR_Header{
-						Name:   "ABC123.example.com.",
-						Rrtype: dns.TypeNSEC3,
-						Class:  dns.ClassINET,
-						Ttl:    300,
-					},
-					Hash:       dns.SHA1,
-					Flags:      0,
-					Iterations: 10,
-					SaltLength: 4,
-					Salt:       "ABCD1234",
-					HashLength: 20,
-					NextDomain: "DEF456",
-					TypeBitMap: []uint16{dns.TypeA},
-				}
-
-				response := &dns.Msg{
-					Ns: []dns.RR{nsec3},
-				}
-				response.Rcode = dns.RcodeNameError
-
-				question := dns.Question{
-					Name:   "nonexistent.example.com.",
-					Qtype:  dns.TypeA,
-					Qclass: dns.ClassINET,
-				}
-
-				result := sut.validateDenialOfExistence(ctx, response, question)
-				Expect(result).ShouldNot(BeNil())
-			})
-
-			It("should detect NSEC when mixed with other authority records", func() {
-				soa := &dns.SOA{
-					Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: 300},
-				}
-				ns := &dns.NS{
-					Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: 300},
-					Ns:  "ns1.example.com.",
-				}
-				nsec := &dns.NSEC{
-					Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
-					NextDomain: "z.example.com.",
-					TypeBitMap: []uint16{dns.TypeA},
-				}
-
-				response := &dns.Msg{
-					Ns: []dns.RR{soa, ns, nsec},
-				}
-				response.Rcode = dns.RcodeNameError
-
-				question := dns.Question{
-					Name:   "nonexistent.example.com.",
-					Qtype:  dns.TypeA,
-					Qclass: dns.ClassINET,
-				}
-
-				result := sut.validateDenialOfExistence(ctx, response, question)
-				Expect(result).ShouldNot(BeNil())
+				Expect(result).Should(Equal(ValidationResultBogus))
 			})
 		})
+	})
+
+	// RFC 5155 §10.4: a server answers with the records of one chain of a zone. A reply that a
+	// resolver put together while the zone changed from one chain to the other may hold records of
+	// both, and each chain is a signed statement of the zone.
+	Describe("a denial set with NSEC and NSEC3 records of the zone example.", func() {
+		nsec := func(owner, next string, types ...uint16) dns.RR {
+			return &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: owner, Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: next, TypeBitMap: types,
+			}
+		}
+		// The NSEC3 record of a name, and one that covers the hash of a name and no other
+		nsec3 := func(name string, types ...uint16) dns.RR { return nsec3Range("example.", name, 0, 1, types...) }
+		nsec3Cover := func(name string) dns.RR { return nsec3Range("example.", name, -1, 1) }
+		secure := func(proof func(d *denialSet) ValidationResult) func(d *denialSet) bool {
+			return func(d *denialSet) bool { return proof(d) == ValidationResultSecure }
+		}
+
+		// byNSEC and byNSEC3 return the records of either chain that give the proof. Neither gives
+		// it without its last record.
+		DescribeTable("proves with its NSEC records and, if that proof does not hold, with its NSEC3 records",
+			func(name string, qtype uint16, holds func(d *denialSet) bool, byNSEC, byNSEC3 func() []dns.RR) {
+				proves := func(records ...[]dns.RR) bool {
+					return holds(legacyDenialSet(sut, slices.Concat(records...), name, qtype))
+				}
+
+				n, h := byNSEC(), byNSEC3()
+				fewerN, fewerH := n[:len(n)-1], h[:len(h)-1]
+
+				Expect(proves(n)).Should(BeTrue())
+				Expect(proves(h)).Should(BeTrue())
+				Expect(proves(fewerN)).Should(BeFalse())
+				Expect(proves(fewerH)).Should(BeFalse())
+
+				Expect(proves(n, h)).Should(BeTrue())
+				Expect(proves(h, n)).Should(BeTrue(), "in either order of the section")
+				Expect(proves(n, fewerH)).Should(BeTrue(), "the NSEC records give the proof")
+				Expect(proves(fewerN, h)).Should(BeTrue(), "the NSEC3 records give the proof")
+				Expect(proves(fewerN, fewerH)).Should(BeFalse())
+			},
+			Entry("that a name does not exist", "nx.example.", dns.TypeA, secure((*denialSet).nameError),
+				func() []dns.RR {
+					return []dns.RR{
+						nsec("a.example.", "z.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC),
+						nsec("example.", "a.example.", dns.TypeNS, dns.TypeSOA, dns.TypeRRSIG, dns.TypeNSEC, dns.TypeDNSKEY),
+					}
+				},
+				func() []dns.RR {
+					return []dns.RR{
+						nsec3("example.", dns.TypeNS, dns.TypeSOA, dns.TypeRRSIG, dns.TypeDNSKEY, dns.TypeNSEC3PARAM),
+						nsec3Cover("nx.example."),
+						nsec3Cover("*.example."),
+					}
+				}),
+			Entry("that a name has no data of a type", "www.example.", dns.TypeTXT, secure((*denialSet).noData),
+				func() []dns.RR {
+					return []dns.RR{
+						nsec("a.example.", "www.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC),
+						nsec("www.example.", "z.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC),
+					}
+				},
+				func() []dns.RR {
+					return []dns.RR{
+						nsec3("a.example.", dns.TypeA, dns.TypeRRSIG),
+						nsec3("www.example.", dns.TypeA, dns.TypeRRSIG),
+					}
+				}),
+			Entry("that a name is an insecure delegation", "sub.example.", dns.TypeDS,
+				secure(func(d *denialSet) ValidationResult { return d.noDS(false) }),
+				func() []dns.RR {
+					return []dns.RR{
+						nsec("a.example.", "sub.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC),
+						nsec("sub.example.", "z.example.", dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC),
+					}
+				},
+				func() []dns.RR {
+					return []dns.RR{
+						nsec3("a.example.", dns.TypeA, dns.TypeRRSIG),
+						nsec3("sub.example.", dns.TypeNS),
+					}
+				}),
+			Entry("that a name is no zone cut", "www.example.", dns.TypeDS, (*denialSet).noZoneCut,
+				func() []dns.RR {
+					return []dns.RR{
+						nsec("a.example.", "www.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC),
+						nsec("www.example.", "z.example.", dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC),
+					}
+				},
+				func() []dns.RR {
+					return []dns.RR{
+						nsec3("a.example.", dns.TypeA, dns.TypeRRSIG),
+						nsec3("www.example.", dns.TypeA, dns.TypeRRSIG),
+					}
+				}),
+		)
 	})
 })

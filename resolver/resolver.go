@@ -238,13 +238,25 @@ func isTraceEnabled(logger *logrus.Entry) bool {
 
 // withDebugField returns logger with the field if it emits at Debug level, and logger
 // itself otherwise. Use it on the hot path for a field only Debug lines are logged with:
-// adding a field copies the logger.
+// adding a field copies the logger. The value is query data, so it is obfuscated when
+// log privacy is enabled.
 func withDebugField(logger *logrus.Entry, name, value string) *logrus.Entry {
 	if isDebugEnabled(logger) {
-		return logger.WithField(name, value)
+		return logger.WithField(name, util.Obfuscate(value))
 	}
 
 	return logger
+}
+
+// logReason returns the response reason to write to logs. With log privacy enabled it
+// prefers the low-cardinality reasonLabel: a blocked response's reason names the matched
+// rule, which for exact-match lists is the queried domain.
+func logReason(reason, reasonLabel string) string {
+	if reasonLabel != "" && util.LogPrivacy.Load() {
+		return reasonLabel
+	}
+
+	return reason
 }
 
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.

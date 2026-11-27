@@ -13,6 +13,7 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 var _ = Describe("Chain of trust validation", func() {
@@ -88,13 +89,13 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(cached).Should(Equal(result))
 		})
 
-		It("should keep a Bogus result for at most bogusTTL", func() {
+		It("should keep a Bogus result for at most BogusTTL", func() {
 			sut.setCachedValidation(ctx, "bogus.com.", ValidationResultBogus)
 			sut.setCachedValidation(ctx, "insecure.com.", ValidationResultInsecure)
 
 			_, bogusLeft := sut.validationCache.Get(validationCacheKey(ctx, "bogus.com."))
 			_, insecureLeft := sut.validationCache.Get(validationCacheKey(ctx, "insecure.com."))
-			Expect(bogusLeft).Should(BeNumerically("~", bogusTTL, time.Second))
+			Expect(bogusLeft).Should(BeNumerically("~", BogusTTL, time.Second))
 			Expect(insecureLeft).Should(BeNumerically(">", 59*time.Minute))
 		})
 
@@ -368,7 +369,24 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(keys).Should(HaveLen(1))
 
 			_, err := sut.verifyDNSKEYRRset([]dns.RR{dsKey, other, sig}, keys, zone)
-			Expect(err).Should(MatchError(ContainSubstring("no RRSIG found")))
+			Expect(err).Should(MatchError(ContainSubstring("no RRSIG made by a validated key")))
+		})
+
+		It("takes a DS record that the RRset holds several times as one record", func() {
+			// The first record names a key that is missing: it has the key tag of ksk and another
+			// digest. Its copies cost no digest attempt, so the attempts reach the record of ksk.
+			ksk, _, _ := newSignedZoneKey(zone)
+			missing := ksk.ToDS(dns.SHA256)
+			missing.Digest = strings.Repeat("00", 32)
+
+			ds := make([]*dns.DS, 0, 17)
+			for range 16 {
+				ds = append(ds, dns.Copy(missing).(*dns.DS))
+			}
+
+			keys, err := sut.findAndValidateKSKs([]*dns.DNSKEY{ksk}, append(ds, ksk.ToDS(dns.SHA256)), zone)
+			Expect(err).Should(Succeed())
+			Expect(keys).Should(ConsistOf(ksk))
 		})
 
 		Describe("verification attempt cap (KeyTrap, CVE-2023-50387)", func() {
@@ -423,176 +441,8 @@ var _ = Describe("Chain of trust validation", func() {
 				keys, answer := buildZone(100, -1)
 
 				_, err := sut.verifyDNSKEYRRset(answer, keys, zone)
-				Expect(err).Should(MatchError(ContainSubstring("giving up")))
+				Expect(err).Should(MatchError(ContainSubstring("no signature verifications left")))
 			})
-		})
-	})
-
-	Describe("convertDSToRRset", func() {
-		It("should convert DS records to RR slice", func() {
-			ds1 := &dns.DS{
-				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
-				KeyTag:     1234,
-				Algorithm:  dns.RSASHA256,
-				DigestType: dns.SHA256,
-				Digest:     "abcd",
-			}
-			ds2 := &dns.DS{
-				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
-				KeyTag:     5678,
-				Algorithm:  dns.RSASHA256,
-				DigestType: dns.SHA256,
-				Digest:     "efgh",
-			}
-
-			rrset := convertDSToRRset([]*dns.DS{ds1, ds2})
-			Expect(rrset).Should(HaveLen(2))
-			Expect(rrset[0]).Should(Equal(dns.RR(ds1)))
-			Expect(rrset[1]).Should(Equal(dns.RR(ds2)))
-		})
-
-		It("should handle empty DS list", func() {
-			rrset := convertDSToRRset([]*dns.DS{})
-			Expect(rrset).Should(BeEmpty())
-		})
-
-		It("should handle nil DS list", func() {
-			rrset := convertDSToRRset(nil)
-			Expect(rrset).ShouldNot(BeNil())
-			Expect(rrset).Should(BeEmpty())
-		})
-	})
-
-	Describe("extractTypedRecords", func() {
-		It("should extract DS records from answer section", func() {
-			ds1 := &dns.DS{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
-			}
-			ds2 := &dns.DS{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
-			}
-			a := &dns.A{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
-			}
-
-			dsRecords, err := extractTypedRecords[*dns.DS]([]dns.RR{ds1, a, ds2})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(dsRecords).Should(HaveLen(2))
-			Expect(dsRecords[0]).Should(Equal(ds1))
-			Expect(dsRecords[1]).Should(Equal(ds2))
-		})
-
-		It("should extract from multiple RR slices", func() {
-			ds1 := &dns.DS{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
-			}
-			ds2 := &dns.DS{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
-			}
-
-			dsRecords, err := extractTypedRecords[*dns.DS]([]dns.RR{ds1}, []dns.RR{ds2})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(dsRecords).Should(HaveLen(2))
-		})
-
-		It("should return error when no records found", func() {
-			a := &dns.A{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
-			}
-
-			_, err := extractTypedRecords[*dns.DS]([]dns.RR{a})
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("no records of requested type found"))
-		})
-
-		It("should handle empty RR slices", func() {
-			_, err := extractTypedRecords[*dns.DS]([]dns.RR{})
-			Expect(err).Should(HaveOccurred())
-		})
-
-		It("should work with other record types", func() {
-			dnskey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDNSKEY},
-			}
-			a := &dns.A{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
-			}
-
-			keys, err := extractTypedRecords[*dns.DNSKEY]([]dns.RR{a, dnskey})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(keys).Should(HaveLen(1))
-			Expect(keys[0]).Should(Equal(dnskey))
-		})
-	})
-
-	Describe("findDSRRSIG", func() {
-		It("should find RRSIG for DS records in answer section", func() {
-			rrsig := &dns.RRSIG{
-				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
-				TypeCovered: dns.TypeDS,
-			}
-
-			response := &dns.Msg{
-				Answer: []dns.RR{rrsig},
-			}
-
-			result := sut.findDSRRSIG(response, "example.com.")
-			Expect(result).Should(Equal(rrsig))
-		})
-
-		It("should find RRSIG for DS records in authority section", func() {
-			rrsig := &dns.RRSIG{
-				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
-				TypeCovered: dns.TypeDS,
-			}
-
-			response := &dns.Msg{
-				Ns: []dns.RR{rrsig},
-			}
-
-			result := sut.findDSRRSIG(response, "example.com.")
-			Expect(result).Should(Equal(rrsig))
-		})
-
-		It("should return nil when no DS RRSIG found", func() {
-			rrsig := &dns.RRSIG{
-				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
-				TypeCovered: dns.TypeA, // Not DS
-			}
-
-			response := &dns.Msg{
-				Answer: []dns.RR{rrsig},
-			}
-
-			result := sut.findDSRRSIG(response, "example.com.")
-			Expect(result).Should(BeNil())
-		})
-
-		It("should return nil for empty response", func() {
-			response := &dns.Msg{}
-
-			result := sut.findDSRRSIG(response, "example.com.")
-			Expect(result).Should(BeNil())
-		})
-
-		It("should prefer first DS RRSIG when multiple present", func() {
-			rrsig1 := &dns.RRSIG{
-				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
-				TypeCovered: dns.TypeDS,
-				KeyTag:      1,
-			}
-			rrsig2 := &dns.RRSIG{
-				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
-				TypeCovered: dns.TypeDS,
-				KeyTag:      2,
-			}
-
-			response := &dns.Msg{
-				Answer: []dns.RR{rrsig1, rrsig2},
-			}
-
-			result := sut.findDSRRSIG(response, "example.com.")
-			Expect(result).Should(Equal(rrsig1))
 		})
 	})
 
@@ -606,14 +456,50 @@ var _ = Describe("Chain of trust validation", func() {
 		})
 
 		It("should reject domains exceeding max chain depth", func() {
-			// Create a very deep domain name
-			deepDomain := "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.example.com."
+			// A chain may have one zone below its trust anchor: signed.example., and no zone below it
+			chain := newRepliedChain()
+			grandchild := "deep." + chain.child
+			grandchildKey, _ := chain.delegate(chain.child, chain.childKey, chain.childPriv, grandchild)
+			mockUpstream.ResolveFn = chain.resolve
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 1, 150, 30, 3600)
 
-			// Set a low max depth
-			sut.maxChainDepth = 5
-
-			result, _ := sut.walkChainOfTrust(ctx, deepDomain)
+			result, _ := v.walkChainOfTrust(ctx, grandchild)
 			Expect(result).Should(Equal(ValidationResultBogus))
+
+			result, keys := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(chain.childKey))
+
+			// The limit says nothing about the zone outside the chain, so nothing is kept for it:
+			// with one more zone allowed it validates
+			_, found := v.getCachedValidation(ctx, grandchild)
+			Expect(found).Should(BeFalse())
+
+			v.maxChainDepth = 2
+			result, keys = v.walkChainOfTrust(ctx, grandchild)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(grandchildKey))
+		})
+
+		It("should count the zones of a chain, not the labels of their names", func() {
+			// signed.example., a zone of 8 labels below it and one of 14 labels below that: three zones
+			// below the trust anchor. The names between them are empty non-terminals, which cost a DS
+			// query each and are no zones.
+			chain := newRepliedChain()
+			second := "f.e.d.c.b.a." + chain.child
+			third := "l.k.j.i.h.g." + second
+			Expect(dns.CountLabel(third)).Should(Equal(14))
+
+			secondKey, secondPriv := chain.delegate(chain.child, chain.childKey, chain.childPriv, second)
+			thirdKey, _ := chain.delegate(second, secondKey, secondPriv, third)
+			mockUpstream.ResolveFn = chain.resolve
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 3, 150, 30, 3600)
+
+			result, keys := v.walkChainOfTrust(withQueryBudget(ctx, 30), third)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(thirdKey))
+			Expect(chain.queries).Should(HaveLen(17),
+				"the DNSKEY RRset of example., a DS and a DNSKEY query for each zone, a DS query for each of the 10 other names")
 		})
 
 		It("should normalize domain to FQDN", func() {
@@ -635,8 +521,8 @@ var _ = Describe("Chain of trust validation", func() {
 			}
 
 			result, _ := sut.walkChainOfTrust(ctx, ".")
-			// Bogus because the DNSKEY query was answered without the anchored root keys
-			Expect(result).Should(Equal(ValidationResultBogus))
+			// The DNSKEY query was answered without the root keys: the lookup is not completed
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should cache validation results", func() {
@@ -670,6 +556,27 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(queries).Should(Equal(3), "DNSKEY of the anchor, then DS and DNSKEY of the child")
 
 			result, keys = v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(keys).Should(ConsistOf(chain.childKey))
+			Expect(queries).Should(Equal(3))
+		})
+
+		It("should not re-query a validated chain for a zone name that is spelt in another case", func() {
+			// RFC 4343: SIGNED.EXAMPLE. is signed.example., as an RRSIG may name its signer
+			chain := newSignedChain()
+			queries := 0
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				queries++
+
+				return chain.resolve(ctx, req)
+			}
+			v := NewValidator(ctx, chain.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, chain.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(queries).Should(Equal(3))
+
+			result, keys := v.walkChainOfTrust(ctx, strings.ToUpper(chain.child))
 			Expect(result).Should(Equal(ValidationResultSecure))
 			Expect(keys).Should(ConsistOf(chain.childKey))
 			Expect(queries).Should(Equal(3))
@@ -730,12 +637,14 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(queries).Should(Equal(5), "the child keys are fetched again, the anchor keys are still cached")
 		})
 
-		It("should recover from a truncated DNSKEY reply on the next walk", func() {
+		It("should recover from a DNSKEY lookup with truncated replies on the walk of the next validation", func() {
+			// The lookup asks once more for a reply that came truncated. With that one truncated
+			// too it could not be completed, which leaves nothing behind for the next validation.
 			chain := newSignedChain()
-			truncate := true
+			truncate := 2
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				if q := req.Req.Question[0]; q.Qtype == dns.TypeDNSKEY && q.Name == chain.parent && truncate {
-					truncate = false
+				if q := req.Req.Question[0]; q.Qtype == dns.TypeDNSKEY && q.Name == chain.parent && truncate > 0 {
+					truncate--
 
 					return &model.Response{Res: &dns.Msg{Truncated: true}}, nil
 				}
@@ -747,7 +656,7 @@ var _ = Describe("Chain of trust validation", func() {
 			result, _ := v.walkChainOfTrust(ctx, chain.child)
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 
-			result, _ = v.walkChainOfTrust(ctx, chain.child)
+			result, _ = v.walkChainOfTrust(withQueryBudget(ctx, 10), chain.child)
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
@@ -889,58 +798,52 @@ var _ = Describe("Chain of trust validation", func() {
 			}, ValidationResultBogus),
 		)
 
-		It("verifies at most maxZoneKeyVerifications signatures from one DS reply", func() {
+		It("takes no proof from a DS reply in which a denial RRset fails verification", func() {
 			otherKey, otherPriv, _ := newSignedZoneKey("jp.")
 			genuine := c.answers["DS co.jp."].Ns
 
-			// forged returns n NSEC records that point below co.jp., each with an RRSIG that names the
-			// key of jp. but fails verification with it.
-			forged := func(n int) []dns.RR {
-				rrs := make([]dns.RR, 0, 2*n)
-
-				for i := range n {
-					nsec := &dns.NSEC{
-						Hdr:        dns.RR_Header{Name: fmt.Sprintf("a%d.jp.", i), Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
-						NextDomain: "x.co.jp.",
-						TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
-					}
-					sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, otherKey, otherPriv, "jp.")
-					sig.KeyTag = c.jpKey.KeyTag()
-					rrs = append(rrs, nsec, sig)
-				}
-
-				return rrs
+			// An NSEC record that points below co.jp., with an RRSIG that names the key of jp. but fails
+			// verification with it. The reply is verified once and as a whole, before it proves anything.
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "a.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "x.co.jp.",
+				TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
 			}
+			sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, otherKey, otherPriv, "jp.")
+			sig.KeyTag = c.jpKey.KeyTag()
 
-			for n, expected := range map[int]ValidationResult{
-				maxZoneKeyVerifications - 1: ValidationResultSecure,
-				maxZoneKeyVerifications:     ValidationResultBogus,
-			} {
-				c.answers["DS co.jp."] = &dns.Msg{Ns: append(forged(n), genuine...)}
-				v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+			c.answers["DS co.jp."] = &dns.Msg{Ns: append([]dns.RR{nsec, sig}, genuine...)}
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
 
-				result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
-				Expect(result).Should(Equal(expected), "%d forged proofs before the genuine one", n)
-			}
+			result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
-		It("spends one budget on the zone cut proof and the DS denial of a reply", func() {
-			// forged returns an NSEC that points below co.jp. with two RRSIGs: one over its literal owner
-			// that fails, which provesNoZoneCut checks, and one over *.jp. that verifies, which only the
-			// DS denial check accepts.
-			forged := func(i int) []dns.RR {
+		It("hashes no name for an NSEC3 record of a DS reply that jp. did not sign", func() {
+			// RFC 9276 §3.2: the signature of an NSEC3 record is verified before anything is hashed for it
+			c.answers["DS co.jp."] = &dns.Msg{Ns: []dns.RR{coJPNSEC3(0, dns.TypeTXT, dns.TypeRRSIG)}}
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+			validation := withQueryBudget(ctx, 10)
+
+			result, _ := v.walkChainOfTrust(validation, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultBogus))
+			Expect(budgetFrom(validation).hashes.Load()).Should(BeZero())
+		})
+
+		It("verifies the denial RRsets of a DS reply once, for the zone cut proof and the DS denial", func() {
+			// beside returns the NSEC record of a name before co.jp. with two RRSIGs: one that fails,
+			// and one that verifies
+			beside := func(i int) []dns.RR {
 				nsec := &dns.NSEC{
-					Hdr:        dns.RR_Header{Name: "*.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
-					NextDomain: "x.co.jp.",
+					Hdr:        dns.RR_Header{Name: fmt.Sprintf("a%d.jp.", i), Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+					NextDomain: fmt.Sprintf("a%d.jp.", i+1),
 					TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
 				}
-				wildcardSig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, c.jpKey, c.jpPriv, "jp.")
-				nsec.Hdr.Name = fmt.Sprintf("a%d.jp.", i)
-				wildcardSig.Hdr.Name = nsec.Hdr.Name
-				literalSig := *wildcardSig
-				literalSig.Labels = 2
+				sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, c.jpKey, c.jpPriv, "jp.")
+				failing := *sig
+				failing.Inception-- // No longer the signed data, so it does not verify
 
-				return []dns.RR{nsec, &literalSig, wildcardSig}
+				return []dns.RR{nsec, &failing, sig}
 			}
 			c.proveCoJP(&dns.NSEC{
 				Hdr:        dns.RR_Header{Name: "co.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
@@ -949,19 +852,53 @@ var _ = Describe("Chain of trust validation", func() {
 			}, c.jpKey, c.jpPriv)
 			genuine := c.answers["DS co.jp."].Ns
 
-			// n forged NSECs cost n verifications in provesNoZoneCut and 2n+1 in the DS denial check.
-			for n, expected := range map[int]ValidationResult{2: ValidationResultInsecure, 3: ValidationResultBogus} {
-				var ns []dns.RR
-				for i := range n {
-					ns = append(ns, forged(i)...)
-				}
+			const n = 3
 
-				c.answers["DS co.jp."] = &dns.Msg{Ns: append(ns, genuine...)}
-				v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
-
-				result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
-				Expect(result).Should(Equal(expected), "%d forged NSECs", n)
+			ns := make([]dns.RR, 0, 3*n+len(genuine))
+			for i := range n {
+				ns = append(ns, beside(i)...)
 			}
+
+			c.answers["DS co.jp."] = &dns.Msg{Ns: append(ns, genuine...)}
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+			validation := withQueryBudget(ctx, 10)
+
+			result, _ := v.walkChainOfTrust(validation, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultInsecure))
+
+			// The DNSKEY RRset of jp., two tries for each record beside co.jp. and one for its own
+			Expect(budgetFrom(validation).verifications.Load()).Should(BeEquivalentTo(1 + 2*n + 1))
+		})
+
+		It("takes no proof from a DS reply with a denial RRset that only an RRSIG made for a wildcard verifies", func() {
+			// The NSEC record of *.jp. under the name a.jp., which the wildcard matches, before the
+			// proof of an insecure delegation. The RRSIG says nothing about a.jp. (RFC 4035 §5.3.2), so
+			// jp. did not sign the record as it is. The reply is verified as a whole, before it proves
+			// anything.
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "*.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "x.co.jp.",
+				TypeBitMap: []uint16{dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC},
+			}
+			sig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, c.jpKey, c.jpPriv, "jp.")
+			nsec.Hdr.Name, sig.Hdr.Name = "a.jp.", "a.jp."
+
+			c.proveCoJP(&dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "co.jp.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "jprs.co.jp.",
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC}, // an insecure delegation
+			}, c.jpKey, c.jpPriv)
+			genuine := c.answers["DS co.jp."].Ns
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultInsecure))
+
+			c.answers["DS co.jp."] = &dns.Msg{Ns: append([]dns.RR{nsec, sig}, genuine...)}
+			v = NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ = v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 
 		It("accepts a literal wildcard NSEC that points below co.jp.", func() {
@@ -1009,6 +946,39 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(result).Should(Equal(ValidationResultBogus), "co.jp. is still no signer")
 		})
 
+		It("asks once whether co.jp. is part of jp.", func() {
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			result, _ := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+			Expect(result).Should(Equal(ValidationResultSecure))
+
+			// What the walk found at co.jp. is kept: for a walk to co.jp. itself, and for one through it
+			c.queries = nil
+
+			result, _ = v.walkChainOfTrust(ctx, "co.jp.")
+			Expect(result).Should(Equal(ValidationResultBogus), "co.jp. is still no signer")
+			Expect(v.unsignedStatus(ctx, "co.jp.")).Should(Equal(ValidationResultBogus), "jp. signs what co.jp. holds")
+			Expect(c.queries).Should(BeEmpty())
+
+			result, _ = v.walkChainOfTrust(ctx, "other.co.jp.")
+			Expect(result).Should(Equal(ValidationResultIndeterminate), "the DS reply for other.co.jp. is empty")
+			Expect(c.queries).Should(Equal([]string{"DS other.co.jp.", "DS other.co.jp."}),
+				"a reply without an answer is asked for once more")
+		})
+
+		It("counts a cache hit for each cache entry that a walk uses", func() {
+			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			// A walk to co.jp. looks at the entry for that name before it starts at jp., and uses it
+			// when it comes to the name
+			for range 2 {
+				Expect(v.walk(ctx, "co.jp.", false).result).Should(Equal(ValidationResultSecure))
+			}
+
+			Expect(testutil.ToFloat64(v.cacheHitMetrics)).Should(BeEquivalentTo(2),
+				"the second walk uses the entries for jp. and for co.jp.")
+		})
+
 		It("rejects co.jp. as a signer without caching it, so zones below it still validate", func() {
 			v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
 
@@ -1020,6 +990,554 @@ var _ = Describe("Chain of trust validation", func() {
 
 			result, _ = v.walkChainOfTrust(ctx, "jprs.co.jp.")
 			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		// A name that owns a CNAME RRset has no other data (RFC 1034 §3.6.2, RFC 2181 §10.1), so it
+		// is no zone cut, and the reply to the DS query for it is that RRset. Here co.jp. is an alias
+		// in the zone jp.
+		Describe("past a name that owns a CNAME RRset", func() {
+			const target = "www.example."
+
+			var (
+				question dns.Question
+				signed   *dns.Msg
+			)
+
+			// alias returns the CNAME RRset of owner followed by the RRSIG that jp. makes for it
+			alias := func(c *partOfParentChain, owner string) []dns.RR {
+				cname := &dns.CNAME{
+					Hdr:    dns.RR_Header{Name: owner, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 300},
+					Target: target,
+				}
+
+				return []dns.RR{cname, signRRset([]dns.RR{cname}, dns.TypeCNAME, c.jpKey, c.jpPriv, "jp.")}
+			}
+
+			BeforeEach(func() {
+				question = dns.Question{Name: "www.jprs.co.jp.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+				signed = signedA(question.Name, "192.0.2.1", c.childKey, c.childPriv, "jprs.co.jp.")
+			})
+
+			It("goes on with the keys of jp. when jp. signed the CNAME RRset of co.jp.", func() {
+				// unsigned.co.jp. is a delegation of jp. without DS RRset
+				c.answers["DS unsigned.co.jp."] = &dns.Msg{
+					Ns: signedNSEC("unsigned.co.jp.", c.jpKey, c.jpPriv, "jp.", dns.TypeNS),
+				}
+				unsigned := &dns.Msg{
+					Answer: signedA("www.unsigned.co.jp.", "192.0.2.1", c.childKey, c.childPriv, "jprs.co.jp.").Answer[:1],
+				}
+
+				// The reply may go on with what the target of the CNAME has, here the denial of its DS
+				// RRset by its own zone. None of that is read.
+				targetKey, targetPriv, _ := newSignedZoneKey("example.")
+
+				for _, forTarget := range [][]dns.RR{nil, signedNSEC(target, targetKey, targetPriv, "example.", dns.TypeA)} {
+					c.answers["DS co.jp."] = &dns.Msg{Answer: alias(c, "co.jp."), Ns: forTarget}
+					c.queries = nil
+					v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+					Expect(v.ValidateResponse(ctx, signed, question)).Should(Equal(ValidationResultSecure))
+					Expect(c.queries).Should(Equal([]string{"DNSKEY jp.", "DS co.jp.", "DS jprs.co.jp.", "DNSKEY jprs.co.jp."}),
+						"co.jp. has no DNSKEY RRset to fetch")
+
+					result, keys := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+					Expect(result).Should(Equal(ValidationResultSecure))
+					Expect(keys).Should(ConsistOf(c.childKey))
+
+					Expect(v.ValidateResponse(ctx, unsigned,
+						dns.Question{Name: "www.unsigned.co.jp.", Qtype: dns.TypeA, Qclass: dns.ClassINET},
+					)).Should(Equal(ValidationResultInsecure), "below an insecure delegation of jp. below co.jp.")
+
+					result, _ = v.walkChainOfTrust(ctx, "co.jp.")
+					Expect(result).Should(Equal(ValidationResultBogus), "co.jp. is a name of jp. and no signer")
+				}
+			})
+
+			// The queries of a walk that stops at co.jp., and of one that asks its DS query once more
+			asked := []string{"DNSKEY jp.", "DS co.jp."}
+			askedAgain := []string{"DNSKEY jp.", "DS co.jp.", "DS co.jp."}
+
+			DescribeTable("does not go on past co.jp. on a CNAME RRset that jp. did not sign for that name",
+				func(offered func(c *partOfParentChain) []dns.RR, status ValidationResult, queries []string) {
+					// With the CNAME RRset of co.jp. as jp. signs it, the zone below validates
+					c.answers["DS co.jp."] = &dns.Msg{Answer: alias(c, "co.jp.")}
+					v := NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+					Expect(v.ValidateResponse(ctx, signed, question)).Should(Equal(ValidationResultSecure))
+
+					// Any other is no proof. A CNAME RRset of co.jp. that the keys of jp. do not verify
+					// for that name is no answer of jp., like a DS RRset that does not verify: Bogus.
+					// The CNAME RRset of another name says nothing about co.jp.: the reply is one
+					// without DS RRset and without its denial, which the lookup asks for once more and
+					// cannot complete.
+					c.answers["DS co.jp."] = &dns.Msg{Answer: offered(c)}
+					c.queries = nil
+					v = NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+					result, keys := v.walkChainOfTrust(ctx, "jprs.co.jp.")
+					Expect(result).Should(Equal(status))
+					Expect(keys).Should(BeEmpty())
+					Expect(c.queries).Should(Equal(queries), "the walk stops at co.jp.")
+				},
+				Entry("without RRSIG", func(c *partOfParentChain) []dns.RR {
+					return alias(c, "co.jp.")[:1]
+				}, ValidationResultBogus, asked),
+				Entry("with an RRSIG that names the key of jp. and does not verify", func(c *partOfParentChain) []dns.RR {
+					otherKey, otherPriv, _ := newSignedZoneKey("jp.")
+					rrs := alias(c, "co.jp.")
+					sig := signRRset(rrs[:1], dns.TypeCNAME, otherKey, otherPriv, "jp.")
+					sig.KeyTag = c.jpKey.KeyTag()
+
+					return []dns.RR{rrs[0], sig}
+				}, ValidationResultBogus, asked),
+				Entry("with the RRSIG of a zone at co.jp. itself", func(c *partOfParentChain) []dns.RR {
+					// Only the zone that the walk is in says what is part of it
+					ownKey, ownPriv, _ := newSignedZoneKey("co.jp.")
+					rrs := alias(c, "co.jp.")
+
+					return []dns.RR{rrs[0], signRRset(rrs[:1], dns.TypeCNAME, ownKey, ownPriv, "co.jp.")}
+				}, ValidationResultBogus, asked),
+				Entry("verified by the RRSIG that jp. made for the wildcard *.jp.", func(c *partOfParentChain) []dns.RR {
+					// RFC 4035 §5.3.2: the RRSIG of a wildcard verifies its RRset under every name that
+					// the wildcard matches, which says nothing about what co.jp. owns
+					rrs := alias(c, "*.jp.")
+					rrs[0].Header().Name, rrs[1].Header().Name = "co.jp.", "co.jp."
+
+					sig, _ := rrs[1].(*dns.RRSIG)
+					Expect(sig.Labels).Should(BeEquivalentTo(1))
+					Expect(sig.Verify(c.jpKey, rrs[:1])).Should(Succeed())
+
+					return rrs
+				}, ValidationResultBogus, asked),
+				Entry("of another name of jp.", func(c *partOfParentChain) []dns.RR {
+					return alias(c, "cn.jp.")
+				}, ValidationResultIndeterminate, askedAgain),
+			)
+		})
+	})
+
+	// The status of data without RRSIG at a name is that of the zone that holds the name, which the
+	// chain of trust walk finds. example. is the trust anchor, signed.example. a signed zone and
+	// unsigned.example. an insecure delegation of example.
+	Describe("unsignedStatus", func() {
+		var (
+			c *repliedChain
+			v *Validator
+		)
+
+		BeforeEach(func() {
+			c = newRepliedChain()
+			c.replies["DS unsigned.example."] = &dns.Msg{Ns: c.parentNSEC("unsigned.example.", dns.TypeNS)}
+			mockUpstream.ResolveFn = c.resolve
+			v = NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+		})
+
+		// lookup returns the status of data without RRSIG at name as a validation of its own finds
+		// it, and the queries that it made for that.
+		lookup := func(name string) (ValidationResult, []string) {
+			c.queries = nil
+
+			return v.unsignedStatus(withQueryBudget(ctx, 30), name), c.queries
+		}
+
+		It("asks one DS query for a name three labels below an insecure delegation, and none again", func() {
+			result, _ := v.walkChainOfTrust(ctx, c.parent)
+			Expect(result).Should(Equal(ValidationResultSecure))
+
+			status, queries := lookup("c.b.a.unsigned.example.")
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(Equal([]string{"DS unsigned.example."}))
+
+			status, queries = lookup("c.b.a.unsigned.example.")
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(BeEmpty())
+		})
+
+		It("shares the lookup between the names of an unsigned zone", func() {
+			status, queries := lookup("www.unsigned.example.")
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(Equal([]string{"DNSKEY example.", "DS unsigned.example."}))
+
+			status, queries = lookup("mail.host.unsigned.example.")
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(BeEmpty())
+		})
+
+		It("is Insecure for a name of 34 labels below an insecure delegation", func() {
+			// The walk stops at the insecure delegation, however long the name below it is
+			name := strings.Repeat("x.", 32) + "unsigned.example."
+			Expect(dns.CountLabel(name)).Should(Equal(34))
+
+			status, queries := lookup(name)
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(Equal([]string{"DNSKEY example.", "DS unsigned.example."}))
+
+			// Nor is a signer of that many labels there refused for its length
+			result, _ := v.walkChainOfTrust(ctx, name)
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
+
+		It("is Insecure below an insecure delegation of 12 labels, past the names above it that are no zones", func() {
+			// The names between example. and the delegation are empty non-terminals. The walk asks for
+			// each once, to find that it is no zone cut, and none of them is a zone of the chain.
+			const delegation = "u.k.j.i.h.g.f.e.d.c.b.example."
+
+			Expect(dns.CountLabel(delegation)).Should(Equal(12))
+			c.emptyNonTerminals(c.parent, c.parentKey, c.parentPriv, delegation)
+			c.replies["DS "+delegation] = &dns.Msg{Ns: c.parentNSEC(delegation, dns.TypeNS)}
+
+			status, queries := lookup("www." + delegation)
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(HaveLen(12), "the DNSKEY RRset of example., ten empty non-terminals, the delegation")
+
+			status, queries = lookup("mail." + delegation)
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(BeEmpty())
+		})
+
+		It("keeps no verdict of a walk that runs out of queries on names that are no zone cut", func() {
+			// An insecure delegation of 36 labels below empty non-terminals: more names than one
+			// validation has queries for. What it could not find out is found by the next one, which
+			// goes on below the names that are known to be no zone cut.
+			delegation := strings.Repeat("x.", 35) + c.parent
+			c.emptyNonTerminals(c.parent, c.parentKey, c.parentPriv, delegation)
+			c.replies["DS "+delegation] = &dns.Msg{Ns: c.parentNSEC(delegation, dns.TypeNS)}
+
+			status, queries := lookup("www." + delegation)
+			Expect(status).Should(Equal(ValidationResultBogus), "the data is refused below a trust anchor")
+			Expect(queries).Should(HaveLen(30))
+
+			for _, name := range []string{"www." + delegation, delegation, "x." + c.parent} {
+				_, found := v.getCachedValidation(ctx, name)
+				Expect(found).Should(BeFalse(), name)
+			}
+
+			status, queries = lookup("www." + delegation)
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(HaveLen(6), "five more empty non-terminals and the delegation")
+		})
+
+		It("does not take a DS RRset below an insecure delegation for that of a signed zone", func() {
+			// The unsigned zone holds a DS RRset for a child of its own, which nothing signs. A walk
+			// stops at the insecure delegation (RFC 4035 §5.2) and asks for nothing below it.
+			ds := c.childKey.ToDS(dns.SHA256)
+			ds.Hdr.Name = "child.unsigned.example."
+			c.replies["DS child.unsigned.example."] = &dns.Msg{Answer: []dns.RR{ds}}
+
+			status, queries := lookup("www.child.unsigned.example.")
+			Expect(status).Should(Equal(ValidationResultInsecure))
+			Expect(queries).Should(Equal([]string{"DNSKEY example.", "DS unsigned.example."}))
+		})
+
+		It("does not accept the denial of a DS RRset that another zone than the parent signed", func() {
+			// RFC 4035 §5.2: the zone that delegates a name denies its DS RRset. example. signs an NSEC
+			// record for victim.signed.example., a name of the zone signed.example. that it delegated.
+			c.replies["DS victim.signed.example."] = &dns.Msg{Ns: c.parentNSEC("victim.signed.example.", dns.TypeNS)}
+
+			status, _ := lookup("www.victim.signed.example.")
+			Expect(status).Should(Equal(ValidationResultBogus))
+		})
+
+		It("does not take an NSEC record without RRSIG for the denial of a DS RRset, and asks no more for it", func() {
+			// RFC 4035 §5.2: only an authenticated denial shows an insecure delegation. The record has
+			// no status of its own to look up either, beside the SOA record that example. signed.
+			soa := &dns.SOA{
+				Hdr: dns.RR_Header{Name: c.parent, Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: 300},
+				Ns:  "ns." + c.parent, Mbox: "hostmaster." + c.parent, Serial: 1, Minttl: 300,
+			}
+			c.replies["DS unsigned.example."] = &dns.Msg{Ns: []dns.RR{
+				soa, signRRset([]dns.RR{soa}, dns.TypeSOA, c.parentKey, c.parentPriv, c.parent),
+				c.parentNSEC("unsigned.example.", dns.TypeNS)[0],
+			}}
+
+			status, queries := lookup("www.unsigned.example.")
+			Expect(status).Should(Equal(ValidationResultBogus))
+			Expect(queries).Should(Equal([]string{"DNSKEY example.", "DS unsigned.example."}))
+		})
+
+		It("is Bogus in a signed zone, which proves once that the name is part of it", func() {
+			// GHSA-x845-2f78-7v36: a signed zone signs all that it holds
+			c.replies["DS www.signed.example."] = &dns.Msg{Ns: c.childNSEC("www.signed.example.", dns.TypeA)}
+
+			status, queries := lookup("www.signed.example.")
+			Expect(status).Should(Equal(ValidationResultBogus))
+			Expect(queries).Should(Equal([]string{
+				"DNSKEY example.", "DS signed.example.", "DNSKEY signed.example.", "DS www.signed.example.",
+			}))
+
+			status, queries = lookup("www.signed.example.")
+			Expect(status).Should(Equal(ValidationResultBogus))
+			Expect(queries).Should(BeEmpty())
+		})
+
+		DescribeTable("is Bogus below a trust anchor while the walk cannot be completed, and keeps nothing of that",
+			func(query string, reply *dns.Msg, asked []string) {
+				// GHSA-x845-2f78-7v36: only the proof of an insecure delegation makes data without RRSIG
+				// Insecure. Issue #2120: what a failed query leaves open is found by the next walk.
+				proper, replied := c.replies[query]
+				c.replies[query] = reply
+
+				status, queries := lookup("www.unsigned.example.")
+				Expect(status).Should(Equal(ValidationResultBogus))
+				Expect(queries).Should(Equal(asked), "the walk stops where it cannot go on")
+
+				if replied {
+					c.replies[query] = proper
+				} else {
+					delete(c.replies, query)
+				}
+
+				status, _ = lookup("www.unsigned.example.")
+				Expect(status).Should(Equal(ValidationResultInsecure))
+			},
+			Entry("the DNSKEY query for the trust anchor fails",
+				"DNSKEY example.", (*dns.Msg)(nil), []string{"DNSKEY example."}),
+			Entry("the DS query for the delegation fails",
+				"DS unsigned.example.", (*dns.Msg)(nil), []string{"DNSKEY example.", "DS unsigned.example."}),
+			Entry("the DS reply holds neither a DS RRset nor its denial, also when asked for once more",
+				"DS unsigned.example.", &dns.Msg{},
+				[]string{"DNSKEY example.", "DS unsigned.example.", "DS unsigned.example."}),
+		)
+
+		It("is Indeterminate without a trust anchor above the name, and asks nothing", func() {
+			status, queries := lookup("www.unsigned.other.")
+			Expect(status).Should(Equal(ValidationResultIndeterminate))
+			Expect(queries).Should(BeEmpty())
+		})
+	})
+
+	Describe("DS and DNSKEY RRsets of the zone that is validated", func() {
+		// RFC 4034 §2 and §5, RFC 4035 §5.2: the DS RRset of a delegation authenticates the DNSKEY
+		// RRset at the apex of the zone that it delegates. example., the trust anchor, delegates the
+		// signed zones signed.example., which is validated here, and other.example.
+		const other = "other.example."
+
+		var (
+			c         *repliedChain
+			v         *Validator
+			otherKey  *dns.DNSKEY
+			otherPriv *ecdsa.PrivateKey
+			question  dns.Question
+		)
+
+		BeforeEach(func() {
+			c = newRepliedChain()
+			otherKey, otherPriv = c.delegate(c.parent, c.parentKey, c.parentPriv, other)
+			question = dns.Question{Name: "www." + c.child, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			mockUpstream.ResolveFn = c.resolve
+			v = NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+		})
+
+		// signedByParent returns ds, a DS record, as an RRset that example. signs
+		signedByParent := func(ds *dns.DS) []dns.RR {
+			return []dns.RR{ds, signRRset([]dns.RR{ds}, dns.TypeDS, c.parentKey, c.parentPriv, c.parent)}
+		}
+
+		// unusableKey returns a key of zone that nothing verifies with: RSA/SHA-1, exponent 2^32+1
+		unusableKey := func(zone string) *dns.DNSKEY {
+			key, _, _, _ := generateBigExponentRSAKey(zone)
+			key.Algorithm = dns.RSASHA1
+
+			return key
+		}
+
+		// digestUnderZoneName returns the DS RRset of other.example. with the digest of a key under
+		// the name of the zone, and that key as a DNSKEY RRset of the zone with its own RRSIG. The
+		// digest of a DS record covers the owner name of the key, not the name of the delegation
+		// that the record is published at (RFC 4034 §5.1.4).
+		digestUnderZoneName := func() (ds, keys []dns.RR) {
+			key, priv, _ := newSignedZoneKey(c.child)
+			digest := key.ToDS(dns.SHA256)
+			digest.Hdr.Name = other
+
+			return signedByParent(digest), []dns.RR{key, signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, c.child)}
+		}
+
+		// ownUnusableKey returns the DS RRset of other.example. for a key of that zone which nothing
+		// verifies with, and that key as the DNSKEY RRset of other.example.
+		ownUnusableKey := func() (ds, keys []dns.RR) {
+			key := unusableKey(other)
+
+			return signedByParent(key.ToDS(dns.SHA256)), []dns.RR{key}
+		}
+
+		DescribeTable("a DS reply with the DS RRset of another delegation has no DS RRset of the zone",
+			func(offered func() (ds, keys []dns.RR), authority bool) {
+				ds, keys := offered()
+				if authority {
+					c.replies["DS "+c.child] = &dns.Msg{Ns: ds}
+				} else {
+					c.replies["DS "+c.child] = &dns.Msg{Answer: ds}
+				}
+
+				c.replies["DNSKEY "+c.child] = &dns.Msg{Answer: keys}
+
+				// The reply is what a reply without DS RRset and without its denial is, whatever the
+				// DNSKEY reply holds: the walk finds no keys, and nothing to keep for the zone
+				result, zoneKeys := v.walkChainOfTrust(ctx, c.child)
+				Expect(result).Should(Equal(ValidationResultIndeterminate))
+				Expect(zoneKeys).Should(BeEmpty())
+				Expect(v.cachedZoneStatus(ctx, c.child)).Should(BeNil())
+
+				unsigned := &dns.Msg{Answer: signedA(question.Name, "192.0.2.66", c.childKey, c.childPriv, c.child).Answer[:1]}
+				Expect(v.ValidateResponse(ctx, unsigned, question)).Should(Equal(ValidationResultBogus))
+
+				// With its own replies again, the zone is what it is
+				delete(c.replies, "DS "+c.child)
+				delete(c.replies, "DNSKEY "+c.child)
+
+				Expect(v.ValidateResponse(ctx, signedA(question.Name, "192.0.2.1", c.childKey, c.childPriv, c.child), question)).
+					Should(Equal(ValidationResultSecure))
+			},
+			Entry("which holds the digest of a key under the name of the zone, beside that key as the DNSKEY reply",
+				digestUnderZoneName, false),
+			Entry("the same RRset in the authority section", digestUnderZoneName, true),
+			Entry("for a key that nothing verifies with, beside the DNSKEY RRset of that delegation as the DNSKEY reply",
+				ownUnusableKey, false),
+		)
+
+		It("a DS RRset in the authority section of a DS reply is no answer to the query", func() {
+			c.replies["DS "+c.child] = &dns.Msg{Ns: []dns.RR{c.ds, c.dsSig}}
+
+			result, zoneKeys := v.walkChainOfTrust(ctx, c.child)
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+			Expect(zoneKeys).Should(BeEmpty())
+		})
+
+		// expanded returns rrset, which holds one record, with the RRSIG that example. makes for it
+		// under the wildcard *.example., as a reply holds the two for the zone: the RRSIG verifies
+		// the record under every name that the wildcard matches (RFC 4035 §5.3.2)
+		expanded := func(rr dns.RR) []dns.RR {
+			rr.Header().Name = "*." + c.parent
+			sig := signRRset([]dns.RR{rr}, rr.Header().Rrtype, c.parentKey, c.parentPriv, c.parent)
+			rr.Header().Name, sig.Hdr.Name = c.child, c.child
+
+			return []dns.RR{rr, sig}
+		}
+
+		It("a DS RRset that an RRSIG made for a wildcard verifies is not the DS RRset of the zone", func() {
+			// RFC 4592 §4.6: a wildcard gives no name a DS RRset. This one holds the digest of a key
+			// under the name of the zone, and the DNSKEY reply holds that key.
+			key, priv, _ := newSignedZoneKey(c.child)
+			c.replies["DS "+c.child] = &dns.Msg{Answer: expanded(key.ToDS(dns.SHA256))}
+			c.replies["DNSKEY "+c.child] = &dns.Msg{Answer: []dns.RR{
+				key, signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, c.child),
+			}}
+
+			result, zoneKeys := v.walkChainOfTrust(ctx, c.child)
+			Expect(result).Should(Equal(ValidationResultBogus))
+			Expect(zoneKeys).Should(BeEmpty())
+		})
+
+		// A unit spec of answerRRset, with a key source that no walk gives a DNSKEY RRset: the keys of
+		// the zone above. Only they make an RRSIG for a wildcard above an apex that checkRRSIG takes
+		// (see wildcardInSignerZone), so only with them this rule is what refuses the RRset.
+		It("answerRRset refuses a DNSKEY RRset that only an RRSIG made for a wildcard verifies", func() {
+			key, _, _ := newSignedZoneKey(c.child)
+			keys := parentKeys{v: v, keys: newKeySet(ctx, []*dns.DNSKEY{c.parentKey})}
+
+			r := answerRRset(ctx, &dns.Msg{Answer: expanded(key)}, c.child, dns.TypeDNSKEY, keys)
+			Expect(r.status).Should(Equal(ValidationResultBogus))
+			Expect(r.sig).Should(BeNil())
+
+			// The same RRSIG verifies the RRset of the wildcard, which is what it was made for
+			wildcard := expanded(key)
+			wildcard[0].Header().Name, wildcard[1].Header().Name = "*."+c.parent, "*."+c.parent
+
+			r = answerRRset(ctx, &dns.Msg{Answer: wildcard}, "*."+c.parent, dns.TypeDNSKEY, keys)
+			Expect(r.status).Should(Equal(ValidationResultSecure))
+		})
+
+		It("a DNSKEY record of another name is no key of the zone", func() {
+			// The reply holds the DNSKEY RRset of other.example. before that of the zone
+			c.replies["DNSKEY "+c.child] = &dns.Msg{Answer: append(append([]dns.RR{}, c.replies["DNSKEY "+other].Answer...),
+				c.childKey, c.childKeySig)}
+
+			result, zoneKeys := v.walkChainOfTrust(ctx, c.child)
+			Expect(result).Should(Equal(ValidationResultSecure))
+			Expect(zoneKeys).Should(ConsistOf(c.childKey))
+
+			// An RRSIG that the key of other.example. makes in the name of the zone verifies nothing
+			Expect(v.ValidateResponse(ctx, signedA(question.Name, "192.0.2.66", otherKey, otherPriv, c.child), question)).
+				Should(Equal(ValidationResultBogus))
+			Expect(v.ValidateResponse(ctx, signedA(question.Name, "192.0.2.1", c.childKey, c.childPriv, c.child), question)).
+				Should(Equal(ValidationResultSecure))
+		})
+
+		It("a DNSKEY reply with the keys of another name has no keys of the zone, before a DS record names one", func() {
+			// The DS RRset of the zone holds the digest of a key under the name other.example., a key
+			// that nothing verifies with. No key of the zone has that digest (RFC 4034 §5.1.4), and
+			// the reply holds no DNSKEY RRset of the zone: the lookup for the keys of the zone is not
+			// completed, which is no zone whose DS RRset names only keys of that kind.
+			key := unusableKey(other)
+			ds := key.ToDS(dns.SHA256)
+			ds.Hdr.Name = c.child
+			c.replies["DS "+c.child] = &dns.Msg{Answer: signedByParent(ds)}
+			c.replies["DNSKEY "+c.child] = &dns.Msg{Answer: []dns.RR{key}}
+
+			result, zoneKeys := v.walkChainOfTrust(ctx, c.child)
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+			Expect(zoneKeys).Should(BeEmpty())
+			Expect(v.cachedZoneStatus(ctx, c.child)).Should(BeNil())
+
+			unsigned := &dns.Msg{Answer: signedA(question.Name, "192.0.2.66", c.childKey, c.childPriv, c.child).Answer[:1]}
+			Expect(v.ValidateResponse(ctx, unsigned, question)).Should(Equal(ValidationResultBogus))
+		})
+
+		It("the DNSKEY RRset of a trust anchor zone without the RRSIG of an anchored key is refused, and no key of it kept", func() {
+			// RFC 4035 §5: example. signs its DNSKEY RRset, the anchored key and a zone-signing key,
+			// with the anchored key. A reply with the anchored key alone and no RRSIG is not that RRset.
+			zsk, zskPriv, _ := newSignedZoneKey(c.parent)
+			zsk.Flags = dns.ZONE
+			keys := []dns.RR{c.parentKey, zsk}
+			signed := &dns.Msg{Answer: []dns.RR{
+				c.parentKey, zsk, signRRset(keys, dns.TypeDNSKEY, c.parentKey, c.parentPriv, c.parent),
+			}}
+			question = dns.Question{Name: "www." + c.parent, Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			answer := signedA(question.Name, "192.0.2.1", zsk, zskPriv, c.parent)
+
+			c.replies["DNSKEY "+c.parent] = &dns.Msg{Answer: []dns.RR{c.parentKey}}
+			Expect(v.ValidateResponse(ctx, answer, question)).Should(Equal(ValidationResultBogus))
+
+			// What is kept is the failure, for as long as any failure is
+			status, left := v.validationCache.Get(validationCacheKey(ctx, c.parent))
+			Expect(status.result).Should(Equal(ValidationResultBogus))
+			Expect(status.keys).Should(BeEmpty())
+			Expect(left).Should(BeNumerically("<=", BogusTTL))
+
+			c.replies["DNSKEY "+c.parent] = signed
+			v = NewValidator(ctx, c.anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+			Expect(v.ValidateResponse(ctx, answer, question)).Should(Equal(ValidationResultSecure))
+		})
+
+		It("a DS RRset that the zone at its owner name signs is not authentic", func() {
+			// RFC 4034 §5, RFC 4035 §5.3.1: the DS RRset of signed.example. is data of example., the
+			// zone above the delegation, and signed.example. is not the signer of any DS RRset there
+			question = dns.Question{Name: c.child, Qtype: dns.TypeDS, Qclass: dns.ClassINET}
+			bySelf := signRRset([]dns.RR{c.ds}, dns.TypeDS, c.childKey, c.childPriv, c.child)
+
+			Expect(v.ValidateResponse(ctx, &dns.Msg{Answer: []dns.RR{c.ds, c.dsSig}}, question)).
+				Should(Equal(ValidationResultSecure))
+			Expect(v.ValidateResponse(ctx, &dns.Msg{Answer: []dns.RR{c.ds, bySelf}}, question)).
+				Should(Equal(ValidationResultBogus))
+		})
+
+		It("a DS RRset at the root is a record of the root, which has no zone above it", func() {
+			// RFC 4035 §5.3.1: the signer is the zone that holds the RRset. Here the root has a key
+			// of its own as the trust anchor.
+			rootKey, rootPriv, anchor := newSignedZoneKey(".")
+			anchors, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+
+			c.replies["DNSKEY ."] = &dns.Msg{Answer: []dns.RR{
+				rootKey, signRRset([]dns.RR{rootKey}, dns.TypeDNSKEY, rootKey, rootPriv, "."),
+			}}
+			v = NewValidator(ctx, anchors, sut.logger, mockUpstream, 1, 10, 150, 30, 3600)
+			question = dns.Question{Name: ".", Qtype: dns.TypeDS, Qclass: dns.ClassINET}
+			ds := rootKey.ToDS(dns.SHA256)
+
+			Expect(v.ValidateResponse(ctx,
+				&dns.Msg{Answer: []dns.RR{ds, signRRset([]dns.RR{ds}, dns.TypeDS, rootKey, rootPriv, ".")}}, question,
+			)).Should(Equal(ValidationResultSecure))
 		})
 	})
 
@@ -1167,59 +1685,7 @@ var _ = Describe("Chain of trust validation", func() {
 	})
 
 	Describe("validateDSRecordSignature", func() {
-		It("should validate DS RRSIG with parent DNSKEY", func() {
-			// Create a real DNSKEY and DS
-			dnskey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.RSASHA256,
-				PublicKey: "test",
-			}
-
-			ds := &dns.DS{
-				Hdr: dns.RR_Header{
-					Name:   "example.com.",
-					Rrtype: dns.TypeDS,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				KeyTag:     12345,
-				Algorithm:  dns.RSASHA256,
-				DigestType: dns.SHA256,
-				Digest:     "abcd1234",
-			}
-
-			rrsig := &dns.RRSIG{
-				Hdr: dns.RR_Header{
-					Name:   "example.com.",
-					Rrtype: dns.TypeRRSIG,
-					Class:  dns.ClassINET,
-				},
-				TypeCovered: dns.TypeDS,
-				SignerName:  "com.",
-				KeyTag:      dnskey.KeyTag(),
-			}
-
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				return &model.Response{
-					Res: &dns.Msg{
-						Answer: []dns.RR{dnskey},
-					},
-				}, nil
-			}
-
-			result := sut.validateDSRecordSignature(ctx, "example.com.", "com.", []dns.RR{ds}, rrsig)
-			// Will fail crypto validation, but tests the code path
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should return Bogus when no matching parent DNSKEY found", func() {
+		It("should return Indeterminate when the DNSKEY reply holds the keys of another name", func() {
 			ds := &dns.DS{
 				Hdr: dns.RR_Header{
 					Name:   "example.com.",
@@ -1257,8 +1723,9 @@ var _ = Describe("Chain of trust validation", func() {
 				}, nil
 			}
 
+			// The lookup of the root keys, which the reply does not hold, is not completed
 			result := sut.validateDSRecordSignature(ctx, "example.com.", "com.", []dns.RR{ds}, rrsig)
-			Expect(result).Should(Equal(ValidationResultBogus))
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should return Indeterminate when parent DNSKEY query fails", func() {
@@ -1330,19 +1797,24 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
 
-		It("should return Indeterminate when no DS and no NSEC/NSEC3", func() {
+		It("should return Bogus for a CNAME RRset that the parent zone did not sign, without NSEC/NSEC3", func() {
+			// A name that owns a CNAME RRset answers the DS query with it. Without the RRSIG of the
+			// parent zone it proves nothing, and the reply holds no other proof.
 			response := &dns.Msg{
-				Ns: []dns.RR{},
+				Answer: []dns.RR{&dns.CNAME{
+					Hdr:    dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 300},
+					Target: "www.example.net.",
+				}},
 			}
 
 			dsRecords, result := sut.extractAndValidateDSRecords("example.com.", nil, response, &budget)
 			Expect(dsRecords).Should(BeNil())
-			Expect(result).Should(Equal(ValidationResultIndeterminate))
+			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
 
 	Describe("verifyDenialSignatures", func() {
-		It("should check all denial RRsets of a reply with one verification budget", func() {
+		It("should give every denial RRset of a reply its own tries", func() {
 			key, priv, _ := newSignedZoneKey("example.")
 			keys := []*dns.DNSKEY{key}
 
@@ -1365,8 +1837,7 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications), keys, &budget)).Should(Succeed())
 
 			budget = maxZoneKeyVerifications
-			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications+1), keys, &budget)).
-				Should(MatchError(ContainSubstring("no signature verifications left")))
+			Expect(sut.verifyDenialSignatures(denials(maxZoneKeyVerifications+1), keys, &budget)).Should(Succeed())
 		})
 	})
 
@@ -1745,85 +2216,92 @@ var _ = Describe("Chain of trust validation", func() {
 	})
 
 	Describe("walkChainOfTrust - trust anchor path coverage", func() {
-		It("should validate domain with configured trust anchor", func() {
-			// Create trust anchor for test.com
-			testKey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "test.com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.RSASHA256,
-				PublicKey: "testkey123",
-			}
-
-			trustStore.anchors["test.com."] = []*TrustAnchor{
-				{Key: testKey},
-			}
-
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				if req.Req.Question[0].Qtype == dns.TypeDNSKEY && req.Req.Question[0].Name == "test.com." {
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{testKey},
-						},
-					}, nil
-				}
-
-				return &model.Response{Res: &dns.Msg{}}, nil
-			}
-
-			result, _ := sut.walkChainOfTrust(ctx, "test.com.")
-			// Will attempt to verify trust anchor, but may fail on parent validation
-			// We're testing that the trust anchor code path is exercised
-			Expect(result).ShouldNot(BeNil())
-		})
-
-		It("should continue validating child zones after trust anchor verification", func() {
-			// Configure trust anchor for parent zone
-			parentKey := &dns.DNSKEY{
-				Hdr: dns.RR_Header{
-					Name:   "example.com.",
-					Rrtype: dns.TypeDNSKEY,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				},
-				Flags:     257,
-				Protocol:  3,
-				Algorithm: dns.RSASHA256,
-				PublicKey: "parentkey",
-			}
-
-			trustStore.anchors["example.com."] = []*TrustAnchor{
-				{Key: parentKey},
-			}
-
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				qname := req.Req.Question[0].Name
-				qtype := req.Req.Question[0].Qtype
-
-				if qtype == dns.TypeDNSKEY && qname == "example.com." {
-					return &model.Response{
-						Res: &dns.Msg{
-							Answer: []dns.RR{parentKey},
-						},
-					}, nil
-				}
-
-				// Return errors for child validation
-				return nil, errors.New("child validation query")
-			}
-
-			// Try to validate child domain - should first verify trust anchor
-			result, _ := sut.walkChainOfTrust(ctx, "sub.example.com.")
-			// Will attempt to validate sub.example.com after verifying example.com trust anchor
-			Expect(result).ShouldNot(BeNil())
-		})
 	})
 })
+
+// repliedChain is the chain of newSignedChain with replies to further queries. replies maps
+// "TYPE name" to the reply that the upstream sends, or to nil for a query that fails, and queries
+// records what the upstream was asked.
+type repliedChain struct {
+	*signedChain
+
+	replies map[string]*dns.Msg
+	queries []string
+}
+
+func newRepliedChain() *repliedChain {
+	return &repliedChain{signedChain: newSignedChain(), replies: map[string]*dns.Msg{}}
+}
+
+func (c *repliedChain) resolve(ctx context.Context, req *model.Request) (*model.Response, error) {
+	q := req.Req.Question[0]
+	query := dns.TypeToString[q.Qtype] + " " + q.Name
+	c.queries = append(c.queries, query)
+
+	switch reply, replied := c.replies[query]; {
+	case !replied:
+		return c.signedChain.resolve(ctx, req)
+	case reply == nil:
+		return nil, errors.New("upstream unreachable")
+	default:
+		return &model.Response{Res: reply}, nil
+	}
+}
+
+// delegate makes child a signed zone that parent, a zone that signs with key and priv, delegates.
+// It adds the replies to the DS and DNSKEY queries for child and returns the key of child. The
+// names between the two zones are empty non-terminals (see emptyNonTerminals).
+func (c *repliedChain) delegate(
+	parent string, key *dns.DNSKEY, priv *ecdsa.PrivateKey, child string,
+) (*dns.DNSKEY, *ecdsa.PrivateKey) {
+	childKey, childPriv, _ := newSignedZoneKey(child)
+	ds := childKey.ToDS(dns.SHA256)
+
+	c.replies["DS "+child] = &dns.Msg{Answer: []dns.RR{ds, signRRset([]dns.RR{ds}, dns.TypeDS, key, priv, parent)}}
+	c.replies["DNSKEY "+child] = &dns.Msg{Answer: []dns.RR{
+		childKey, signRRset([]dns.RR{childKey}, dns.TypeDNSKEY, childKey, childPriv, child),
+	}}
+	c.emptyNonTerminals(parent, key, priv, child)
+
+	return childKey, childPriv
+}
+
+// emptyNonTerminals adds the replies to the DS queries for the names between zone, which signs
+// with key and priv, and below, a name of zone: the NSEC record of the apex of zone has below as
+// its next owner name, which shows that the names between them have no records.
+func (c *repliedChain) emptyNonTerminals(zone string, key *dns.DNSKEY, priv *ecdsa.PrivateKey, below string) {
+	nsec := &dns.NSEC{
+		Hdr:        dns.RR_Header{Name: zone, Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+		NextDomain: below,
+		TypeBitMap: []uint16{dns.TypeNS, dns.TypeSOA, dns.TypeRRSIG, dns.TypeNSEC, dns.TypeDNSKEY},
+	}
+	proof := &dns.Msg{Ns: []dns.RR{nsec, signRRset([]dns.RR{nsec}, dns.TypeNSEC, key, priv, zone)}}
+
+	for name := below[strings.Index(below, ".")+1:]; name != zone; name = name[strings.Index(name, ".")+1:] {
+		c.replies["DS "+name] = proof
+	}
+}
+
+// parentNSEC returns the NSEC record of name with types as the parent zone of the chain signs it,
+// followed by its RRSIG: the authority section of a reply to a DS query for name.
+func (c *repliedChain) parentNSEC(name string, types ...uint16) []dns.RR {
+	return signedNSEC(name, c.parentKey, c.parentPriv, c.parent, types...)
+}
+
+// childNSEC is parentNSEC for the child zone of the chain.
+func (c *repliedChain) childNSEC(name string, types ...uint16) []dns.RR {
+	return signedNSEC(name, c.childKey, c.childPriv, c.child, types...)
+}
+
+func signedNSEC(name string, key *dns.DNSKEY, priv *ecdsa.PrivateKey, signer string, types ...uint16) []dns.RR {
+	nsec := &dns.NSEC{
+		Hdr:        dns.RR_Header{Name: name, Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+		NextDomain: "\\000." + name,
+		TypeBitMap: append(types, dns.TypeRRSIG, dns.TypeNSEC),
+	}
+
+	return []dns.RR{nsec, signRRset([]dns.RR{nsec}, dns.TypeNSEC, key, priv, signer)}
+}
 
 // partOfParentChain is the layout of issue #2280: jp. is a trust anchor, co.jp. is a name in the
 // jp. zone with a TXT record, and jp. delegates the signed zone jprs.co.jp. directly. answers maps

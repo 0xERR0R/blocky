@@ -196,6 +196,8 @@ blocking:
 caching:
   # duration how long a response must be cached (min value).
   # If <=0, use response's TTL, if >0 use this value, if TTL is smaller
+  # Not used for a response whose answer or authority section has DNSSEC signatures (RRSIG records):
+  # such a response is cached for no longer than the smallest TTL of the records of these two sections
   # Default: 0
   minTime: 5m
   # duration how long a response must be cached (max value).
@@ -221,6 +223,7 @@ caching:
   # Default (0): unlimited
   prefetchMaxItemsCount: 0
   # Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.
+  # The limit that minTime describes for a response with DNSSEC signatures applies to a negative result too.
   # Default: 30m
   cacheTimeNegative: 30m
 
@@ -528,17 +531,18 @@ dnssec:
   # default: false
   validate: true
 
-  # Maximum domain label depth for chain of trust validation
-  # Prevents DoS with deeply nested domains (e.g., a.b.c.d.e.f.g.h.i.j.example.com)
+  # Maximum number of zones in a chain of trust below its trust anchor
+  # Prevents DoS with long chains of delegations; labels that are no zone of their own are not counted
   # default: 10
   maxChainDepth: 10
 
-  # How long to cache validation results (in hours)
-  # Improves performance by avoiding repeated validation of the same domains
+  # How long to cache validation results at most (in hours)
+  # Improves performance by avoiding repeated validation of the same domains; a result is dropped
+  # earlier when the TTL or the signature of the records that proved it ends
   # default: 1
   cacheExpirationHours: 1
 
-  # Maximum upstream DNS queries per validation request
+  # Maximum upstream DNS queries (DNSKEY/DS lookups) that the validation for one client query makes
   # Protects against DoS attacks with queries requiring many upstream lookups
   # (e.g., deeply nested delegation chains requiring DNSKEY + DS queries per level)
   # Validation will fail if budget is exhausted
