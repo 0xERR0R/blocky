@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net"
 	"slices"
 	"strings"
@@ -38,34 +39,35 @@ type CustomDNSResolver struct {
 	createAnswerFromQuestion createAnswerFunc
 	mapping                  config.CustomDNSMapping
 	reverseAddresses         map[string][]string
+	clients                  clientIndex[*customDNSView]
+}
+
+// customDNSView is what one clientMapping entry adds for its clients: its own
+// mapping, checked before the global one for each name, and the reverse (PTR) index of every
+// name those clients resolve locally.
+type customDNSView struct {
+	mapping          config.CustomDNSMapping
+	reverseAddresses map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
-	dnsRecords := make(config.CustomDNSMapping, len(cfg.Mapping)+len(cfg.Zone.RRs))
-
-	for url, entries := range cfg.Mapping {
-		url = util.ExtractDomainOnly(url)
-		dnsRecords[url] = entries
-
-		for _, entry := range entries {
-			entry.Header().Ttl = cfg.CustomTTL.SecondsU32()
-		}
-	}
+	dnsRecords := mappingRecords(cfg.Mapping, cfg.CustomTTL.SecondsU32(), len(cfg.Zone.RRs))
 
 	for url, entries := range cfg.Zone.RRs {
 		url = util.ExtractDomainOnly(url)
 		dnsRecords[url] = entries
 	}
 
-	reverse := make(map[string][]string, len(dnsRecords))
+	clients := make(map[string]*customDNSView, len(cfg.ClientMapping))
 
-	for url, entries := range dnsRecords {
-		for _, entry := range entries {
-			if ip := extractIPFromRecord(entry); ip != nil {
-				r, _ := dns.ReverseAddr(ip.String())
-				reverse[r] = append(reverse[r], url)
-			}
+	for key, mapping := range cfg.ClientMapping {
+		view := newCustomDNSView(mappingRecords(mapping, cfg.CustomTTL.SecondsU32(), 0), dnsRecords)
+
+		// invalid identifiers are rejected when the config is loaded
+		ids, _ := config.ParseClientIdentifiers(key)
+		for _, id := range ids {
+			clients[id] = view
 		}
 	}
 
@@ -75,8 +77,63 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 
 		createAnswerFromQuestion: util.CreateAnswerFromQuestion,
 		mapping:                  dnsRecords,
-		reverseAddresses:         reverse,
+		reverseAddresses:         reverseIndex(dnsRecords),
+		clients:                  newClientIndex(clients),
 	}
+}
+
+// mappingRecords normalizes the names of a simple mapping and applies customTTL
+// to its records. extra reserves room for records added afterwards.
+func mappingRecords(mapping config.CustomDNSMapping, ttl uint32, extra int) config.CustomDNSMapping {
+	records := make(config.CustomDNSMapping, len(mapping)+extra)
+
+	for url, entries := range mapping {
+		url = util.ExtractDomainOnly(url)
+		records[url] = entries
+
+		for _, entry := range entries {
+			entry.Header().Ttl = ttl
+		}
+	}
+
+	return records
+}
+
+// newCustomDNSView builds the view of a client whose own mapping is client. The
+// client resolves every name of both mappings to its own records, except a
+// global name that client holds too, so that one is left out of its PTR answers.
+func newCustomDNSView(client, global config.CustomDNSMapping) *customDNSView {
+	visible := make(config.CustomDNSMapping, len(global)+len(client))
+	maps.Copy(visible, global)
+	maps.Copy(visible, client)
+
+	return &customDNSView{
+		mapping:          client,
+		reverseAddresses: reverseIndex(visible),
+	}
+}
+
+func reverseIndex(records config.CustomDNSMapping) map[string][]string {
+	reverse := make(map[string][]string, len(records))
+
+	for url, entries := range records {
+		for _, entry := range entries {
+			if ip := extractIPFromRecord(entry); ip != nil {
+				r, _ := dns.ReverseAddr(ip.String())
+				reverse[r] = append(reverse[r], url)
+			}
+		}
+	}
+
+	return reverse
+}
+
+// clientView returns the clientMapping entry that applies to the request's
+// client, or nil if none does.
+func (r *CustomDNSResolver) clientView(request *model.Request) *customDNSView {
+	view, _ := r.clients.mostSpecific(request.ClientNames, request.ClientIP)
+
+	return view
 }
 
 func isSupportedType(ip net.IP, question dns.Question) bool {
@@ -86,6 +143,7 @@ func isSupportedType(ip net.IP, question dns.Question) bool {
 
 // LookupReverse returns the domain names mapped to the given IP by the custom DNS
 // configuration, consulting only in-memory data (no network I/O). Returns nil if there is no match.
+// It names clients, so it reads mapping and zone only: clientMapping is chosen by client name.
 func (r *CustomDNSResolver) LookupReverse(ip net.IP) []string {
 	arpa, err := dns.ReverseAddr(ip.String())
 	if err != nil {
@@ -104,12 +162,17 @@ func (r *CustomDNSResolver) LookupReverse(ip net.IP) []string {
 	return names
 }
 
-func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Response {
+func (r *CustomDNSResolver) handleReverseDNS(request *model.Request, view *customDNSView) *model.Response {
 	question := request.Req.Question[0]
 	if question.Qtype == dns.TypePTR {
+		reverseAddresses := r.reverseAddresses
+		if view != nil {
+			reverseAddresses = view.reverseAddresses
+		}
+
 		// reverseAddresses is keyed by dns.ReverseAddr output, which is lower case:
 		// DNS names are case insensitive, so normalize before looking up.
-		urls, found := r.reverseAddresses[strings.ToLower(question.Name)]
+		urls, found := reverseAddresses[strings.ToLower(question.Name)]
 		if found {
 			answers := make([]dns.RR, 0, len(urls))
 			for _, url := range urls {
@@ -127,14 +190,15 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	return nil
 }
 
-// processRequest resolves a query from the configured mapping. It reports
-// whether the mapping handled the query at all; when it did not, the caller
-// continues down the chain itself, so that it can restore a rewritten request
-// first.
+// processRequest resolves a query from the configured mapping, as seen by the
+// client whose clientMapping entry is view (nil: none). It reports whether the
+// mapping handled the query at all; when it did not, the caller continues down
+// the chain itself, so that it can restore a rewritten request first.
 func (r *CustomDNSResolver) processRequest(
 	ctx context.Context,
 	logger *logrus.Entry,
 	request *model.Request,
+	view *customDNSView,
 	resolvedCnames []string,
 ) (handled bool, response *model.Response, err error) {
 	question := request.Req.Question[0]
@@ -146,11 +210,11 @@ func (r *CustomDNSResolver) processRequest(
 			return true, nil, fmt.Errorf("context cancelled during custom DNS resolution: %w", err)
 		}
 
-		entries, found := r.mapping[domain]
+		entries, found := r.entriesFor(view, domain)
 
 		if found {
 			for _, entry := range entries {
-				result, err := r.processDNSEntry(ctx, logger, request, resolvedCnames, question, entry)
+				result, err := r.processDNSEntry(ctx, logger, request, view, resolvedCnames, question, entry)
 				if err != nil {
 					return true, nil, err
 				}
@@ -192,10 +256,27 @@ func (r *CustomDNSResolver) processRequest(
 	return false, nil, nil
 }
 
+// entriesFor returns the records held for exactly domain: the client's entry
+// (view) is asked first, then the global mapping. A name in the client's entry
+// replaces the global records of that name whatever their types, so the entry
+// alone decides which types of its names are answered.
+func (r *CustomDNSResolver) entriesFor(view *customDNSView, domain string) (config.CustomDNSEntries, bool) {
+	if view != nil {
+		if entries, found := view.mapping[domain]; found {
+			return entries, true
+		}
+	}
+
+	entries, found := r.mapping[domain]
+
+	return entries, found
+}
+
 func (r *CustomDNSResolver) processDNSEntry(
 	ctx context.Context,
 	logger *logrus.Entry,
 	request *model.Request,
+	view *customDNSView,
 	resolvedCnames []string,
 	question dns.Question,
 	entry dns.RR,
@@ -214,7 +295,7 @@ func (r *CustomDNSResolver) processDNSEntry(
 	case *dns.SVCB:
 		return processServiceBinding(v, dns.TypeSVCB, question), nil
 	case *dns.CNAME:
-		return r.processCNAME(ctx, logger, request, *v, resolvedCnames, question, v.Header().Ttl)
+		return r.processCNAME(ctx, logger, request, view, *v, resolvedCnames, question, v.Header().Ttl)
 	}
 
 	// A zone can legitimately contain record types blocky does not serve (SOA, NS,
@@ -236,7 +317,9 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 
 	ctx, logger := r.log(ctx)
 
-	reverseResp := r.handleReverseDNS(request)
+	view := r.clientView(request)
+
+	reverseResp := r.handleReverseDNS(request, view)
 	if reverseResp != nil {
 		return reverseResp, nil
 	}
@@ -248,7 +331,7 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 		request.Req = rewritten
 	}
 
-	handled, response, err := r.processRequest(ctx, logger, request, make([]string, 0, len(r.cfg.Mapping)))
+	handled, response, err := r.processRequest(ctx, logger, request, view, make([]string, 0, len(r.cfg.Mapping)))
 
 	// Revert the request before it leaves this resolver: the rewritten name is
 	// meant for the mapping, not for the rest of the chain.
@@ -349,6 +432,7 @@ func (r *CustomDNSResolver) processCNAME(
 	ctx context.Context,
 	logger *logrus.Entry,
 	request *model.Request,
+	view *customDNSView,
 	targetCname dns.CNAME,
 	resolvedCnames []string,
 	question dns.Question,
@@ -376,8 +460,8 @@ func (r *CustomDNSResolver) processCNAME(
 	clientID := request.RequestClientID
 	targetRequest := newRequestWithClientID(targetWithoutDot, dns.Type(question.Qtype), clientIP, clientID)
 
-	// resolve the target recursively
-	handled, targetResp, err := r.processRequest(ctx, logger, targetRequest, cnames)
+	// resolve the target recursively, as the same client sees it
+	handled, targetResp, err := r.processRequest(ctx, logger, targetRequest, view, cnames)
 	if err != nil {
 		return nil, err
 	}

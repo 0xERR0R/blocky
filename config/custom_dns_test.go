@@ -232,4 +232,126 @@ www A 1.2.3.4
 			Expect(err.Error()).Should(ContainSubstring("Failed to unmarshal"))
 		})
 	})
+
+	Describe("clientMapping", func() {
+		var tmpDir *TmpFolder
+
+		BeforeEach(func() {
+			tmpDir = NewTmpFolder("config")
+		})
+
+		load := func(lines ...string) (*Config, error) {
+			cfgFile := tmpDir.CreateStringFile("config.yml", lines...)
+
+			return LoadConfigWithLogger(logger, cfgFile.Path, true)
+		}
+
+		It("parses per-client mappings next to the global one", func() {
+			c, err := load(
+				"customDNS:",
+				"  mapping:",
+				"    printer.lan: 192.168.178.3",
+				"  clientMapping:",
+				"    192.168.68.0/22:",
+				"      www.domain.io: 192.168.1.75",
+				"    'laptop*, 10.0.0.1':",
+				"      www.domain.io: 100.64.0.5,2001:db8::5",
+			)
+			Expect(err).Should(Succeed())
+
+			Expect(c.CustomDNS.Mapping).Should(HaveKey("printer.lan"))
+			Expect(c.CustomDNS.ClientMapping).Should(HaveLen(2))
+			entries := c.CustomDNS.ClientMapping["192.168.68.0/22"]["www.domain.io"]
+			Expect(entries).Should(HaveLen(1))
+			Expect(entries[0]).Should(BeAssignableToTypeOf(&dns.A{}))
+			Expect(entries[0].(*dns.A).A.String()).Should(Equal("192.168.1.75"))
+			Expect(c.CustomDNS.ClientMapping["laptop*, 10.0.0.1"]["www.domain.io"]).Should(HaveLen(2))
+			Expect(c.CustomDNS.IsEnabled()).Should(BeTrue())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+		})
+
+		It("enables custom DNS on its own", func() {
+			cfg := CustomDNS{ClientMapping: CustomDNSClientMapping{"laptop": CustomDNSMapping{}}}
+
+			Expect(cfg.IsEnabled()).Should(BeTrue())
+		})
+
+		It("logs every client's entries", func() {
+			cfg.ClientMapping = CustomDNSClientMapping{
+				"192.168.68.0/22": {"www.domain.io": {&dns.A{A: net.ParseIP("192.168.1.75")}}},
+			}
+
+			cfg.LogConfig(logger)
+
+			Expect(hook.Messages).Should(ContainElements(
+				"clientMapping:",
+				"  192.168.68.0/22:",
+				ContainSubstring("    www.domain.io = "),
+			))
+		})
+
+		DescribeTable("rejects keys that cannot name a client",
+			func(key, expected string) {
+				_, err := load(
+					"customDNS:",
+					"  clientMapping:",
+					"    '"+key+"':",
+					"      www.domain.io: 192.168.1.75",
+				)
+				Expect(err).Should(MatchError(SatisfyAll(
+					ContainSubstring("customDNS.clientMapping"),
+					ContainSubstring(expected),
+				)))
+			},
+			Entry("bad CIDR", "192.168.68.0/33", "invalid CIDR '192.168.68.0/33'"),
+			Entry("bad IPv4", "192.168.1.300", "invalid IP address '192.168.1.300'"),
+			Entry("bad IPv6", "2001:db8::g", "invalid IP address '2001:db8::g'"),
+			Entry("bad pattern", "laptop[", "invalid client name pattern 'laptop['"),
+			Entry("empty part", "laptop,", "empty client identifier"),
+			Entry("default", "default", "use customDNS.mapping for every client"),
+		)
+
+		It("rejects a client listed under two keys", func() {
+			_, err := load(
+				"customDNS:",
+				"  clientMapping:",
+				"    Laptop, 10.0.0.1:",
+				"      www.domain.io: 192.168.1.75",
+				"    laptop:",
+				"      www.domain.io: 192.168.1.76",
+			)
+			Expect(err).Should(MatchError(ContainSubstring(
+				"client 'laptop' is listed under both 'Laptop, 10.0.0.1' and 'laptop'")))
+		})
+
+		It("compares IPs and CIDRs in canonical form", func() {
+			_, err := load(
+				"customDNS:",
+				"  clientMapping:",
+				"    '2001:DB8:0::1':",
+				"      www.domain.io: 192.168.1.75",
+				"    '10.0.0.0/8, 2001:db8::1':",
+				"      www.domain.io: 192.168.1.76",
+			)
+			Expect(err).Should(MatchError(ContainSubstring("client '2001:db8::1' is listed under both")))
+		})
+	})
+
+	Describe("ParseClientIdentifiers", func() {
+		It("normalizes every identifier of a key", func() {
+			Expect(ParseClientIdentifiers(" Laptop* ,10.1.2.3/8,2001:DB8::1,192.168.1.2")).Should(Equal(
+				[]string{"laptop*", "10.0.0.0/8", "2001:db8::1", "192.168.1.2"}))
+		})
+
+		It("takes digits without a dot for a client name", func() {
+			Expect(ParseClientIdentifiers("42")).Should(Equal([]string{"42"}))
+		})
+
+		It("returns the identifiers it parsed along with the first error", func() {
+			ids, err := ParseClientIdentifiers("laptop,10.0.0.0/33,phone")
+
+			Expect(ids).Should(Equal([]string{"laptop", "phone"}))
+			Expect(err).Should(MatchError("invalid CIDR '10.0.0.0/33'"))
+		})
+	})
 })

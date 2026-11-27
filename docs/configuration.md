@@ -576,6 +576,7 @@ Custom DNS supports multiple record types (A, AAAA, CNAME, TXT, SRV, HTTPS, SVCB
 | customTTL           | duration used for simple mappings (no unit is minutes) | no        | 1h            | Time-to-live for DNS records defined in the mapping section                                |
 | rewrite             | string: string (domain: domain)                        | no        |               | Domain rewriting rules applied before DNS resolution                                       |
 | mapping             | string: string (hostname: address list)                | no        |               | Simple domain to IP mappings                                                               |
+| clientMapping       | client: mapping (client identifier: hostname: address list) | no   |               | Simple domain to IP mappings for particular clients, see [Per-client mapping](#per-client-mapping) |
 | zone                | string containing a DNS Zone                           | no        |               | DNS zone file content for more complex configurations                                      |
 | filterUnmappedTypes | boolean                                                | no        | true          | Whether to filter query types that aren't defined for a domain or forward them to upstream |
 
@@ -600,6 +601,85 @@ This configuration will resolve:
 ### Subdomain Resolution
 
 Custom DNS automatically resolves subdomains of defined domains. For example, with the above configuration, queries for `my.printer.lan` or `any.subdomain.of.printer.lan` will also resolve to `192.168.178.3`.
+
+### Per-client mapping
+
+With `clientMapping`, a name can resolve differently depending on which client asks (split-horizon DNS). Each entry
+is keyed by the clients it applies to and holds a mapping in the same format as `mapping`:
+
+!!! example
+
+    ```yaml
+    customDNS:
+      mapping:
+        printer.lan: 192.168.178.3
+      clientMapping:
+        # clients on the LAN get the internal address
+        192.168.68.0/22:
+          www.domain.io: 192.168.1.75
+        # clients on the overlay network get another one
+        192.168.128.0/22:
+          www.domain.io: 100.64.0.5
+        # this one device on the LAN gets the public answer, from upstream
+        192.168.68.10: {}
+    ```
+
+    Every client resolves `printer.lan` to `192.168.178.3`. `www.domain.io` resolves to `192.168.1.75` for LAN clients,
+    to `100.64.0.5` for overlay clients, and through the upstream resolvers for everyone else, `192.168.68.10` included.
+
+A client is identified like in [blocking client groups](#client-groups): by client name (see
+[Client name lookup](#client-name-lookup)), with `*`, `?` and `[...]` wildcards allowed, by IP address or by subnet in
+CIDR notation. Several identifiers can share one entry, separated by commas (`laptop,phone*,192.168.178.20`).
+A fully qualified domain name is compared to the client names only; unlike in client groups, it is not resolved to
+addresses. Each client may appear in only one entry.
+
+**Exactly one entry applies to a client**, the most specific one that matches it:
+
+1. a client name (a name without wildcards before one with wildcards, see 3.)
+2. the client's IP address
+3. a client name with wildcards
+4. the subnet with the longest prefix
+
+Entries that are not chosen do not apply at all, so an entry for one address can carve a device out of its subnet's
+entry, even with an empty mapping as above.
+
+The usual [subdomain resolution](#subdomain-resolution) tries the queried name first and then each parent. For a
+client with an entry, every one of those names is looked up in the client's entry first and then in `mapping` and
+`zone`; the most specific name found anywhere answers. So the most specific name wins, and on the same name the
+client's entry wins:
+
+!!! example
+
+    ```yaml
+    customDNS:
+      mapping:
+        ha.home.lan: 192.168.178.10
+        corp.lan: 192.168.178.30
+        printer.lan: 192.168.178.3
+      clientMapping:
+        192.168.68.0/22:
+          home.lan: 192.168.68.22
+          vpn.corp.lan: 192.168.68.30
+          printer.lan: 192.168.68.3
+    ```
+
+    For a client in `192.168.68.0/22`: `ha.home.lan` resolves to `192.168.178.10` (the more specific global name),
+    `nas.home.lan` to `192.168.68.22`, `vpn.corp.lan` to `192.168.68.30`, `mail.corp.lan` to `192.168.178.30`
+    and `printer.lan` to `192.168.68.3`.
+
+A name in the client's entry replaces the records of the same name in `mapping` and `zone` entirely, whatever their
+types. With `filterUnmappedTypes: true`, a query for a type the client's entry does not define for that name (an
+`AAAA` query for a name mapped to an IPv4 address only, say) gets an empty answer, even if `mapping` defines that
+type for the same name; with `false`, it is forwarded upstream.
+
+`customTTL`, `rewrite` and [CNAME resolution](#cname-resolution) apply to client entries as they do to `mapping`;
+a CNAME's target is resolved as the same client sees it. The `zone` applies to every client.
+[Reverse lookups](#reverse-dns) answer with the names the asking client resolves locally: the addresses of its entry,
+and those of `mapping` and `zone` except for names its entry also holds. Resolving client names from custom DNS
+([Client name lookup](#client-name-lookup)) uses `mapping` and `zone` only.
+
+Answers from custom DNS, per-client ones included, never pass through the [cache](#caching), so one client's answer is
+never served to another.
 
 ### Domain Rewriting
 

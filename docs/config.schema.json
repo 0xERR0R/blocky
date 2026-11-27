@@ -167,6 +167,26 @@
           "type": "object",
           "description": "Simple domain-to-IP mappings; multiple IPs per domain separated by commas."
         },
+        "clientMapping": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "type": "object",
+          "description": "Per-client domain-to-IP mappings, keyed by client name (wildcards allowed), IP or CIDR\n(several separated by commas). Only the client's most specific entry applies; for each\nname of the subdomain walk it is checked before mapping."
+        },
         "zone": {
           "type": "string",
           "description": "DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV, HTTPS, SVCB).",
