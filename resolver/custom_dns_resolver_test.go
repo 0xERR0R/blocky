@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -423,6 +424,16 @@ var _ = Describe("CustomDNSResolver", func() {
 					// will delegate to next resolver
 					m.AssertCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
+			})
+			It("should pass the client names on when the target is resolved by the next resolver", func() {
+				request := newRequestWithClient("cname.example", A, "192.168.178.55", "laptop")
+
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeCUSTOMDNS))
+
+				m.AssertCalled(GinkgoT(), "Resolve", mock.MatchedBy(func(req *Request) bool {
+					return req.Req.Question[0].Name == "example.com." &&
+						slices.Equal(req.ClientNames, []string{"laptop"})
+				}))
 			})
 			It("should not panic when CNAME points to external domain and next resolver returns NoResponse", func() {
 				// This reproduces issue #1867: panic when CNAME points to external domain
