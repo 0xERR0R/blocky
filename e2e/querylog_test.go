@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	sqliteDriver "github.com/glebarez/sqlite"
 	"github.com/miekg/dns"
@@ -181,6 +182,49 @@ var _ = Describe("Query logs functional tests", func() {
 				})
 			})
 		})
+	})
+
+	It("buffers query logs when PostgreSQL starts late", func(ctx context.Context) {
+		blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+			upstreams:
+			  groups:
+			    default:
+			      - moka1
+			queryLog:
+			  type: postgresql
+			  target: postgres://user:user@postgres:5432/user
+			  flushInterval: 1s
+			`))
+		Expect(err).Should(Succeed())
+
+		const beforeDB, afterDB = "google.de", "google.com"
+		assertResolves := func(name string) {
+			GinkgoHelper()
+			qname := dns.Fqdn(name)
+			Expect(doDNSRequest(ctx, blocky, util.NewMsgWithQuestion(qname, A))).
+				Should(BeDNSRecord(qname, A, "1.2.3.4"))
+		}
+
+		By("resolving the first query before the database exists")
+		assertResolves(beforeDB)
+
+		By("starting PostgreSQL and querying the same Blocky instance")
+		postgresDB, err = createPostgresContainer(ctx, e2eNet)
+		Expect(err).Should(Succeed())
+		assertResolves(afterDB)
+
+		By("waiting for both query names to appear in PostgreSQL")
+		connectionString, err := postgresDB.ConnectionString(ctx, "sslmode=disable")
+		Expect(err).Should(Succeed())
+		db, err = gorm.Open(postgresDriver.Open(connectionString), &gorm.Config{})
+		Expect(err).Should(Succeed())
+		sqlDB, err := db.DB()
+		Expect(err).Should(Succeed())
+		DeferCleanup(sqlDB.Close)
+
+		Eventually(queryEntries, "60s", "1s").WithArguments(db).Should(ContainElements(
+			HaveField("QuestionName", beforeDB), HaveField("QuestionName", afterDB),
+		))
 	})
 
 	Describe("Query logging into the timescale database", func() {
