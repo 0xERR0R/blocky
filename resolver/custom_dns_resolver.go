@@ -375,6 +375,9 @@ func (r *CustomDNSResolver) processCNAME(
 	clientIP := request.ClientIP.String()
 	clientID := request.RequestClientID
 	targetRequest := newRequestWithClientID(targetWithoutDot, dns.Type(question.Qtype), clientIP, clientID)
+	// the target belongs to the same client: keep its names so that the client
+	// specific upstream and blocking groups apply to it too
+	targetRequest.ClientNames = request.ClientNames
 
 	// resolve the target recursively
 	handled, targetResp, err := r.processRequest(ctx, logger, targetRequest, cnames)
