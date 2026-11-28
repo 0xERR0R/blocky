@@ -594,12 +594,19 @@ var _ = Describe("DNS64Resolver", func() {
 			Expect(resp.Res.Answer).Should(BeEmpty())
 		})
 
+		// an AAAA record outside the exclusion set
+		upstreamAAAA := &dns.AAAA{
+			Hdr:  dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 300},
+			AAAA: net.ParseIP("2001:db8::1"),
+		}
+
 		DescribeTable("synthesizes from A when the AAAA response has an error RCODE",
-			func(rcode int) {
+			func(rcode int, aaaaAnswer ...dns.RR) {
 				request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
 
 				aaaaResponse := new(dns.Msg)
 				aaaaResponse.SetRcode(request, rcode)
+				aaaaResponse.Answer = aaaaAnswer
 
 				aRequest := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
 				aResponse := new(dns.Msg)
@@ -630,6 +637,9 @@ var _ = Describe("DNS64Resolver", func() {
 			Entry("FORMERR", dns.RcodeFormatError),
 			Entry("NOTIMP", dns.RcodeNotImplemented),
 			Entry("REFUSED", dns.RcodeRefused),
+			Entry("FORMERR, with an AAAA record in the answer", dns.RcodeFormatError, upstreamAAAA),
+			Entry("NOTIMP, with an AAAA record in the answer", dns.RcodeNotImplemented, upstreamAAAA),
+			Entry("REFUSED, with an AAAA record in the answer", dns.RcodeRefused, upstreamAAAA),
 		)
 
 		It("returns the AAAA response with its RCODE when there is no A record either", func() {

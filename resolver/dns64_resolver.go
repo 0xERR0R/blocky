@@ -117,8 +117,9 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 		return response, err
 	}
 
-	// Check if response has AAAA records that are NOT all in exclusion set
-	if r.hasValidAAAARecords(response, logger) {
+	// Check if response has AAAA records that are NOT all in exclusion set.
+	// Only for NOERROR: the answer section of any other RCODE counts as empty.
+	if response.Res.Rcode == dns.RcodeSuccess && r.hasValidAAAARecords(response, logger) {
 		logger.Debug("existing valid AAAA found, skipping synthesis")
 
 		return response, nil
