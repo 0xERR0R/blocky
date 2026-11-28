@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/netip"
 
@@ -593,6 +594,177 @@ var _ = Describe("DNS64Resolver", func() {
 			Expect(aResponse.Question).Should(Equal(aRequest.Question))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 		})
+
+		// an AAAA record outside the exclusion set
+		upstreamAAAA := &dns.AAAA{
+			Hdr:  dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 300},
+			AAAA: net.ParseIP("2001:db8::1"),
+		}
+
+		DescribeTable("synthesizes from A when the AAAA response has an error RCODE",
+			func(rcode int, aaaaAnswer ...dns.RR) {
+				request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+				aaaaResponse := new(dns.Msg)
+				aaaaResponse.SetRcode(request, rcode)
+				aaaaResponse.Answer = aaaaAnswer
+
+				aRequest := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
+				aResponse := new(dns.Msg)
+				aResponse.SetReply(aRequest)
+				aResponse.Answer = []dns.RR{
+					&dns.A{
+						Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+						A:   net.ParseIP("192.0.2.1"),
+					},
+				}
+
+				m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+					return req.Req.Question[0].Qtype == dns.TypeAAAA
+				})).Return(&model.Response{Res: aaaaResponse}, nil)
+
+				m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+					return req.Req.Question[0].Qtype == dns.TypeA
+				})).Return(&model.Response{Res: aResponse}, nil)
+
+				resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+				Expect(err).Should(Succeed())
+				Expect(resp.RType).Should(Equal(model.ResponseTypeSYNTHESIZED))
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+				Expect(resp.Res.Answer).Should(HaveLen(1))
+				Expect(resp.Res.Answer[0].(*dns.AAAA).AAAA.String()).Should(Equal("64:ff9b::c000:201"))
+			},
+			Entry("FORMERR", dns.RcodeFormatError),
+			Entry("NOTIMP", dns.RcodeNotImplemented),
+			Entry("REFUSED", dns.RcodeRefused),
+			Entry("FORMERR, with an AAAA record in the answer", dns.RcodeFormatError, upstreamAAAA),
+			Entry("NOTIMP, with an AAAA record in the answer", dns.RcodeNotImplemented, upstreamAAAA),
+			Entry("REFUSED, with an AAAA record in the answer", dns.RcodeRefused, upstreamAAAA),
+		)
+
+		It("returns the AAAA response with its RCODE when there is no A record either", func() {
+			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+			aaaaResponse := new(dns.Msg)
+			aaaaResponse.SetRcode(request, dns.RcodeRefused)
+
+			aRequest := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
+			aResponse := new(dns.Msg)
+			aResponse.SetReply(aRequest)
+
+			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeAAAA
+			})).Return(&model.Response{Res: aaaaResponse}, nil)
+
+			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeA
+			})).Return(&model.Response{Res: aResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.Res).Should(Equal(aaaaResponse))
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
+		})
+
+		It("returns an AAAA-side NXDOMAIN without querying for A", func() {
+			request := util.NewMsgWithQuestion("notexist.com.", dns.Type(dns.TypeAAAA))
+
+			aaaaResponse := new(dns.Msg)
+			aaaaResponse.SetRcode(request, dns.RcodeNameError)
+
+			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeAAAA
+			})).Return(&model.Response{Res: aaaaResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.Res).Should(Equal(aaaaResponse))
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+		})
+
+		It("returns an AAAA validation failure without querying for A", func() {
+			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+			ede := &dns.EDNS0_EDE{InfoCode: dns.ExtendedErrorCodeDNSBogus, ExtraText: "no proof"}
+			failure := createServFailResponseDNSSEC(&model.Request{Req: request}, ede.InfoCode, ede.ExtraText)
+
+			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeAAAA
+			})).Return(failure, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.RType).Should(Equal(model.ResponseTypeBOGUS))
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+			Expect(resp.Res.IsEdns0().Option).Should(ContainElement(ede))
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+		})
+
+		It("returns an upstream SERVFAIL response without querying for A", func() {
+			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+			// DoH and DoQ upstreams deliver a SERVFAIL as a response, not as an error
+			aaaaResponse := new(dns.Msg)
+			aaaaResponse.SetRcode(request, dns.RcodeServerFailure)
+
+			m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeAAAA
+			})).Return(&model.Response{Res: aaaaResponse, RType: model.ResponseTypeRESOLVED}, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.RType).Should(Equal(model.ResponseTypeRESOLVED))
+			Expect(resp.Res).Should(Equal(aaaaResponse))
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+		})
+
+		DescribeTable("returns an upstream SERVFAIL of the A query for the original AAAA question",
+			func(aaaaRcode int, asError bool) {
+				request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+				aaaaResponse := new(dns.Msg)
+				aaaaResponse.SetRcode(request, aaaaRcode)
+
+				aRequest := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
+				aResponse := new(dns.Msg)
+				aResponse.SetRcode(aRequest, dns.RcodeServerFailure)
+				aResponse.SetEdns0(1232, false)
+				ede := &dns.EDNS0_EDE{InfoCode: dns.ExtendedErrorCodeNetworkError}
+				aResponse.IsEdns0().Option = []dns.EDNS0{ede}
+
+				m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+					return req.Req.Question[0].Qtype == dns.TypeAAAA
+				})).Return(&model.Response{Res: aaaaResponse}, nil)
+
+				// UDP, TCP and DoT upstreams deliver a SERVFAIL as an error, DoH and DoQ as a response
+				aQuery := m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+					return req.Req.Question[0].Qtype == dns.TypeA
+				}))
+				if asError {
+					aQuery.Return(nil, fmt.Errorf("upstream failed: %w", &UpstreamServerError{Msg: aResponse}))
+				} else {
+					aQuery.Return(&model.Response{Res: aResponse}, nil)
+				}
+
+				resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+				Expect(resp.Res.Question).Should(Equal(request.Question))
+				Expect(resp.Res.Id).Should(Equal(request.Id))
+				Expect(resp.Res.IsEdns0().Option).Should(ContainElement(ede))
+				Expect(aResponse.Question).Should(Equal(aRequest.Question))
+			},
+			Entry("delivered as a response, after an empty NOERROR", dns.RcodeSuccess, false),
+			Entry("delivered as an UpstreamServerError, after an empty NOERROR", dns.RcodeSuccess, true),
+			Entry("delivered as a response, after REFUSED", dns.RcodeRefused, false),
+			Entry("delivered as an UpstreamServerError, after REFUSED", dns.RcodeRefused, true),
+		)
 	})
 
 	Describe("TTL handling", func() {

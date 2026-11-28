@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"math"
 	"net"
 	"net/netip"
@@ -110,12 +111,16 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 
 	// Pass query to next resolver
 	response, err := r.next.Resolve(ctx, request)
-	if err != nil || response.Res.Rcode != dns.RcodeSuccess {
+	// RFC 6147 §5.1.2: return a name error and treat any other RCODE as an
+	// empty answer. SERVFAIL is returned as well, on purpose: it may be a
+	// validation failure (§5.5), blocky's or the upstream's.
+	if err != nil || response.Res.Rcode == dns.RcodeNameError || response.Res.Rcode == dns.RcodeServerFailure {
 		return response, err
 	}
 
-	// Check if response has AAAA records that are NOT all in exclusion set
-	if r.hasValidAAAARecords(response, logger) {
+	// Check if response has AAAA records that are NOT all in exclusion set.
+	// Only for NOERROR: the answer section of any other RCODE counts as empty.
+	if response.Res.Rcode == dns.RcodeSuccess && r.hasValidAAAARecords(response, logger) {
 		logger.Debug("existing valid AAAA found, skipping synthesis")
 
 		return response, nil
@@ -212,6 +217,13 @@ func (r *DNS64Resolver) synthesizeFromA(
 
 	// Send A query through next resolver
 	aResponse, err := r.next.Resolve(ctx, &aRequest)
+	// An upstream delivers its SERVFAIL as a response or, depending on the
+	// transport, as an UpstreamServerError: both are handled as the response.
+	if upstreamErr, ok := errors.AsType[*UpstreamServerError](err); ok {
+		aResponse = &model.Response{Res: upstreamErr.Msg, RType: model.ResponseTypeRESOLVED, Reason: upstreamErr.Error()}
+		err = nil
+	}
+
 	if err != nil {
 		logger.Debugf("A query failed: %v", err)
 
