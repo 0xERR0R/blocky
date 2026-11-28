@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/netip"
 
@@ -721,6 +722,49 @@ var _ = Describe("DNS64Resolver", func() {
 			Expect(resp.Res).Should(Equal(aaaaResponse))
 			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 		})
+
+		DescribeTable("returns an upstream SERVFAIL of the A query for the original AAAA question",
+			func(aaaaRcode int, asError bool) {
+				request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+				aaaaResponse := new(dns.Msg)
+				aaaaResponse.SetRcode(request, aaaaRcode)
+
+				aRequest := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
+				aResponse := new(dns.Msg)
+				aResponse.SetRcode(aRequest, dns.RcodeServerFailure)
+				aResponse.SetEdns0(1232, false)
+				ede := &dns.EDNS0_EDE{InfoCode: dns.ExtendedErrorCodeNetworkError}
+				aResponse.IsEdns0().Option = []dns.EDNS0{ede}
+
+				m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+					return req.Req.Question[0].Qtype == dns.TypeAAAA
+				})).Return(&model.Response{Res: aaaaResponse}, nil)
+
+				// UDP, TCP and DoT upstreams deliver a SERVFAIL as an error, DoH and DoQ as a response
+				aQuery := m.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+					return req.Req.Question[0].Qtype == dns.TypeA
+				}))
+				if asError {
+					aQuery.Return(nil, fmt.Errorf("upstream failed: %w", &UpstreamServerError{Msg: aResponse}))
+				} else {
+					aQuery.Return(&model.Response{Res: aResponse}, nil)
+				}
+
+				resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+				Expect(resp.Res.Question).Should(Equal(request.Question))
+				Expect(resp.Res.Id).Should(Equal(request.Id))
+				Expect(resp.Res.IsEdns0().Option).Should(ContainElement(ede))
+				Expect(aResponse.Question).Should(Equal(aRequest.Question))
+			},
+			Entry("delivered as a response, after an empty NOERROR", dns.RcodeSuccess, false),
+			Entry("delivered as an UpstreamServerError, after an empty NOERROR", dns.RcodeSuccess, true),
+			Entry("delivered as a response, after REFUSED", dns.RcodeRefused, false),
+			Entry("delivered as an UpstreamServerError, after REFUSED", dns.RcodeRefused, true),
+		)
 	})
 
 	Describe("TTL handling", func() {

@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"math"
 	"net"
 	"net/netip"
@@ -216,6 +217,13 @@ func (r *DNS64Resolver) synthesizeFromA(
 
 	// Send A query through next resolver
 	aResponse, err := r.next.Resolve(ctx, &aRequest)
+	// An upstream delivers its SERVFAIL as a response or, depending on the
+	// transport, as an UpstreamServerError: both are handled as the response.
+	if upstreamErr, ok := errors.AsType[*UpstreamServerError](err); ok {
+		aResponse = &model.Response{Res: upstreamErr.Msg, RType: model.ResponseTypeRESOLVED, Reason: upstreamErr.Error()}
+		err = nil
+	}
+
 	if err != nil {
 		logger.Debugf("A query failed: %v", err)
 
